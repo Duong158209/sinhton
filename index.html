@@ -21,6 +21,27 @@
 :where(code, pre, kbd, samp) {
   font-family: "Optimistic Mono", ui-monospace, monospace;
 }
+</style><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
 </style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -132,6 +153,7 @@ const SK={
   ringz:{n:'Vòng Sét',ic:'⭕',type:'w',d:'Phóng vòng tròn sét từ nhân vật ra ngoài gây sát thương rồi thu lại.'},
   drone:{n:'Drone Súng',ic:'🛸',type:'w',d:'Triệu hồi drone tự động bắn quái. Mỗi cấp bắn nhanh hơn và mạnh hơn.'},
   golem:{n:'Golem Cây',ic:'🌳',type:'w',d:'Triệu hồi Golem Cây bất tử 60s, đánh lan >100 dame, tăng 5% dame mỗi lần gọi. Có rễ trói và đất lăn.'},
+  tuocdoat:{n:'Kẻ Tước Đoạt',ic:'☠️',type:'w',d:'Khi địch dưới 20% máu có 5% kết liễu ngay. 5★: 15%. Ultimate: mỗi 10s bắt 1 quái ngẫu nhiên (kể cả boss) gây dame tử thần.'},
   hp:{n:'Trái tim',ic:'❤️',type:'p',d:'Tăng 20% máu tối đa và hồi một ít máu.'},
   spd:{n:'Giày chạy',ic:'👟',type:'p',d:'Tăng 8% tốc độ di chuyển.'},
   mag:{n:'Nam châm',ic:'🧲',type:'p',d:'Tăng phạm vi hút ngọc kinh nghiệm.'},
@@ -150,21 +172,22 @@ const EVO={
   boomerang:{n:'Boomerang Bão Tố',ic:'💫',d:'TIẾN HÓA: 3 boomerang khổng lồ nảy liên tục giữa 15 mục tiêu, sát thương x3.'},
   ringz:{n:'Vòng Điện Hấp Huyết',ic:'🔮',d:'TIẾN HÓA: vòng điện tím bao quanh người, quái chạm vào bị giật liên tục (sát thương x2.5) và hút 0.5% máu mỗi con.'},
   drone:{n:'Drone Laser 4 Hướng',ic:'💥',d:'TIẾN HÓA: drone bắn 4 tia laser cùng lúc, sát thương x3, tốc độ x2. Bắn 10s nghỉ 2.5s.'},
-  golem:{n:'Golem Cổ Thụ',ic:'🌲',d:'TIẾN HÓA: Golem to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và tồn tại 75s.'}
+  golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem tóc xanh, mắt đỏ, to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và tồn tại 75s.'},
+  tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Mỗi 10s triệu hồi Trảo Tử Thần bắt 1 quái ngẫu nhiên (boss vẫn tính), gây dame tử thần - dính là chết luôn kể cả bot. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'}
 };
 const wmax=k=>SK[k].type==='w'&&EVO[k]?6:MAXLV;
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='menu';
 let P,enemies,gems,coinsArr,projs,fx,texts,bolts,rings,clouds,arcs,warns,eprojs,bossIdx,droneSt,golemSt,chests;
-let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magnets,magnetT,monsterScale,lastScaleT;
+let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magnets,magnetT,monsterScale,monsterHpScale,monsterDmgScale,lastScaleT;
 const AURA_R=150;
 let lv={},ps={};
 function reset(){
   P={x:0,y:0,hp:100,maxhp:100,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;chests=[];
-  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;lastScaleT=150;
+  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=150;
   lv={kunai:1};ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0};
-  cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0};
+  cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0};
   droneSt={ang:0,active:10,rest:0,firing:true,orbit:48};
   golemSt={active:false,x:0,y:0,life:0,cd:0,atk:0,combo:0,rootCd:5,earthCd:8,summons:0,walk:0,moving:false};
   golemAttackFx=0; golemRootFx=0;
@@ -291,14 +314,18 @@ function spawnEnemy(forceType,px,py){
     else if(T>40&&roll<0.18)type='f';
     else if(T>80&&roll<0.28)type='t';
   }
-  const scale=(1+T/45)*monsterScale,mm=Math.pow(1.10,Math.floor(T/90))*monsterScale;
+  const scaleBase=(1+T/45),mmBase=Math.pow(1.10,Math.floor(T/90));
+  const scale=scaleBase*monsterHpScale,mmHp=mmBase*monsterHpScale,mmDmg=mmBase*monsterDmgScale;
+  const mm=mmDmg; // dmg dùng mmDmg, hp dùng scale*mmHp nhưng để đơn giản dùng tuyến tính
+  // tính lại hp theo hpScale, dame theo dmgScale (tuyến tính)
+  
   let e={x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
-  if(type==='n'){e.hp=16*scale*mm;e.sp=rnd(38,50);e.r=9;e.dmg=10*mm;e.s=1;}
-  if(type==='f'){e.hp=10*scale*mm;e.sp=rnd(72,86);e.r=8;e.dmg=8*mm;e.s=.9;}
-  if(type==='r'){e.hp=12*scale*mm;e.sp=44;e.r=8;e.dmg=4.5*mm;e.s=.95;e.sh=rnd(1,4);} // giảm dame 2 lần
-  if(type==='t'){e.hp=70*scale*mm;e.sp=rnd(28,34);e.r=14;e.dmg=18*mm;e.s=1.5;}
-  if(type==='sk'){e.hp=160*scale*mm;e.sp=rnd(32,40);e.r=10;e.dmg=50*mm;e.s=1.2;e.isSkel=true;e.revived=false;}
-  if(type==='b'){e.bt=bossIdx%2?'r':'m';e.hp=2000*Math.pow(3,bossIdx);e.sp=e.bt==='r'?68:72;e.r=e.bt==='r'?26:28;e.dmg=90*Math.pow(5,bossIdx);e.s=e.bt==='r'?2.5:2.7;bossIdx++;} // nerf: lần đầu 2000, sau mỗi lần x3 máu, x5 dame
+  if(type==='n'){e.hp=16*scaleBase*mmBase*monsterHpScale;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg;e.s=1;}
+  if(type==='f'){e.hp=10*scaleBase*mmBase*monsterHpScale;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg;e.s=.9;}
+  if(type==='r'){e.hp=12*scaleBase*mmBase*monsterHpScale;e.sp=44;e.r=8;e.dmg=4.5*mmDmg;e.s=.95;e.sh=rnd(1,4);} // giảm dame 2 lần
+  if(type==='t'){e.hp=70*scaleBase*mmBase*monsterHpScale;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg;e.s=1.5;}
+  if(type==='sk'){e.hp=160*scaleBase*mmBase*monsterHpScale;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg;e.s=1.2;e.isSkel=true;e.revived=false;}
+  if(type==='b'){e.bt=bossIdx%2?'r':'m';e.hp=2000*Math.pow(3,bossIdx)*monsterHpScale;e.sp=e.bt==='r'?68:72;e.r=e.bt==='r'?26:28;e.dmg=90*Math.pow(5,bossIdx)*monsterDmgScale;e.s=e.bt==='r'?2.5:2.7;bossIdx++;} // nerf: lần đầu 2000, sau mỗi lần x3 máu, x5 dame + scale 5% hp 50% dame
   e.max=e.hp;
   if(px!==undefined){e.x=px;e.y=py;}
   if(type==='b'){e.s1=4;e.s2=8;e.s3=6;e.s4=9;e.cw=0;e.dash=0;e.dx=0;e.dy=0;
@@ -311,10 +338,10 @@ function bossAI(e,dt){
     const base=Math.atan2(P.y-e.y,P.x-e.x);
     if(e.s1<=0){e.s1=2.4;
       for(let i=-2;i<=2;i++){const a=base+i*.2;
-        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*.45,life:3.5,r:9,c:'boss'});}}
+        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*.675,life:3.5,r:11,c:'boss',redOrb:true});}} // +50% dame thường, quả cầu đỏ 1/4 máu
     if(e.s2<=0){e.s2=6;const off=rnd(0,6.28);
       for(let i=0;i<16;i++){const a=off+i*Math.PI/8;
-        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*170,vy:Math.sin(a)*170,dmg:e.dmg*.35,life:4,r:8,c:'boss'});}}
+        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*170,vy:Math.sin(a)*170,dmg:e.dmg*.525,life:4,r:8,c:'boss'});}} // +50% dame
     if(e.s3<=0){e.s3=10;
       for(let i=0;i<20;i++){const a=i*Math.PI/10+rnd(-0.2,0.2);
         spawnEnemy('sk',e.x+Math.cos(a)*(60+rnd(0,30)),e.y+Math.sin(a)*(60+rnd(0,30)));}
@@ -325,7 +352,7 @@ function bossAI(e,dt){
     if(e.s4<=0){
       e.s4=7;
       for(let i=0;i<6;i++){const a=rnd(0,6.28),r=i?rnd(20,120):0;
-        warns.push({x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,r:72,t:1.3,T:1.3,dmg:e.dmg*1.2,cap:.25,isMeteor:true});}
+        warns.push({x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,r:72,t:1.3,T:1.3,dmg:e.dmg*1.8,cap:.35,isMeteor:true});} // +50% dame
       texts.push({x:e.x,y:e.y-60,v:'Mưa thiên thạch!',t:1.2,c:true});
     }
     if(e.s5<=0){
@@ -341,10 +368,10 @@ function bossAI(e,dt){
     e.dash-=dt;
     if(e.dashDmg){
       const d=Math.hypot(P.x-e.x,P.y-e.y);
-      if(d < e.r+18){
-        P.hp-=Math.min(e.dmg*0.9, P.maxhp*0.8); // fix cuối game boss không gây dame
+      if(d < (e.r+18)*2.5){ // phạm vi to hơn gấp 2.5 theo yêu cầu
+        P.hp-=Math.min(e.dmg*1.35, P.maxhp*0.8); // +50% dame lướt
         P.hurt=0.35; P.inv=0.3; shake=8;
-        fx.push({x:P.x,y:P.y,ring:30,t:.3,T:.3,c:'#ff2222'});
+        fx.push({x:P.x,y:P.y,ring:50,t:.3,T:.3,c:'#ff2222'});
         texts.push({x:P.x,y:P.y-20,v:'-LƯỚT CHÉM!',t:0.8,c:true});
       }
     }
@@ -354,7 +381,7 @@ function bossAI(e,dt){
   e.s1-=dt;e.s2-=dt;e.s3-=dt;e.s4-=dt;
   if(e.s4<=0){
     e.s4=13;
-    warns.push({x:e.x,y:e.y,r:280,t:1.8,T:1.8,dmg:e.dmg*2.2,cap:.55,isMeteor:true});
+    warns.push({x:e.x,y:e.y,r:280,t:1.8,T:1.8,dmg:e.dmg*3.3,cap:.65,isMeteor:true}); // +50% dame
     texts.push({x:e.x,y:e.y-60,v:'ĐẬP HỦY DIỆT!',t:1.3,c:true,big:true});
   }
   if(!e.enr&&e.hp<e.max*.5){
@@ -364,7 +391,7 @@ function bossAI(e,dt){
   }
   if(e.s1<=0){
     e.s1=6;
-    warns.push({x:e.x,y:e.y,r:160,t:0.9,T:0.9,dmg:e.dmg*1.4,cap:.45,isMeteor:true});
+    warns.push({x:e.x,y:e.y,r:160,t:0.9,T:0.9,dmg:e.dmg*2.1,cap:.55,isMeteor:true}); // +50% dame
     texts.push({x:e.x,y:e.y-50,v:'CHÉM!',t:0.8,c:true});
   }
   if(e.s2<=0){
@@ -377,7 +404,7 @@ function bossAI(e,dt){
     const d=Math.hypot(P.x-e.x,P.y-e.y)||1;e.dx=(P.x-e.x)/d;e.dy=(P.y-e.y)/d;
   }
 }
-function hitEnemy(e,dmg,kx,ky,crit){
+function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
   dmg*=1+.15*ps.dmg;
   if(Math.random()<.1){dmg*=2;crit=true;}
   if(ps.ls)P.hp=Math.min(P.maxhp,P.hp+Math.min(dmg,Math.max(e.hp,0))*LS[ps.ls]);
@@ -385,6 +412,19 @@ function hitEnemy(e,dmg,kx,ky,crit){
   const d=Math.hypot(kx,ky)||1;const kb=e.t==='b'?.06:1;e.kx+=kx/d*90*kb;e.ky+=ky/d*90*kb;
   texts.push({x:e.x+rnd(-6,6),y:e.y-14,v:Math.round(dmg),t:.6,c:crit});
   for(let i=0;i<2;i++)fx.push({x:e.x,y:e.y,vx:rnd(-60,60),vy:rnd(-60,60),t:.25,c:'#9fe04a',r:2});
+  // --- Kẻ Tước Đoạt: kết liễu khi dưới 20% máu ---
+  if(!fromTuoc && lv.tuocdoat && !e.dead && e.hp>0 && e.hp <= e.max*0.2){
+    const chance = lv.tuocdoat>=5 ? 0.15 : 0.05;
+    if(Math.random() < chance){
+      // kết liễu ngay
+      e.hp=0;
+      e.flash=0.4;
+      texts.push({x:e.x,y:e.y-28,v:'TƯỚC ĐOẠT!',t:1.2,c:true,big:true});
+      fx.push({x:e.x,y:e.y,ring:45,t:.5,T:.5,c:'#000000'});
+      fx.push({x:e.x,y:e.y,ring:30,t:.4,T:.4,c:'#ff0000'});
+      for(let i=0;i<8;i++) fx.push({x:e.x,y:e.y,vx:rnd(-120,120),vy:rnd(-120,120),t:.5,c:'#111',r:rnd(2,5)});
+    }
+  }
   if(e.hp<=0&&!e.dead){
     if(e.isSkel && !e.revived){
       e.revived=true;
@@ -539,6 +579,24 @@ function fireWeapons(dt){
         cd[k]=Math.max(0.18, 0.62 - 0.07*l);
       }
     }
+    if(k==='tuocdoat'){
+      if(l>=6){
+        const candidates = enemies.filter(e=>!e.dead);
+        if(candidates.length===0){ cd[k]=0.5; continue; }
+        const target = candidates[Math.floor(Math.random()*candidates.length)];
+        const ang = Math.atan2(target.y-P.y, target.x-P.x);
+        // trảo tử thần bay tới quái ngẫu nhiên, boss vẫn tính, chạm là chết kể cả bot
+        projs.push({k:'tuocdoat',x:P.x,y:P.y,vx:Math.cos(ang)*420,vy:Math.sin(ang)*420,a:ang,dmg:999999,life:3.5,r:28,hit:new Set(),insta:true,tgt:target,claw:true});
+        texts.push({x:P.x,y:P.y-50,v:'TRẢO TỬ THẦN!',t:1.2,c:true,big:true});
+        fx.push({x:P.x,y:P.y,ring:60,t:.5,T:.5,c:'#000'});
+        fx.push({x:P.x,y:P.y,ring:35,t:.4,T:.4,c:'#ff0000'});
+        shake=Math.max(shake,4);
+        cd[k]=10;
+      }else{
+        cd[k]=0.5;
+      }
+      continue;
+    }
   }
 }
 function explode(p){
@@ -613,6 +671,38 @@ function updateProjs(dt){
       if(Math.random()<0.3) fx.push({x:p.x,y:p.y,vx:rnd(-10,10),vy:rnd(-10,10),t:.5,c:lv.golem>=6?'#ff4444':'#8b6a3a',r:4});
       continue;
     }
+    if(p.k==='tuocdoat'){
+      // Trảo tử thần - bay tới mục tiêu, chạm là chết luôn kể cả boss và bot
+      if(Math.random()<0.6) fx.push({x:p.x,y:p.y,vx:rnd(-20,20),vy:rnd(-20,20),t:.45,c:'#000',r:rnd(2,5)});
+      fx.push({x:p.x,y:p.y,vx:rnd(-10,10),vy:rnd(-10,10),t:.35,c:'#ff0000',r:2.5});
+      // vệt đen
+      for(const e of enemies){
+        if(e.dead||p.hit.has(e))continue;
+        if(Math.hypot(e.x-p.x,e.y-p.y) < e.r + p.r + 12){
+          p.hit.add(e);
+          if(!e.dead){
+            e.hp=0; e.dead=true; kills++;
+            gems.push({x:e.x,y:e.y,v:(e.t==='b'?50:e.t==='t'?4:1)*(T<90?3:1),m:false});
+            if(e.t==='b'){
+              for(let i=0;i<12;i++)coinsArr.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),m:false});
+              chests.push({x:e.x,y:e.y,m:false,t:0});
+              texts.push({x:e.x,y:e.y-40,v:'BOSS BỊ TƯỚC ĐOẠT!',t:2,c:true,big:true});
+              shake=14;
+              fx.push({x:e.x,y:e.y,ring:90,t:.7,T:.7,c:'#000'});
+            }else{
+              texts.push({x:e.x,y:e.y-24,v:'TƯỚC ĐOẠT!',t:1,c:true});
+            }
+            fx.push({x:e.x,y:e.y,ring:55,t:.6,T:.6,c:'#ff0000'});
+            fx.push({x:e.x,y:e.y,ring:35,t:.5,T:.5,c:'#000'});
+            for(let i=0;i<10;i++) fx.push({x:e.x,y:e.y,vx:rnd(-150,150),vy:rnd(-150,150),t:.6,c:'#111',r:rnd(3,6)});
+            if(Math.random()<.05)coinsArr.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),m:false});
+          }
+        }
+      }
+      // nếu chạm mục tiêu chính thì xóa
+      if(p.tgt && p.tgt.dead){ p.dead=true; fx.push({x:p.x,y:p.y,ring:70,t:.6,T:.6,c:'#000'}); }
+      continue;
+    }
     for(const e of enemies){
       if(e.dead||p.hit.has(e))continue;
       if(Math.hypot(e.x-p.x,e.y-p.y)<e.r+p.r){
@@ -627,11 +717,13 @@ function updateProjs(dt){
 }
 function update(dt){
   T+=dt;
-  // tăng 30% máu và dame quái mỗi 30s bắt đầu từ 2p30
+  // chỉnh lại: sau 2p30 mỗi 30s tăng 5% máu và 50% dame
   if(T>=150 && T>=lastScaleT){
     lastScaleT+=30;
-    monsterScale*=1.3;
-    texts.push({x:P.x,y:P.y-60,v:'Quái mạnh lên +30%!',t:1.8,c:true,big:true});
+    monsterHpScale*=1.05;
+    monsterDmgScale*=1.5;
+    monsterScale=monsterHpScale; // giữ tương thích
+    texts.push({x:P.x,y:P.y-60,v:'Quái mạnh lên +5% HP +50% Dame!',t:1.8,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:80,t:.6,T:.6,c:'#ff2222'});
   }
   let dx=joy.dx,dy=joy.dy;
@@ -932,8 +1024,8 @@ function update(dt){
     e.flash=Math.max(0,e.flash-dt);
     if(d<e.r+9){
       if(e.t==='b'){
-        // boss cuối game gây dame mạnh hơn, không bị cap quá thấp
-        P.hp-=Math.min(e.dmg*1.2, P.maxhp*0.65)*dt*2.5; P.hurt=.25;
+        // boss đánh thường +50% dame theo yêu cầu
+        P.hp-=Math.min(e.dmg*1.8, P.maxhp*0.65)*dt*2.5; P.hurt=.25;
       }else{
         P.hp-=Math.min(e.dmg*1.2,P.maxhp*.2)*dt;P.hurt=.12;
       }
@@ -942,7 +1034,19 @@ function update(dt){
   }
   for(const b of eprojs){
     b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
-    if((P.inv||0)<=0&&Math.hypot(P.x-b.x,P.y-b.y)<b.r+9){P.hp-=Math.min(b.dmg,P.maxhp*.15);P.inv=.4;P.hurt=.15;b.dead=true;shake=Math.max(shake,2);}
+    if(Math.hypot(P.x-b.x,P.y-b.y)<b.r+9){
+      if(b.redOrb){
+        // quả cầu đỏ boss phù thủy: mất 1/4 cây máu nếu dính, có thể cộng dồn
+        P.hp-=P.maxhp*0.25;
+        P.hurt=.35; shake=Math.max(shake,6);
+        fx.push({x:P.x,y:P.y,ring:35,t:.4,T:.4,c:'#ff0000'});
+        texts.push({x:P.x,y:P.y-20,v:'-25% HP!',t:.8,c:true});
+        b.dead=true;
+        // không set inv để cộng dồn được
+      }else if((P.inv||0)<=0){
+        P.hp-=Math.min(b.dmg,P.maxhp*.15);P.inv=.4;P.hurt=.15;b.dead=true;shake=Math.max(shake,2);
+      }
+    }
     if(b.life<=0)b.dead=true;
   }
   eprojs=eprojs.filter(b=>!b.dead);
@@ -1158,6 +1262,17 @@ function drawProj(p){
     ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*1.3);ctx.lineWidth=5;ctx.stroke();
     ctx.fillStyle='#ffd23a';ctx.beginPath();ctx.arc(8,-2,3,0,7);ctx.fill();
   }
+  if(p.k==='tuocdoat'){
+    ctx.rotate(p.a);
+    ctx.shadowColor='#ff0000'; ctx.shadowBlur=14;
+    ctx.fillStyle='#111'; ctx.strokeStyle='#ff0000'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.ellipse(0,0,18,12,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ff2222'; ctx.beginPath(); ctx.moveTo(12,-8); ctx.lineTo(22,-4); ctx.lineTo(18,0); ctx.lineTo(22,4); ctx.lineTo(12,8); ctx.fill();
+    ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-4,0,4,0,7); ctx.fill();
+    ctx.shadowBlur=0;
+    // vệt đen
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.ellipse(-12,0,10,6,0,0,7); ctx.fill();
+  }
   ctx.restore();
 }
 function render(){
@@ -1332,10 +1447,15 @@ function render(){
     // đầu - gắn liền trên thân
     ctx.fillStyle='#5a3d24'; ctx.strokeStyle='#0f0a06'; ctx.lineWidth=3;
     ctx.beginPath(); ctx.roundRect(-w*0.24,-h*0.7,w*0.48,h*0.34,12); ctx.fill(); ctx.stroke();
-    // mắt xanh - giống ảnh mẫu, phát sáng mạnh khi đập
+    // mắt: thường xanh, ultimate đỏ (theo yêu cầu)
     const eyeGlow = attackProg>0 ? 24 : 12 + Math.sin(walk*4)*2;
-    ctx.shadowColor='#00e5ff'; ctx.shadowBlur=eyeGlow;
-    ctx.fillStyle='#7ff8ff';
+    if(isEvo){
+      ctx.shadowColor='#ff0000'; ctx.shadowBlur=eyeGlow;
+      ctx.fillStyle='#ff2222';
+    }else{
+      ctx.shadowColor='#00e5ff'; ctx.shadowBlur=eyeGlow;
+      ctx.fillStyle='#7ff8ff';
+    }
     ctx.beginPath(); ctx.arc(-w*0.1,-h*0.56,4.5,0,7); ctx.fill();
     ctx.beginPath(); ctx.arc(w*0.1,-h*0.56,4.5,0,7); ctx.fill();
     ctx.shadowBlur=0;
@@ -1347,12 +1467,12 @@ function render(){
       ctx.quadraticCurveTo(rnd(-5,5),-h*0.26, rnd(-6,6),-h*0.14); 
       ctx.stroke(); 
     }
-    // tán lá trên đầu - ultimate màu đỏ thay vì xanh
+    // tán lá trên đầu - chỉnh theo yêu cầu: ultimate tóc xanh thay vì đỏ
     if(isEvo){
-      ctx.fillStyle='#8b1a1a'; ctx.beginPath(); ctx.ellipse(0,-h*0.78,22,14,0,0,7); ctx.fill();
-      ctx.fillStyle='#c92a2a'; ctx.beginPath(); ctx.ellipse(-10,-h*0.82,14,10,0,0,7); ctx.fill();
+      ctx.fillStyle='#1a3a6b'; ctx.beginPath(); ctx.ellipse(0,-h*0.78,22,14,0,0,7); ctx.fill();
+      ctx.fillStyle='#2a5ab2'; ctx.beginPath(); ctx.ellipse(-10,-h*0.82,14,10,0,0,7); ctx.fill();
       ctx.beginPath(); ctx.ellipse(10,-h*0.82,14,10,0,0,7); ctx.fill();
-      ctx.fillStyle='#ff4444'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=12; ctx.beginPath(); ctx.ellipse(0,-h*0.88,10,7,0,0,7); ctx.fill(); ctx.shadowBlur=0;
+      ctx.fillStyle='#4aa0ff'; ctx.shadowColor='#0088ff'; ctx.shadowBlur=12; ctx.beginPath(); ctx.ellipse(0,-h*0.88,10,7,0,0,7); ctx.fill(); ctx.shadowBlur=0;
     }else{
       ctx.fillStyle='#3a7a2a'; ctx.beginPath(); ctx.ellipse(0,-h*0.78,22,14,0,0,7); ctx.fill();
       ctx.fillStyle='#5fbf4a'; ctx.beginPath(); ctx.ellipse(-10,-h*0.82,14,10,0,0,7); ctx.fill();
@@ -1663,5 +1783,5 @@ requestAnimationFrame(loop);
 })();
 
 </script>
-<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
