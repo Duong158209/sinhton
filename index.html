@@ -173,8 +173,8 @@ const EVO={
   boomerang:{n:'Boomerang Bão Tố',ic:'💫',d:'TIẾN HÓA: 3 boomerang khổng lồ nảy liên tục giữa 15 mục tiêu, sát thương x3.'},
   ringz:{n:'Vòng Điện Hấp Huyết',ic:'🔮',d:'TIẾN HÓA: vòng điện tím bao quanh người, quái chạm vào bị giật liên tục (sát thương x2.5) và hút 0.5% máu mỗi con.'},
   drone:{n:'Drone Laser 4 Hướng',ic:'💥',d:'TIẾN HÓA: drone bắn 4 tia laser cùng lúc, sát thương x3, tốc độ x2. Bắn 10s nghỉ 2.5s.'},
-  golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem tóc xanh, mắt đỏ, to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và tồn tại 75s.'},
-  hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn, gây thêm 3% máu tối đa của địch mỗi tick, tồn tại 6.5s. Khi nổ gây 300% tổng dame.'},
+  golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem tóc xanh, mắt đỏ, to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và không biến mất.'},
+  hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn, gây thêm 3% máu tối đa của địch mỗi tick và hồi 3% máu đó cho bản thân, tồn tại 6.5s. Khi nổ gây 300% tổng dame.'},
   tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Mỗi 10s triệu hồi Trảo Tử Thần bắt 1 quái ngẫu nhiên (boss vẫn tính), gây dame tử thần - dính là chết luôn kể cả bot. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'}
 };
 const wmax=k=>SK[k].type==='w'&&EVO[k]?6:MAXLV;
@@ -302,7 +302,16 @@ function ultFlash(k){
   fx.push({x:P.x,y:P.y,ring:140,t:.5,T:.5,c:'#b86bff'});
 }
 function levelCheck(){
-  if(P.xp>=need(P.lvl)){P.xp-=need(P.lvl);P.lvl++;updateHud();openLevelUp();}
+  if(P.xp>=need(P.lvl)){
+    P.xp-=need(P.lvl);
+    P.lvl++;
+    // Mỗi lv tăng 10 máu cộng dồn không giới hạn
+    P.maxhp+=10;
+    P.hp+=10;
+    texts.push({x:P.x,y:P.y-30,v:'+10 HP MAX',t:1,heal:true});
+    updateHud();
+    openLevelUp();
+  }
 }
 function gainXp(v){P.xp+=v*(1+.2*ps.xp);levelCheck();updateHud();}
 const maxEnemies=()=>Math.min(520,260+Math.floor(T/20)*10);
@@ -874,7 +883,7 @@ function update(dt){
         fx.push({x:golemSt.x,y:golemSt.y,ring:60,t:.6,T:.6,c:'#5a9a3a'});
       }
     }else{
-      golemSt.life-=dt;
+      if(lv.golem>=6){ /* ultimate không biến mất */ }else{ golemSt.life-=dt; }
       // AI mới: khi có boss thì only đánh boss
       let bossList = enemies.filter(e=>!e.dead && e.t==='b');
       let hasBoss = bossList.length>0;
@@ -1007,7 +1016,7 @@ function update(dt){
         projs.push({k:'golemEarth',x:golemSt.x,y:golemSt.y,vx:Math.cos(ang)*150,vy:Math.sin(ang)*150,a:ang,dmg:earthDmg* (lv.golem>=6?1.5:1),life:4.5,r:38,hit:new Set(),earth:true,onlyBoss:golemSt.onlyBoss});
         texts.push({x:golemSt.x,y:golemSt.y-45,v:golemSt.onlyBoss?'Đất lăn! -> BOSS':'Đất lăn!',t:1,c:true});
       }
-            if(golemSt.life<=0){
+            if(golemSt.life<=0 && lv.golem<6){
         golemSt.active=false;
         golemSt.cd=20; // hồi 20s theo yêu cầu
         fx.push({x:golemSt.x,y:golemSt.y,ring:70,t:.7,T:.7,c:'#6a9a5a'});
@@ -1073,6 +1082,12 @@ function update(dt){
           hitEnemy(e, totalDmg, bh.x-e.x, bh.y-e.y);
           bh.total+=totalDmg;
           e.inBH = 1.0;
+          if(bh.isEvo){
+            // Hút 3% máu quái hồi cho bản thân khi ở ultimate
+            const heal = e.max*0.03;
+            P.hp = Math.min(P.maxhp, P.hp + heal);
+            if(heal>0) texts.push({x:P.x+rnd(-10,10),y:P.y-20,v:'+'+Math.round(heal),t:.6,heal:true});
+          }
           if(bh.isEvo && extra>0) texts.push({x:e.x,y:e.y-18,v:'-3% HP',t:.5,c:true});
         }
       }
