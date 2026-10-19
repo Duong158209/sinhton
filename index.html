@@ -154,6 +154,7 @@ const SK={
   drone:{n:'Drone Súng',ic:'🛸',type:'w',d:'Triệu hồi drone tự động bắn quái. Mỗi cấp bắn nhanh hơn và mạnh hơn.'},
   golem:{n:'Golem Cây',ic:'🌳',type:'w',d:'Triệu hồi Golem Cây bất tử 60s, đánh lan >100 dame, tăng 5% dame mỗi lần gọi. Có rễ trói và đất lăn.'},
   tuocdoat:{n:'Kẻ Tước Đoạt',ic:'☠️',type:'w',d:'Khi địch dưới 20% máu có 5% kết liễu ngay. 5★: 15%. Ultimate: mỗi 10s bắt 1 quái ngẫu nhiên (kể cả boss) gây dame tử thần.'},
+  hoden:{n:'Hố Đen Vũ Trụ',ic:'🕳️',type:'w',d:'Triệu hồi hố đen hút quái vào tâm, gây dame liên tục. Cấp cao tăng bán kính và dame.'},
   hp:{n:'Trái tim',ic:'❤️',type:'p',d:'Tăng 20% máu tối đa và hồi một ít máu.'},
   spd:{n:'Giày chạy',ic:'👟',type:'p',d:'Tăng 8% tốc độ di chuyển.'},
   mag:{n:'Nam châm',ic:'🧲',type:'p',d:'Tăng phạm vi hút ngọc kinh nghiệm.'},
@@ -173,21 +174,22 @@ const EVO={
   ringz:{n:'Vòng Điện Hấp Huyết',ic:'🔮',d:'TIẾN HÓA: vòng điện tím bao quanh người, quái chạm vào bị giật liên tục (sát thương x2.5) và hút 0.5% máu mỗi con.'},
   drone:{n:'Drone Laser 4 Hướng',ic:'💥',d:'TIẾN HÓA: drone bắn 4 tia laser cùng lúc, sát thương x3, tốc độ x2. Bắn 10s nghỉ 2.5s.'},
   golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem tóc xanh, mắt đỏ, to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và tồn tại 75s.'},
+  hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn, gây thêm 3% máu tối đa của địch mỗi tick. Khi nổ gây 300% tổng dame + 3% máu. Quái chết trong hố có 20% rơi ngọc x2.'},
   tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Mỗi 10s triệu hồi Trảo Tử Thần bắt 1 quái ngẫu nhiên (boss vẫn tính), gây dame tử thần - dính là chết luôn kể cả bot. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'}
 };
 const wmax=k=>SK[k].type==='w'&&EVO[k]?6:MAXLV;
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='menu';
-let P,enemies,gems,coinsArr,projs,fx,texts,bolts,rings,clouds,arcs,warns,eprojs,bossIdx,droneSt,golemSt,chests;
+let P,enemies,gems,coinsArr,projs,fx,texts,bolts,rings,clouds,arcs,warns,eprojs,bossIdx,lastBossHp,lastBossDmg,blackholes,droneSt,golemSt,chests;
 let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magnets,magnetT,monsterScale,monsterHpScale,monsterDmgScale,lastScaleT;
 const AURA_R=150;
 let lv={},ps={};
 function reset(){
   P={x:0,y:0,hp:250,maxhp:250,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
-  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;chests=[];
+  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=1500;lastBossDmg=90;blackholes=[];chests=[];
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=150;
   lv={kunai:1};ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0};
-  cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0};
+  cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0,hoden:0};
   droneSt={ang:0,active:10,rest:0,firing:true,orbit:48};
   golemSt={active:false,x:0,y:0,life:0,cd:0,atk:0,combo:0,rootCd:5,earthCd:8,summons:0,walk:0,moving:false};
   golemAttackFx=0; golemRootFx=0;
@@ -325,7 +327,19 @@ function spawnEnemy(forceType,px,py){
   if(type==='r'){e.hp=12*scaleBase*mmBase*monsterHpScale;e.sp=44;e.r=8;e.dmg=4.5*mmDmg;e.s=.95;e.sh=rnd(1,4);} // giảm dame 2 lần
   if(type==='t'){e.hp=70*scaleBase*mmBase*monsterHpScale;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg;e.s=1.5;}
   if(type==='sk'){e.hp=160*scaleBase*mmBase*monsterHpScale;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg;e.s=1.2;e.isSkel=true;e.revived=false;}
-  if(type==='b'){e.bt=bossIdx%2?'r':'m';e.hp=2000*Math.pow(3,bossIdx)*monsterHpScale;e.sp=e.bt==='r'?68:72;e.r=e.bt==='r'?26:28;e.dmg=90*Math.pow(5,bossIdx)*monsterDmgScale;e.s=e.bt==='r'?2.5:2.7;bossIdx++;} // nerf: lần đầu 2000, sau mỗi lần x3 máu, x5 dame + scale 5% hp 50% dame
+  if(type==='b'){
+    e.bt=bossIdx%2?'r':'m';
+    if(bossIdx===0){
+      e.hp=1500;
+      e.dmg=90;
+    }else{
+      e.hp=lastBossHp*3;
+      e.dmg=lastBossDmg*1.5;
+    }
+    lastBossHp=e.hp;
+    lastBossDmg=e.dmg;
+    e.sp=e.bt==='r'?68:72;e.r=e.bt==='r'?26:28;e.s=e.bt==='r'?2.5:2.7;bossIdx++;
+  } // boss tách riêng: +200% máu (x3), +50% dame (x1.5)
   e.max=e.hp;
   if(px!==undefined){e.x=px;e.y=py;}
   if(type==='b'){e.s1=4;e.s2=8;e.s3=6;e.s4=9;e.cw=0;e.dash=0;e.dx=0;e.dy=0;
@@ -338,10 +352,10 @@ function bossAI(e,dt){
     const base=Math.atan2(P.y-e.y,P.x-e.x);
     if(e.s1<=0){e.s1=2.4;
       for(let i=-2;i<=2;i++){const a=base+i*.2;
-        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*.45,life:3.5,r:9,c:'boss'});}}
+        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*.675,life:3.5,r:11,c:'boss',redOrb:true});}} // +50% dame, quả cầu đỏ 1/4 máu
     if(e.s2<=0){e.s2=6;const off=rnd(0,6.28);
       for(let i=0;i<16;i++){const a=off+i*Math.PI/8;
-        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*170,vy:Math.sin(a)*170,dmg:e.dmg*.35,life:4,r:8,c:'boss'});}}
+        eprojs.push({x:e.x,y:e.y,vx:Math.cos(a)*170,vy:Math.sin(a)*170,dmg:e.dmg*.525,life:4,r:8,c:'boss'});}} // +50%
     if(e.s3<=0){e.s3=10;
       for(let i=0;i<20;i++){const a=i*Math.PI/10+rnd(-0.2,0.2);
         spawnEnemy('sk',e.x+Math.cos(a)*(60+rnd(0,30)),e.y+Math.sin(a)*(60+rnd(0,30)));}
@@ -352,7 +366,7 @@ function bossAI(e,dt){
     if(e.s4<=0){
       e.s4=7;
       for(let i=0;i<6;i++){const a=rnd(0,6.28),r=i?rnd(20,120):0;
-        warns.push({x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,r:72,t:1.3,T:1.3,dmg:e.dmg*1.2,cap:.25,isMeteor:true});}
+        warns.push({x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,r:72,t:1.3,T:1.3,dmg:e.dmg*1.8,cap:.35,isMeteor:true});}
       texts.push({x:e.x,y:e.y-60,v:'Mưa thiên thạch!',t:1.2,c:true});
     }
     if(e.s5<=0){
@@ -368,10 +382,10 @@ function bossAI(e,dt){
     e.dash-=dt;
     if(e.dashDmg){
       const d=Math.hypot(P.x-e.x,P.y-e.y);
-      if(d < e.r+18){
-        P.hp-=Math.min(e.dmg*0.9, P.maxhp*0.8); // fix cuối game boss không gây dame
+      if(d < (e.r+18)*2.5){
+        P.hp-=Math.min(e.dmg*1.35, P.maxhp*0.8);
         P.hurt=0.35; P.inv=0.3; shake=8;
-        fx.push({x:P.x,y:P.y,ring:30,t:.3,T:.3,c:'#ff2222'});
+        fx.push({x:P.x,y:P.y,ring:50,t:.3,T:.3,c:'#ff2222'});
         texts.push({x:P.x,y:P.y-20,v:'-LƯỚT CHÉM!',t:0.8,c:true});
       }
     }
@@ -381,7 +395,7 @@ function bossAI(e,dt){
   e.s1-=dt;e.s2-=dt;e.s3-=dt;e.s4-=dt;
   if(e.s4<=0){
     e.s4=13;
-    warns.push({x:e.x,y:e.y,r:280,t:1.8,T:1.8,dmg:e.dmg*2.2,cap:.55,isMeteor:true});
+    warns.push({x:e.x,y:e.y,r:280,t:1.8,T:1.8,dmg:e.dmg*3.3,cap:.65,isMeteor:true});
     texts.push({x:e.x,y:e.y-60,v:'ĐẬP HỦY DIỆT!',t:1.3,c:true,big:true});
   }
   if(!e.enr&&e.hp<e.max*.5){
@@ -391,7 +405,7 @@ function bossAI(e,dt){
   }
   if(e.s1<=0){
     e.s1=6;
-    warns.push({x:e.x,y:e.y,r:160,t:0.9,T:0.9,dmg:e.dmg*1.4,cap:.45,isMeteor:true});
+    warns.push({x:e.x,y:e.y,r:160,t:0.9,T:0.9,dmg:e.dmg*2.1,cap:.55,isMeteor:true});
     texts.push({x:e.x,y:e.y-50,v:'CHÉM!',t:0.8,c:true});
   }
   if(e.s2<=0){
@@ -585,7 +599,6 @@ function fireWeapons(dt){
         if(candidates.length===0){ cd[k]=0.5; continue; }
         const target = candidates[Math.floor(Math.random()*candidates.length)];
         const ang = Math.atan2(target.y-P.y, target.x-P.x);
-        // trảo tử thần bay tới quái ngẫu nhiên, boss vẫn tính, chạm là chết kể cả bot
         projs.push({k:'tuocdoat',x:P.x,y:P.y,vx:Math.cos(ang)*420,vy:Math.sin(ang)*420,a:ang,dmg:999999,life:3.5,r:28,hit:new Set(),insta:true,tgt:target,claw:true});
         texts.push({x:P.x,y:P.y-50,v:'TRẢO TỬ THẦN!',t:1.2,c:true,big:true});
         fx.push({x:P.x,y:P.y,ring:60,t:.5,T:.5,c:'#000'});
@@ -595,6 +608,33 @@ function fireWeapons(dt){
       }else{
         cd[k]=0.5;
       }
+      continue;
+    }
+    if(k==='hoden'){
+      const isEvo = l>=6;
+      // tìm chỗ đông quái nhất trong tầm nhìn
+      let bestX=P.x, bestY=P.y, bestCnt=0;
+      const candidates = enemies.filter(e=>!e.dead);
+      if(candidates.length>0){
+        for(let attempt=0;attempt<Math.min(10,candidates.length);attempt++){
+          const center = candidates[Math.floor(Math.random()*candidates.length)];
+          let cnt=0;
+          for(const e of candidates){
+            if(Math.hypot(e.x-center.x,e.y-center.y)<180) cnt++;
+          }
+          if(cnt>bestCnt){ bestCnt=cnt; bestX=center.x; bestY=center.y; }
+        }
+      }else{
+        bestX=P.x+rnd(-80,80); bestY=P.y+rnd(-80,80);
+      }
+      const pullRad = isEvo ? 320 : (150 + 14*l);
+      const dmg = isEvo ? 55 : (30 + 10*l);
+      const life = isEvo ? 6.5 : (3 + 0.3*l);
+      blackholes.push({x:bestX,y:bestY,life:life,T:life,tick:0,rad:60 + 8*l,pullRad:pullRad,dmg:dmg,total:0,isEvo:isEvo,ph:Math.random()*6.28});
+      texts.push({x:bestX,y:bestY-40,v:isEvo?'HỐ ĐEN NUỐT CHỬNG!':'HỐ ĐEN!',t:1,c:true,big:isEvo});
+      fx.push({x:bestX,y:bestY,ring:pullRad,t:.6,T:.6,c:'#7a00ff'});
+      shake=Math.max(shake,2);
+      cd[k]= isEvo ? 5 : (6 - 0.3*l);
       continue;
     }
   }
@@ -985,6 +1025,62 @@ function update(dt){
     }
   }
   clouds=clouds.filter(c=>c.life>0);
+  // --- Hố Đen Vũ Trụ ---
+  for(const bh of blackholes){
+    bh.life-=dt; bh.ph+=dt*2; bh.tick-=dt;
+    const pull = bh.isEvo ? 220 : 140;
+    // hút quái
+    for(const e of enemies){
+      if(e.dead) continue;
+      const d=Math.hypot(e.x-bh.x,e.y-bh.y);
+      if(d < bh.pullRad + e.r){
+        const force = (bh.isEvo ? 180 : 110) * dt * (1 - d/bh.pullRad);
+        e.x += (bh.x - e.x)/d * force;
+        e.y += (bh.y - e.y)/d * force;
+      }
+    }
+    // gây dame theo tick - ultimate thêm 3% máu đối phương
+    if(bh.tick<=0){
+      bh.tick=0.3;
+      for(const e of enemies){
+        if(e.dead) continue;
+        if(Math.hypot(e.x-bh.x,e.y-bh.y) < bh.rad + e.r){
+          const extra = bh.isEvo ? e.max*0.03 : 0;
+          const totalDmg = bh.dmg + extra;
+          hitEnemy(e, totalDmg, bh.x-e.x, bh.y-e.y);
+          bh.total+=totalDmg;
+          if(bh.isEvo && extra>0) texts.push({x:e.x,y:e.y-18,v:'-3% HP',t:.5,c:true});
+          if(Math.random()<0.4) fx.push({x:e.x,y:e.y,vx:rnd(-30,30),vy:rnd(-30,30),t:.3,c:'#7a00ff',r:2});
+        }
+      }
+      fx.push({x:bh.x,y:bh.y,ring:bh.rad,t:.25,T:.25,c:'#7a00ff'});
+    }
+    if(bh.life<=0){
+      bh.dead=true;
+      if(bh.isEvo){
+        // nổ gây 300% tổng dame + thêm 3% máu
+        const explDmg = bh.total*3;
+        for(const e of enemies){
+          if(e.dead) continue;
+          if(Math.hypot(e.x-bh.x,e.y-bh.y) < bh.pullRad*0.8 + e.r){
+            const extraExpl = e.max*0.03;
+            hitEnemy(e, explDmg + extraExpl, e.x-bh.x, e.y-bh.y);
+            // 20% rơi ngọc x2
+            if(Math.random()<0.2 && !e.dead){
+              gems.push({x:e.x,y:e.y,v:2,m:false});
+            }
+          }
+        }
+        fx.push({x:bh.x,y:bh.y,ring:bh.pullRad,t:.6,T:.6,c:'#000'});
+        fx.push({x:bh.x,y:bh.y,ring:bh.pullRad*0.6,t:.5,T:.5,c:'#b86bff'});
+        texts.push({x:bh.x,y:bh.y-30,v:'NỔ HỐ ĐEN! '+Math.round(explDmg),t:1.2,c:true,big:true});
+        shake=Math.max(shake,8);
+      }else{
+        fx.push({x:bh.x,y:bh.y,ring:bh.rad,t:.4,T:.4,c:'#7a00ff'});
+      }
+    }
+  }
+  blackholes=blackholes.filter(b=>!b.dead);
   for(const w of warns){
     w.t-=dt;
     if(w.t<=0){
@@ -1024,8 +1120,7 @@ function update(dt){
     e.flash=Math.max(0,e.flash-dt);
     if(d<e.r+9){
       if(e.t==='b'){
-        // boss cuối game gây dame mạnh hơn, không bị cap quá thấp
-        P.hp-=Math.min(e.dmg*1.2, P.maxhp*0.65)*dt*2.5; P.hurt=.25;
+        P.hp-=Math.min(e.dmg*1.8, P.maxhp*0.65)*dt*2.5; P.hurt=.25;
       }else{
         P.hp-=Math.min(e.dmg*1.2,P.maxhp*.2)*dt;P.hurt=.12;
       }
@@ -1034,7 +1129,17 @@ function update(dt){
   }
   for(const b of eprojs){
     b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
-    if((P.inv||0)<=0&&Math.hypot(P.x-b.x,P.y-b.y)<b.r+9){P.hp-=Math.min(b.dmg,P.maxhp*.15);P.inv=.4;P.hurt=.15;b.dead=true;shake=Math.max(shake,2);}
+    if(Math.hypot(P.x-b.x,P.y-b.y)<b.r+9){
+      if(b.redOrb){
+        P.hp-=P.maxhp*0.25;
+        P.hurt=.35; shake=Math.max(shake,6);
+        fx.push({x:P.x,y:P.y,ring:35,t:.4,T:.4,c:'#ff0000'});
+        texts.push({x:P.x,y:P.y-20,v:'-25% HP!',t:.8,c:true});
+        b.dead=true;
+      }else if((P.inv||0)<=0){
+        P.hp-=Math.min(b.dmg,P.maxhp*.15);P.inv=.4;P.hurt=.15;b.dead=true;shake=Math.max(shake,2);
+      }
+    }
     if(b.life<=0)b.dead=true;
   }
   eprojs=eprojs.filter(b=>!b.dead);
@@ -1295,6 +1400,32 @@ function render(){
     }else{
       ctx.fillStyle='#ffaa2a';ctx.font=`900 ${Math.max(10,Math.round(w.r*0.18*s))}px Arial`;ctx.textAlign='center';ctx.fillText('!',w.x,w.y+4);
     }
+    ctx.restore();
+  }
+  // --- Vẽ Hố Đen ---
+  for(const bh of blackholes){
+    const lifePct = bh.life / bh.T;
+    ctx.save(); ctx.translate(bh.x,bh.y);
+    // vòng hút
+    ctx.strokeStyle='rgba(122,0,255,'+ (0.3*lifePct) +')'; ctx.lineWidth=2; ctx.setLineDash([10,8]);
+    ctx.beginPath(); ctx.arc(0,0,bh.pullRad,0,7); ctx.stroke(); ctx.setLineDash([]);
+    // xoáy
+    ctx.rotate(bh.ph);
+    for(let i=0;i<3;i++){
+      ctx.strokeStyle= bh.isEvo ? 'rgba(180,80,255,'+(0.6-i*0.15)+')' : 'rgba(122,0,255,'+(0.5-i*0.1)+')';
+      ctx.lineWidth= 4 - i;
+      ctx.beginPath();
+      const r = bh.rad*0.3 + i*10;
+      ctx.arc(0,0,r,0, Math.PI*1.6); ctx.stroke();
+    }
+    // lõi đen
+    const grad = ctx.createRadialGradient(0,0,0,0,0,bh.rad);
+    grad.addColorStop(0,'#000'); grad.addColorStop(0.4,'#1a0033'); grad.addColorStop(0.7,'#4a00aa'); grad.addColorStop(1,'rgba(122,0,255,0)');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(0,0,bh.rad,0,7); ctx.fill();
+    // glow
+    ctx.shadowColor=bh.isEvo?'#b86bff':'#7a00ff'; ctx.shadowBlur= bh.isEvo ? 25 : 18;
+    ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(0,0,bh.rad*0.5,0,7); ctx.fill();
+    ctx.shadowBlur=0;
     ctx.restore();
   }
   const list=[...enemies];
