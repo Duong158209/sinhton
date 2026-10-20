@@ -148,6 +148,27 @@
   #userBar span{color:#fff;font-size:12px;font-weight:700;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #logoutBtn{background:#c44;color:#fff;border:none;border-radius:12px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer}
 
+
+  /* ===== LOBBY ===== */
+  #lobby{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
+  .lobby-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+  .profile-chip,.wallet-chip{display:flex;align-items:center;gap:9px;background:#111827dd;border:1px solid #63718b;border-radius:16px;padding:8px 12px;box-shadow:0 5px 16px #0005;min-width:0}
+  .profile-avatar{width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ffe27a,#ff8a00);border:2px solid #fff8;color:#492600;font-size:20px;font-weight:1000}
+  .profile-name{font-weight:900;max-width:135px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile-label{font-size:10px;color:#9eacc9;letter-spacing:1px}
+  .wallet-chip{font-weight:900;color:#ffd54a;white-space:nowrap}
+  .lobby-brand{text-align:center;margin:2px 0 0}.lobby-brand h1{font-size:clamp(30px,7vw,44px);letter-spacing:2px;margin:0;text-shadow:0 4px 0 #5b2a00,0 0 20px #ff9f0055}.lobby-brand p{margin:4px 0;color:#aebbd4;font-size:12px;letter-spacing:2px}
+  .map-panel{position:relative;isolation:isolate;overflow:hidden;min-height:240px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;border:2px solid #63718b;border-radius:22px;padding:20px;background:linear-gradient(180deg,#071b2a22,#07101ddd),radial-gradient(ellipse at 65% 25%,#5c9e87 0%,#315d61 25%,#203b4b 52%,#111c32 78%);box-shadow:0 14px 35px #0006;max-height:430px}
+  .map-panel:before{content:"";position:absolute;inset:-20%;z-index:-1;opacity:.7;background:linear-gradient(35deg,transparent 39%,#d5d9c033 40%,#d5d9c033 43%,transparent 44%),linear-gradient(125deg,transparent 24%,#b4c5d033 25%,#b4c5d033 28%,transparent 29%),repeating-linear-gradient(0deg,transparent 0 36px,#ffffff09 37px 39px),repeating-linear-gradient(90deg,transparent 0 36px,#ffffff09 37px 39px);transform:rotate(-8deg)}
+  .map-badge{align-self:flex-start;background:#101827c9;border:1px solid #ffffff45;border-radius:9px;padding:7px 11px;font-size:11px;font-weight:900;letter-spacing:1px;color:#bfe7ff}
+  .map-info{margin-top:auto}.map-info h2{font-size:28px;margin:20px 0 4px;text-shadow:0 3px 8px #000}.map-info p{margin:0 0 14px;color:#c5d2e4;font-size:13px}
+  #lobbyStart{width:100%;max-width:440px;align-self:center;margin:0;padding:15px 20px;font-size:20px;border-radius:14px;letter-spacing:1px}
+  .lobby-section-title{font-size:11px;color:#92a3c1;font-weight:900;letter-spacing:2px;margin:0 0 -5px 3px}
+  .lobby-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .lobby-nav button{min-width:0;background:linear-gradient(160deg,#283650,#182237);border:1px solid #52627d;border-radius:14px;padding:12px 3px;color:#eaf1ff;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 0 #0b1220}
+  .lobby-nav button span{display:block;font-size:24px;margin-bottom:6px}.lobby-nav button:active{transform:translateY(2px);box-shadow:0 2px 0 #0b1220}
+  #lobbyPanel{display:none;background:#101827f5;border:1px solid #52627d;border-radius:16px;padding:16px;line-height:1.5}.lobby-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#ffd45a;font-weight:900}.lobby-close{border:0;border-radius:8px;padding:6px 10px;background:#384660;color:white;font-weight:800}
+  @media(max-height:650px){#lobby{gap:9px;padding-top:calc(env(safe-area-inset-top,0px) + 8px)}.map-panel{min-height:170px}.lobby-brand p{display:none}.profile-avatar{width:34px;height:34px}.lobby-nav button{padding:8px 2px}.lobby-nav button span{font-size:20px}}
+
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -196,11 +217,24 @@
   <div id="xpWrap"><div id="xpBar"></div><div id="lvl">LV.1</div></div>
 </div>
 
-<div class="ov" id="menu" style="display:none">
-  <h1>SURVIVOR</h1>
-  <p class="sub">Kéo ngón tay (hoặc WASD / phím mũi tên) để di chuyển. Vũ khí tự động tấn công. Nhặt ngọc xanh để lên cấp và chọn kỹ năng, sống sót càng lâu càng tốt!</p>
-  <div class="btn" id="startBtn">Bắt đầu</div>
+<div id="lobby">
+  <div class="lobby-top">
+    <div class="profile-chip"><div class="profile-avatar" id="lobbyAvatar">?</div><div style="min-width:0"><div class="profile-label">TÀI KHOẢN</div><div class="profile-name" id="lobbyName">Người chơi</div></div></div>
+    <div class="wallet-chip">🪙 <span id="lobbyCoins">0</span> xu</div>
+  </div>
+  <div class="lobby-brand"><h1>SURVIVOR</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
+  <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
+  <button class="btn" id="lobbyStart">▶ BẮT ĐẦU</button>
+  <div class="lobby-section-title">KHO ĐỒ & TÙY CHỈNH</div>
+  <div class="lobby-nav">
+    <button data-lobby-panel="character"><span>🧍</span>Nhân vật</button>
+    <button data-lobby-panel="weapon"><span>⚔️</span>Vũ khí</button>
+    <button data-lobby-panel="skill"><span>✨</span>Kĩ năng</button>
+    <button data-lobby-panel="costume"><span>👕</span>Trang phục</button>
+  </div>
+  <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
 </div>
+<div class="ov" id="menu" style="display:none"><h1>SURVIVOR</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn">Bắt đầu</div></div>
 
 <div class="ov" id="levelup">
   <div class="banner">Chọn kỹ năng</div>
@@ -245,6 +279,13 @@ const db = firebase.firestore();
 
 let currentUser = null;
 let isRegisterMode = false;
+let accountCoins = 0;
+function refreshLobbyProfile(name){
+  const n=name || (currentUser && (currentUser.displayName || currentUser.email.split("@")[0])) || "Người chơi";
+  const nameEl=document.getElementById("lobbyName"), av=document.getElementById("lobbyAvatar"), coinEl=document.getElementById("lobbyCoins");
+  if(nameEl) nameEl.textContent=n; if(av) av.textContent=(n[0]||"?").toUpperCase(); if(coinEl) coinEl.textContent=accountCoins.toLocaleString("vi-VN");
+}
+
 
 const authOv = document.getElementById('authOv');
 const authErr = document.getElementById('authErr');
@@ -291,7 +332,8 @@ authSubmit.onclick = async () => {
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         highScore: 0,
         bestTime: 0,
-        totalKills: 0
+        totalKills: 0,
+        coins: 0
       }, { merge: true });
     } else {
       await auth.signInWithEmailAndPassword(email, pass);
@@ -322,13 +364,9 @@ auth.onAuthStateChanged(async (user) => {
     const nm = user.displayName || user.email.split('@')[0];
     document.getElementById('userName').textContent = nm;
     document.getElementById('userAv').textContent = (nm[0]||'?').toUpperCase();
-    // Hiện menu game nếu đang ở trạng thái menu
-    if(typeof state !== 'undefined' && state === 'menu'){
-      document.getElementById('menu').style.display = 'flex';
-    } else if(typeof state === 'undefined'){
-      // script game chưa chạy xong, menu sẽ được hiện sau
-      document.getElementById('menu').style.display = 'flex';
-    }
+    refreshLobbyProfile(nm);
+    document.getElementById('lobby').style.display = 'flex';
+    document.getElementById('menu').style.display = 'none';
     // Đảm bảo document users tồn tại
     try{
       const ref = db.collection('users').doc(user.uid);
@@ -338,13 +376,16 @@ auth.onAuthStateChanged(async (user) => {
           name: user.displayName || '',
           email: user.email,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          highScore: 0, bestTime: 0, totalKills: 0
+          highScore: 0, bestTime: 0, totalKills: 0, coins: 0
         });
-      }
+        accountCoins=0;
+      } else { accountCoins=Math.max(0, Number(snap.data().coins)||0); }
+      refreshLobbyProfile(nm);
     }catch(_){}
   } else {
     authOv.style.display = 'flex';
     userBar.style.display = 'none';
+    document.getElementById('lobby').style.display = 'none';
     document.getElementById('menu').style.display = 'none';
     // Nếu đang chơi thì về menu (reset)
     if(typeof state !== 'undefined' && state !== 'menu'){
@@ -364,13 +405,16 @@ async function saveRunResult(timeSec, kills, lvl, coins){
       const bestTime = Math.max(d.bestTime||0, timeSec);
       const highScore = Math.max(d.highScore||0, Math.floor(timeSec*10 + kills*5 + lvl*20));
       const totalKills = (d.totalKills||0) + kills;
+      const totalCoins = (d.coins||0) + Math.max(0, Number(coins)||0);
       tx.set(ref, {
-        bestTime, highScore, totalKills,
+        bestTime, highScore, totalKills, coins: totalCoins,
         lastPlay: firebase.firestore.FieldValue.serverTimestamp(),
         name: currentUser.displayName || d.name || '',
         email: currentUser.email
       }, { merge: true });
+      accountCoins=totalCoins;
     });
+    refreshLobbyProfile();
   }catch(e){ console.warn('saveRunResult', e); }
 }
 // ========== END FIREBASE AUTH ==========
@@ -585,7 +629,7 @@ function startGame(){
   startBackgroundMusic();
   initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
   reset();state='play';
-  show('menu',false);show('over',false);show('pause',false);show('levelup',false);
+  show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
   $('hud').style.display='block';joyDefault();
 }
 function togglePause(){
@@ -593,6 +637,10 @@ function togglePause(){
   else if(state==='pause'){state='play';show('pause',false);}
 }
 $('startBtn').onclick=startGame;
+$('lobbyStart').onclick=startGame;
+const lobbyPanelData={character:['Nhân vật','Nhân vật hiện tại: Survivor 🧍<br>Hãy tiếp tục chiến đấu để làm quen với lối chơi.'],weapon:['Vũ khí','Vũ khí hiện tại: Vũ khí tự động ⚔️<br>Nhân vật tự động tấn công kẻ địch trong phạm vi.'],skill:['Kĩ năng','Kĩ năng được chọn trong trận khi lên cấp ✨<br>Thu thập ngọc xanh để mở lựa chọn kĩ năng.'],costume:['Trang phục','Trang phục mặc định 👕<br>Các ô tùy chỉnh đã được tạo sẵn cho hệ thống trang phục.']};
+document.querySelectorAll('[data-lobby-panel]').forEach(btn=>btn.addEventListener('click',()=>{const d=lobbyPanelData[btn.dataset.lobbyPanel];$('lobbyPanelTitle').textContent=d[0];$('lobbyPanelBody').innerHTML=d[1];$('lobbyPanel').style.display='block';$('lobbyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});}));
+$('lobbyPanelClose').onclick=()=>$('lobbyPanel').style.display='none';
 $('restartBtn1').onclick=startGame;
 $('restartBtn2').onclick=startGame;
 $('resumeBtn').onclick=togglePause;
