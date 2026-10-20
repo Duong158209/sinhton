@@ -199,7 +199,7 @@ const SK={
   ringz:{n:'Vòng Sét',ic:'⭕',type:'w',d:'Phóng vòng tròn sét từ nhân vật ra ngoài gây sát thương rồi thu lại.'},
   drone:{n:'Drone Súng',ic:'🛸',type:'w',d:'Triệu hồi drone tự động bắn quái. Mỗi cấp bắn nhanh hơn và mạnh hơn.'},
   golem:{n:'Golem Cây',ic:'🌳',type:'w',d:'Triệu hồi Golem Cây bất tử 60s, đánh lan >100 dame, tăng 5% dame mỗi lần gọi. Có rễ trói và đất lăn.'},
-  tuocdoat:{n:'Kẻ Tước Đoạt',ic:'☠️',type:'w',d:'Khi địch dưới 20% máu có 5% kết liễu ngay. 5★: 15%. Ultimate: mỗi 10s bắt 1 quái ngẫu nhiên (kể cả boss) gây dame tử thần.'},
+  tuocdoat:{n:'Kẻ Tước Đoạt',ic:'☠️',type:'w',d:'Khi địch dưới 20% máu có 5% kết liễu ngay. 5★: 15%. Ultimate: lập tức giết mọi quái dưới 30% máu; boss dưới 50% máu nhận thêm 20% sát thương.'},
   hoden:{n:'Hố Đen Vũ Trụ',ic:'🕳️',type:'w',d:'Triệu hồi hố đen gần người chơi, hút quái, gây dame liên tục, hồi 1.5% máu quái (evo).'},
   hp:{n:'Trái tim',ic:'❤️',type:'p',d:'Tăng 20% máu tối đa và hồi một ít máu.'},
   spd:{n:'Giày chạy',ic:'👟',type:'p',d:'Tăng 8% tốc độ di chuyển.'},
@@ -224,19 +224,19 @@ const EVO={
   drone:{n:'Drone Laser 4 Hướng',ic:'💥',d:'TIẾN HÓA: drone bắn 4 tia laser cùng lúc, sát thương x3, tốc độ x2. Bắn 10s nghỉ 2.5s.'},
   golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem tóc xanh, mắt đỏ, to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và không biến mất.'},
   hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn, gây thêm 1.5% máu tối đa của địch mỗi tick và hồi 1.5% máu đó cho bản thân, tồn tại 6.5s.'},
-  tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Mỗi 10s triệu hồi Trảo Tử Thần bắt 1 quái ngẫu nhiên (boss vẫn tính), gây dame tử thần - dính là chết luôn kể cả bot. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'}
+  tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Lập tức giết tất cả quái dưới 30% máu (không tính boss). Boss dưới 50% máu nhận thêm 20% sát thương. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'}
 };
 const wmax=k=>{ if(k==='ls') return 3; return SK[k].type==='w'&&EVO[k]?6:MAXLV; };
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='menu';
 let P,enemies,gems,coinsArr,projs,fx,texts,bolts,rings,clouds,arcs,warns,eprojs,bossIdx,lastBossHp,lastBossDmg,blackholes,droneSt,golemSt,chests;
-let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magnets,magnetT,monsterScale,monsterHpScale,monsterDmgScale,lastScaleT,frenzyNext,frenzyActive,frenzyT,frenzyDuration,frenzyCount;
+let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magnets,magnetT,monsterScale,monsterHpScale,monsterDmgScale,lastScaleT,frenzyNext,frenzyActive,frenzyT,frenzyDuration,frenzyCount,tuocdoatProcT;
 const AURA_R=150;
 let lv={},ps={};
 function reset(){
   P={x:0,y:0,hp:250,maxhp:250,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];
-  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=150;frenzyActive=false;frenzyT=0;frenzyDuration=25;frenzyCount=0;
+  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=150;frenzyActive=false;frenzyT=0;frenzyDuration=25;frenzyCount=0;tuocdoatProcT=5;
   lv={kunai:1};ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0};
   window.lastPlayerBuffT=120; window.playerBonusDmg=0;
   cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0,hoden:0};
@@ -490,13 +490,13 @@ function spawnEnemy(forceType,px,py){
   // tính lại hp theo hpScale, dame theo dmgScale (tuyến tính)
   
   let e={x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
-  if(type==='n'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
-  if(type==='f'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
-  if(type==='r'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
-  if(type==='t'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
-  if(type==='sk'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
-  if(type==='bom'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
-  if(type==='arc'){const fH=frenzyActive?4:1, fD=frenzyActive?1.2:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
+  if(type==='n'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
+  if(type==='f'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
+  if(type==='r'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
+  if(type==='t'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
+  if(type==='sk'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
+  if(type==='bom'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
+  if(type==='arc'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
   if(type==='b'){
     if(bossIdx%3===2 || (T>120 && Math.random()<0.35)){ e.bt='a'; } else { e.bt=bossIdx%2?'r':'m'; }
     if(bossIdx===0){e.hp=5000;e.dmg=250;}
@@ -654,10 +654,22 @@ function bossAI(e,dt){
     const d=Math.hypot(P.x-e.x,P.y-e.y)||1;e.dx=(P.x-e.x)/d;e.dy=(P.y-e.y)/d;
   }
 }
+// Tước Đoạt (max): giết ngay 1 quái, không hồi sinh
+function tuocKill(e){
+  if(e.dead) return;
+  e.hp=0; e.dead=true; e.revived=true; kills++;
+  gems.push({x:e.x,y:e.y,v:(e.t==='tank'?4:e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
+  texts.push({x:e.x,y:e.y-24,v:'TƯỚC ĐOẠT!',t:.8,c:true});
+  fx.push({x:e.x,y:e.y,ring:40,t:.45,T:.45,c:'#ff0000'});
+  fx.push({x:e.x,y:e.y,ring:25,t:.35,T:.35,c:'#000'});
+  for(let i=0;i<5;i++) fx.push({x:e.x,y:e.y,vx:rnd(-120,120),vy:rnd(-120,120),t:.45,c:'#111',r:rnd(2,4)});
+  if(Math.random()<.05)coinsArr.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),m:false});
+}
 function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
   if(e.t==='b' && e.immuneActive){ texts.push({x:e.x+rnd(-6,6),y:e.y-18,v:'MIỄN NHIỄM!',t:.5,c:true}); fx.push({x:e.x,y:e.y,ring:30,t:.25,T:.25,c:'#00ffff'}); return; }
   if(typeof sfx==='function'){ if(crit) sfx('crit'); else sfx(e.t==='b'?'boss_hit':'hit'); }
   dmg*=1+.15*ps.dmg;
+  if(e.t==='b' && lv.tuocdoat>=6 && e.hp<e.max*0.5) dmg*=1.2; // Tước Đoạt max: boss dưới 50% máu nhận +20% sát thương
   if(Math.random()<.1){dmg*=2;crit=true;}
   if(ps.ls)P.hp=Math.min(P.maxhp,P.hp+Math.min(dmg,Math.max(e.hp,0))*LS[ps.ls]);
   e.hp-=dmg;e.flash=.1;
@@ -714,6 +726,22 @@ function nearest(n,range){
 }
 const at=(a,l)=>a[Math.min(l,a.length)-1];
 function fireWeapons(dt){
+  // Tước Đoạt max: cứ mỗi 5 giây, mỗi quái thường có 5% cơ hội chết ngay.
+  if(lv.tuocdoat>=6){
+    tuocdoatProcT-=dt;
+    if(tuocdoatProcT<=0){
+      tuocdoatProcT+=5;
+      let n=0;
+      for(const e of enemies){
+        if(e.dead||e.t==='b'||Math.random()>=0.05) continue;
+        tuocKill(e); n++;
+      }
+      if(n>0){
+        texts.push({x:P.x,y:P.y-50,v:'TƯỚC ĐOẠT định kỳ x'+n,t:1,c:true,big:true});
+        if(typeof sfx==='function') sfx('tuocdoat');
+      }
+    }
+  }
   for(const k in lv){
     cd[k]-=dt;
     if(k==='lightning'&&lv[k]>=6&&clouds.length>0)cd[k]=2.5;
@@ -844,20 +872,15 @@ function fireWeapons(dt){
     }
     if(k==='tuocdoat'){
       if(l>=6){
-        const candidates = enemies.filter(e=>!e.dead);
-        if(candidates.length===0){ cd[k]=0.5; continue; }
-        const target = candidates[Math.floor(Math.random()*candidates.length)];
-        const ang = Math.atan2(target.y-P.y, target.x-P.x);
-        projs.push({k:'tuocdoat',x:P.x,y:P.y,vx:Math.cos(ang)*420,vy:Math.sin(ang)*420,a:ang,dmg:999999,life:3.5,r:28,hit:new Set(),insta:true,tgt:target,claw:true});
-        texts.push({x:P.x,y:P.y-50,v:'TRẢO TỬ THẦN!',t:1.2,c:true,big:true});
-        fx.push({x:P.x,y:P.y,ring:60,t:.5,T:.5,c:'#000'});
-        fx.push({x:P.x,y:P.y,ring:35,t:.4,T:.4,c:'#ff0000'});
-        shake=Math.max(shake,4);
-        if(typeof sfx==='function') sfx('tuocdoat');
-        cd[k]=10;
-      }else{
-        cd[k]=0.5;
+        // MAX: lập tức giết mọi quái (không tính boss) dưới 30% máu
+        let n=0;
+        for(const e of enemies){ if(e.dead||e.t==='b'||e.hp>=e.max*0.3) continue; tuocKill(e); n++; }
+        if(n>0){
+          texts.push({x:P.x,y:P.y-50,v:'TƯỚC ĐOẠT x'+n,t:1,c:true,big:true});
+          if(typeof sfx==='function') sfx('tuocdoat');
+        }
       }
+      cd[k]=l>=6?0.2:0.5;
       continue;
     }
     if(k==='hoden'){
@@ -1043,7 +1066,7 @@ function update(dt){
     frenzyActive=true;
     frenzyT=frenzyDuration;
     frenzyCount++;
-    texts.push({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +300% HP +20% Dame +30% Tốc chạy!',t:3,c:true,big:true});
+    texts.push({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +300% HP -50% Dame +30% Tốc chạy!',t:3,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff0000'});
     shake=12;
     if(typeof sfx==='function') sfx('frenzy');
