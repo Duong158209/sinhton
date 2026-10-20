@@ -159,7 +159,7 @@
 
 
   /* ===== LOBBY ===== */
-  #lobby{position:fixed;inset:0;z-index:12;display:none;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
+  #lobby{position:fixed;inset:0;z-index:12;display:none;pointer-events:auto;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
   .lobby-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
   .profile-chip{cursor:pointer;text-align:left;color:inherit;font:inherit;flex:1;max-width:70%;}
   .profile-chip:focus-visible{outline:2px solid #ffd45a;outline-offset:3px}
@@ -172,7 +172,7 @@
   .map-panel:before{content:"";position:absolute;inset:-20%;z-index:-1;opacity:.7;background:linear-gradient(35deg,transparent 39%,#d5d9c033 40%,#d5d9c033 43%,transparent 44%),linear-gradient(125deg,transparent 24%,#b4c5d033 25%,#b4c5d033 28%,transparent 29%),repeating-linear-gradient(0deg,transparent 0 36px,#ffffff09 37px 39px),repeating-linear-gradient(90deg,transparent 0 36px,#ffffff09 37px 39px);transform:rotate(-8deg)}
   .map-badge{align-self:flex-start;background:#101827c9;border:1px solid #ffffff45;border-radius:9px;padding:7px 11px;font-size:11px;font-weight:900;letter-spacing:1px;color:#bfe7ff}
   .map-info{margin-top:auto}.map-info h2{font-size:28px;margin:20px 0 4px;text-shadow:0 3px 8px #000}.map-info p{margin:0 0 14px;color:#c5d2e4;font-size:13px}
-  #lobbyStart{position:relative;z-index:99;pointer-events:auto!important;touch-action:auto!important;width:100%;max-width:440px;align-self:center;margin:0;padding:15px 20px;font-size:20px;border-radius:14px;letter-spacing:1px}
+  #lobbyStart{position:relative;z-index:99;pointer-events:auto!important;touch-action:manipulation!important;width:100%;max-width:440px;align-self:center;margin:0;padding:15px 20px;font-size:20px;border-radius:14px;letter-spacing:1px}
   .lobby-section-title{font-size:11px;color:#92a3c1;font-weight:900;letter-spacing:2px;margin:0 0 -5px 3px}
   .lobby-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
   .lobby-nav button{min-width:0;background:linear-gradient(160deg,#283650,#182237);border:1px solid #52627d;border-radius:14px;padding:12px 3px;color:#eaf1ff;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 0 #0b1220}
@@ -340,6 +340,32 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 let currentUser = null;
+let accountCoins = Number(localStorage.getItem('accountCoins')||0);
+let accountAvatar = localStorage.getItem('accountAvatar') || '🧑';
+let accountBestTime = 0;
+
+function refreshLobbyProfile(nm){
+  try{
+    const name = nm || (currentUser && (currentUser.displayName || (currentUser.email||'').split('@')[0])) || document.getElementById('lobbyName')?.textContent || 'Người chơi';
+    const lobbyName=document.getElementById('lobbyName');
+    const lobbyAvatar=document.getElementById('lobbyAvatar');
+    const lobbyCoins=document.getElementById('lobbyCoins');
+    const userName=document.getElementById('userName');
+    const userAv=document.getElementById('userAv');
+    if(lobbyName) lobbyName.textContent = name;
+    if(lobbyAvatar) lobbyAvatar.textContent = accountAvatar || (name[0]||'?').toUpperCase();
+    if(lobbyCoins) lobbyCoins.textContent = String(accountCoins||0);
+    if(userName) userName.textContent = name;
+    if(userAv) userAv.textContent = accountAvatar || (name[0]||'?').toUpperCase();
+    // lưu local để guest cũng thấy xu
+    try{ localStorage.setItem('accountCoins', String(accountCoins||0)); localStorage.setItem('accountAvatar', accountAvatar||'🧑'); }catch(_){}
+  }catch(e){ console.warn('refreshLobbyProfile', e); }
+}
+
+function saveLocalCoins(){
+  try{ localStorage.setItem('accountCoins', String(accountCoins||0)); }catch(_){}
+}
+
 
 // === AUTH FIX - HIỆN LỖI + LƯU ĐĂNG NHẬP ===
 const authErr = document.getElementById('authErr');
@@ -461,6 +487,7 @@ auth.onAuthStateChanged(async (user) => {
   try{ restartLeaderboardLive(); }catch(_){}
   if(user){
     authOv.style.display = 'none';
+    authOv.style.pointerEvents='none';
     userBar.style.display = 'none';
     const nm = user.displayName || user.email.split('@')[0];
     const lobbyEl=document.getElementById('lobby');
@@ -487,7 +514,7 @@ auth.onAuthStateChanged(async (user) => {
           highScore: 0, bestTime: 0, totalKills: 0, coins: 0
         });
         accountCoins=0;
-      } else { accountCoins=Math.max(0, Number(snap.data().coins)||0); }
+      } else { accountCoins=Math.max(0, Number(snap.data().coins)||0); try{ localStorage.setItem('accountCoins', String(accountCoins)); }catch(_){} }
       const profileSnap = await ref.get();
       const profileData = profileSnap.exists ? profileSnap.data() : {};
       accountAvatar = profileData.avatar || '🧑';
@@ -497,6 +524,7 @@ auth.onAuthStateChanged(async (user) => {
     // Nếu là khách (bấm Chơi ngay) thì không chặn
     if(window.isGuestMode){
       authOv.style.display = 'none';
+      authOv.style.pointerEvents='none';
       const lobbyEl2=document.getElementById('lobby');
       if(lobbyEl2) lobbyEl2.style.display='flex';
       try{ state='lobby'; const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none'; }catch(_){}
@@ -539,9 +567,10 @@ async function saveRunResult(timeSec, kills, lvl, coins){
         email: currentUser.email
       }, { merge: true });
       accountCoins=totalCoins;
+      try{ localStorage.setItem('accountCoins', String(totalCoins)); }catch(_){}
     });
     runRewardSaved = true;
-    refreshLobbyProfile();
+    try{ refreshLobbyProfile(); }catch(_){}
   }catch(e){ console.warn('saveRunResult', e); }
 }
 
@@ -851,9 +880,9 @@ function startGame(){
     if(authOvEl) authOvEl.style.display='none';
     startBackgroundMusic();
     initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
-    try{ if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;} }catch(_){}
-    try{ if(typeof reset==='function') reset(); }catch(_){}
-    try{ runRewardSaved=false; }catch(_){}
+    if(typeof lobbyReturnTimer!=='undefined' && lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
+    if(typeof reset==='function') reset();
+    runRewardSaved=false;
     state='play';
     show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
     const hud=$('hud'); if(hud) hud.style.display='block';
@@ -1840,13 +1869,38 @@ function updateProjs(dt){
       ctx.fillStyle=grad;
       ctx.beginPath(); ctx.ellipse(0,0,18,10,0,0,7); ctx.fill();
       ctx.fillStyle='rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.arc(4,0,5,0,7); ctx.fill();
-    }else{
+else{
+      // TIA AXIT - beam dài để phân biệt với đạn quái
       ctx.rotate(p.a);
-      ctx.fillStyle='#22c55e'; ctx.shadowColor='#22c55e'; ctx.shadowBlur=10;
-      ctx.beginPath(); ctx.arc(0,0,7,0,7); ctx.fill();
-      ctx.fillStyle='#86efac'; ctx.beginPath(); ctx.arc(0,0,3,0,7); ctx.fill();
+      ctx.shadowColor='#22c55e'; ctx.shadowBlur=14;
+      // glow ngoài
+      const beamLen=36, beamW=8;
+      const grad=ctx.createLinearGradient(-beamLen*0.4,0,beamLen*0.6,0);
+      grad.addColorStop(0,'rgba(34,197,94,0)');
+      grad.addColorStop(0.2,'rgba(74,222,128,0.7)');
+      grad.addColorStop(0.5,'rgba(34,197,94,0.95)');
+      grad.addColorStop(1,'rgba(134,239,172,1)');
+      ctx.fillStyle=grad;
+      ctx.beginPath();
+      ctx.roundRect(-beamLen*0.4,-beamW/2,beamLen,beamW,beamW/2);
+      ctx.fill();
+      // lõi sáng trắng-xanh
       ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(34,197,94,0.3)'; ctx.beginPath(); ctx.arc(-8,0,4,0,7); ctx.fill();
+      ctx.fillStyle='rgba(220,252,231,0.95)';
+      ctx.beginPath();
+      ctx.roundRect(-beamLen*0.2,-2,beamLen*0.7,4,2);
+      ctx.fill();
+      // đầu nhọn
+      ctx.fillStyle='#bbf7d0';
+      ctx.beginPath();
+      ctx.arc(beamLen*0.5,0,5,0,7);
+      ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath();
+      ctx.arc(beamLen*0.5,0,2.2,0,7);
+      ctx.fill();
+      // đuôi khói nhẹ
+      ctx.fillStyle='rgba(34,197,94,0.28)'; ctx.beginPath(); ctx.arc(-8,0,4,0,7); ctx.fill();
     }
     ctx.restore();
     ctx.restore();
@@ -1872,13 +1926,38 @@ function updateProjs(dt){
       grad.addColorStop(0,'rgba(74,222,128,0.9)'); grad.addColorStop(0.4,'rgba(34,197,94,0.5)'); grad.addColorStop(1,'rgba(34,197,94,0)');
       ctx.fillStyle=grad; ctx.beginPath(); ctx.ellipse(0,0,18,10,0,0,7); ctx.fill();
       ctx.fillStyle='rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.arc(4,0,5,0,7); ctx.fill();
-    }else{
+else{
+      // TIA AXIT - beam dài để phân biệt với đạn quái
       ctx.rotate(p.a);
-      ctx.fillStyle='#22c55e'; ctx.shadowColor='#22c55e'; ctx.shadowBlur=12;
-      ctx.beginPath(); ctx.arc(0,0,8,0,7); ctx.fill();
-      ctx.fillStyle='#86efac'; ctx.beginPath(); ctx.arc(0,0,3.5,0,7); ctx.fill();
+      ctx.shadowColor='#22c55e'; ctx.shadowBlur=14;
+      // glow ngoài
+      const beamLen=36, beamW=8;
+      const grad=ctx.createLinearGradient(-beamLen*0.4,0,beamLen*0.6,0);
+      grad.addColorStop(0,'rgba(34,197,94,0)');
+      grad.addColorStop(0.2,'rgba(74,222,128,0.7)');
+      grad.addColorStop(0.5,'rgba(34,197,94,0.95)');
+      grad.addColorStop(1,'rgba(134,239,172,1)');
+      ctx.fillStyle=grad;
+      ctx.beginPath();
+      ctx.roundRect(-beamLen*0.4,-beamW/2,beamLen,beamW,beamW/2);
+      ctx.fill();
+      // lõi sáng trắng-xanh
       ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(34,197,94,0.4)'; ctx.beginPath(); ctx.arc(-9,0,5,0,7); ctx.fill();
+      ctx.fillStyle='rgba(220,252,231,0.95)';
+      ctx.beginPath();
+      ctx.roundRect(-beamLen*0.2,-2,beamLen*0.7,4,2);
+      ctx.fill();
+      // đầu nhọn
+      ctx.fillStyle='#bbf7d0';
+      ctx.beginPath();
+      ctx.arc(beamLen*0.5,0,5,0,7);
+      ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath();
+      ctx.arc(beamLen*0.5,0,2.2,0,7);
+      ctx.fill();
+      // đuôi khói nhẹ
+      ctx.fillStyle='rgba(34,197,94,0.28)'; ctx.beginPath(); ctx.arc(-9,0,5,0,7); ctx.fill();
     }
     ctx.restore();
     ctx.restore();
@@ -2817,30 +2896,18 @@ function restartLeaderboardLive(){
 
 
 function returnToLobby(){
-  try{ stopBackgroundMusic(); }catch(_){}
-  try{ if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;} }catch(_){}
-  try{
-    if(state==='play'||state==='pause'||state==='levelup'){
-      if(!runRewardSaved && typeof saveRunResult==='function'){
-        try{ saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0); }catch(_){}
-      }
-    }
-  }catch(_){}
-  try{ runRewardSaved=false; }catch(_){}
+  stopBackgroundMusic();
+  if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
+  if(state==='play'||state==='pause'||state==='levelup'){
+    if(!runRewardSaved && typeof saveRunResult==='function') saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0);
+  }
   state='lobby';
-  try{ show('menu',false);show('pause',false);show('levelup',false);show('over',false); }catch(_){}
-  try{
-    const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
-    const lobbyEl=document.getElementById('lobby'); if(lobbyEl) lobbyEl.style.display='flex';
-    const overEl=document.getElementById('over'); if(overEl) overEl.style.display='none';
-  }catch(_){}
-  try{
-    const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||document.getElementById('lobbyName')?.textContent||'Người chơi';
-    if(typeof refreshLobbyProfile==='function') refreshLobbyProfile(name);
-  }catch(_){}
-  setTimeout(()=>{ try{ if(typeof fetchLeaderboard==='function') fetchLeaderboard(); }catch(_){} }, 300);
-  try{ joy.active=false;joy.dx=joy.dy=0; }catch(_){}
-  try{ reset(); }catch(_){}
+  show('menu',false);show('pause',false);show('levelup',false);show('over',false);
+  const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
+  const lobbyEl=document.getElementById('lobby'); if(lobbyEl) lobbyEl.style.display='flex';
+  refreshLobbyProfile();
+  setTimeout(()=>{ try{ fetchLeaderboard(); }catch(_){} }, 200);
+  joy.active=false;joy.dx=joy.dy=0;
 }
 
 
@@ -3271,9 +3338,32 @@ function drawProj(p){
       ctx.fillStyle='rgba(187,247,208,0.9)'; ctx.beginPath(); ctx.arc(5,0,6,0,7); ctx.fill();
       ctx.shadowColor='#22c55e'; ctx.shadowBlur=10; ctx.fillStyle='#22c55e'; ctx.beginPath(); ctx.arc(0,0,3,0,7); ctx.fill(); ctx.shadowBlur=0;
     }else{
-      // đạn thường - viên xanh lá phát sáng rõ
-      ctx.shadowColor='#22c55e'; ctx.shadowBlur=16;
-      ctx.fillStyle='#22c55e'; ctx.beginPath(); ctx.arc(0,0,9,0,7); ctx.fill();
+      // TIA AXIT BEAM - dài để phân biệt với đạn quái
+      ctx.shadowColor='#22c55e'; ctx.shadowBlur=14;
+      const beamLen=36, beamW=8;
+      const grad=ctx.createLinearGradient(-beamLen*0.4,0,beamLen*0.6,0);
+      grad.addColorStop(0,'rgba(34,197,94,0)');
+      grad.addColorStop(0.2,'rgba(74,222,128,0.7)');
+      grad.addColorStop(0.5,'rgba(34,197,94,0.95)');
+      grad.addColorStop(1,'rgba(134,239,172,1)');
+      ctx.fillStyle=grad;
+      ctx.beginPath();
+      ctx.roundRect(-beamLen*0.4,-beamW/2,beamLen,beamW,beamW/2);
+      ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(220,252,231,0.95)';
+      ctx.beginPath();
+      ctx.roundRect(-beamLen*0.2,-2,beamLen*0.7,4,2);
+      ctx.fill();
+      ctx.fillStyle='#bbf7d0';
+      ctx.beginPath();
+      ctx.arc(beamLen*0.5,0,5,0,7);
+      ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath();
+      ctx.arc(beamLen*0.5,0,2.2,0,7);
+      ctx.fill();
+      ctx.fillStyle='rgba(34,197,94,0.28)'; ctx.beginPath(); ctx.arc(0,0,9,0,7); ctx.fill();
       ctx.fillStyle='#86efac'; ctx.beginPath(); ctx.arc(0,0,4,0,7); ctx.fill();
       ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(1.5,-1.5,1.5,0,7); ctx.fill();
       ctx.shadowBlur=0;
