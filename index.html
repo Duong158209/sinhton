@@ -490,13 +490,13 @@ function spawnEnemy(forceType,px,py){
   // tính lại hp theo hpScale, dame theo dmgScale (tuyến tính)
   
   let e={x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
-  if(type==='n'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
-  if(type==='f'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
-  if(type==='r'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
-  if(type==='t'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
-  if(type==='sk'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
-  if(type==='bom'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
-  if(type==='arc'){const fH=frenzyActive?4:1, fD=frenzyActive?0.5:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
+  if(type==='n'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
+  if(type==='f'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
+  if(type==='r'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
+  if(type==='t'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
+  if(type==='sk'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
+  if(type==='bom'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
+  if(type==='arc'){const fH=frenzyActive?4:1, fD=frenzyActive?0.3:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
   if(type==='b'){
     if(bossIdx%3===2 || (T>120 && Math.random()<0.35)){ e.bt='a'; } else { e.bt=bossIdx%2?'r':'m'; }
     if(bossIdx===0){e.hp=5000;e.dmg=250;}
@@ -517,6 +517,8 @@ function spawnEnemy(forceType,px,py){
     }
     bossIdx++;
   }
+  // Quái thường xuất hiện trước 1:30 gây thêm 25% sát thương.
+  if(e.t!=='b' && T<90) e.dmg*=1.25;
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
   if(px!==undefined){e.x=px;e.y=py;}
@@ -789,7 +791,7 @@ function fireWeapons(dt){
       const base=Math.atan2(tg[0].y-P.y,tg[0].x-P.x),n=at([1,2,2,3,4],l);
       for(let i=0;i<n;i++){
         const a=base+(i-(n-1)/2)*.18;
-        projs.push({k,x:P.x,y:P.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg:12+4*l,pierce:l>=4?2:1,hit:new Set(),life:1,r:6});
+        projs.push({k,x:P.x,y:P.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg:(12+4*l)*(1+0.10*(l-1)),pierce:l>=4?2:1,hit:new Set(),life:1,r:6});
       }
       cd[k]=.85-.06*l;
     }
@@ -1066,7 +1068,7 @@ function update(dt){
     frenzyActive=true;
     frenzyT=frenzyDuration;
     frenzyCount++;
-    texts.push({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +300% HP -50% Dame +30% Tốc chạy!',t:3,c:true,big:true});
+    texts.push({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +300% HP -70% Dame +30% Tốc chạy!',t:3,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff0000'});
     shake=12;
     if(typeof sfx==='function') sfx('frenzy');
