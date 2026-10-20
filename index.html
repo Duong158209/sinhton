@@ -42,6 +42,27 @@
 :where(code, pre, kbd, samp) {
   font-family: "Optimistic Mono", ui-monospace, monospace;
 }
+</style><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
 
   /* === WEAPON INVENTORY FIX === */
   .weapon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -138,7 +159,7 @@
 
 
   /* ===== LOBBY ===== */
-  #lobby{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
+  #lobby{position:fixed;inset:0;z-index:12;display:none;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
   .lobby-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
   .profile-chip{cursor:pointer;text-align:left;color:inherit;font:inherit;flex:1;max-width:70%;}
   .profile-chip:focus-visible{outline:2px solid #ffd45a;outline-offset:3px}
@@ -232,7 +253,7 @@
   </div>
   <div class="lobby-brand"><h1>SURVIVOR</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
   <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
-  <button class="btn" id="lobbyStart" onclick="window.startGame&&window.startGame()">▶ BẮT ĐẦU</button>
+  <button class="btn" id="lobbyStart" onclick="">▶ BẮT ĐẦU</button>
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
   <div id="leaderboardBox" style="background:linear-gradient(160deg,#1a2744,#121c32);border:1px solid #4a5a7a;border-radius:14px;padding:10px 10px 6px;box-shadow:0 4px 0 #0b1220;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -252,7 +273,7 @@
   
   <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
 </div>
-<div class="ov" id="menu" style="display:none"><h1>SURVIVOR</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn" onclick="window.startGame&&window.startGame()">Bắt đầu</div></div>
+<div class="ov" id="menu" style="display:none"><h1>SURVIVOR</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn" onclick="">Bắt đầu</div></div>
 
 <div class="ov" id="levelup">
   <div class="banner">Chọn kỹ năng</div>
@@ -415,9 +436,14 @@ if(!guestBtn && authSubmit){
   guestBtn.style.cssText='margin-top:10px;background:#2a3a5a;color:#9ec6ff;border:1px solid #3a4a6a;text-align:center';
   guestBtn.textContent='Chơi khách (không lưu online)';
   guestBtn.onclick = ()=>{
+    window.isGuestMode=true;
     const ov=document.getElementById('authOv');
     if(ov) ov.style.display='none';
-    document.getElementById('lobby').style.display='flex';
+    const lobbyEl=document.getElementById('lobby');
+    if(lobbyEl) lobbyEl.style.display='flex';
+    const hudEl=document.getElementById('hud');
+    if(hudEl) hudEl.style.display='none';
+    try{ state='lobby'; }catch(_){}
     try{ fetchLeaderboard(); }catch(_){}
   };
   authSubmit.parentNode.insertBefore(guestBtn, authSubmit.nextSibling);
@@ -437,12 +463,18 @@ auth.onAuthStateChanged(async (user) => {
     authOv.style.display = 'none';
     userBar.style.display = 'none';
     const nm = user.displayName || user.email.split('@')[0];
-    document.getElementById('userName').textContent = nm;
+    const lobbyEl=document.getElementById('lobby');
+    const menuEl=document.getElementById('menu');
+    const hudEl=document.getElementById('hud');
+    if(document.getElementById('userName')) document.getElementById('userName').textContent = nm;
     try{ setTimeout(()=>fetchLeaderboard(), 500); }catch(_){}
-    document.getElementById('userAv').textContent = (nm[0]||'?').toUpperCase();
-    refreshLobbyProfile(nm);
-    document.getElementById('lobby').style.display = 'flex';
-    document.getElementById('menu').style.display = 'none';
+    if(document.getElementById('userAv')) document.getElementById('userAv').textContent = (nm[0]||'?').toUpperCase();
+    try{ refreshLobbyProfile(nm); }catch(_){}
+    if(lobbyEl) lobbyEl.style.display = 'flex';
+    if(menuEl) menuEl.style.display = 'none';
+    if(hudEl) hudEl.style.display = 'none';
+    try{ state='lobby'; }catch(_){}
+    try{ show('pause',false); show('levelup',false); show('over',false); }catch(_){}
     // Đảm bảo document users tồn tại
     try{
       const ref = db.collection('users').doc(user.uid);
@@ -465,18 +497,26 @@ auth.onAuthStateChanged(async (user) => {
     // Nếu là khách (bấm Chơi ngay) thì không chặn
     if(window.isGuestMode){
       authOv.style.display = 'none';
-      document.getElementById('lobby').style.display = 'flex';
+      const lobbyEl2=document.getElementById('lobby');
+      if(lobbyEl2) lobbyEl2.style.display='flex';
+      try{ state='lobby'; const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none'; }catch(_){}
       return;
     }
     authOv.style.display = 'flex';
     userBar.style.display = 'none';
-    // Cho phép hiện lobby ngay cả khi chưa đăng nhập để có thể bấm BẮT ĐẦU (chế độ khách)
+    // KHÔNG auto vào game - luôn ở sảnh chờ đăng nhập hoặc bấm Chơi khách
     const lobbyEl=document.getElementById('lobby');
     if(lobbyEl) lobbyEl.style.display='flex';
-    document.getElementById('menu').style.display = 'none';
-    if(typeof state !== 'undefined' && state !== 'menu' && state !== 'play' && state !== 'pause'){
-      try{ if(state==='over'){} else { state='menu'; if(typeof reset==='function') reset(); } }catch(_){}
-    }
+    const menuEl2=document.getElementById('menu');
+    if(menuEl2) menuEl2.style.display='none';
+    const hudEl=document.getElementById('hud');
+    if(hudEl) hudEl.style.display='none';
+    try{ 
+      if(typeof state !== 'undefined' && state!=='lobby') { 
+        state='lobby'; 
+        if(typeof reset==='function') reset(); 
+      } 
+    }catch(_){}
   }
 });
 
@@ -583,7 +623,7 @@ function resize(){
   zoom=Math.min(W/390,H/680);
   if(zoom<0.7)zoom=0.7;
 }
-addEventListener('resize',resize);resize();
+addEventListener('resize',()=>{resize(); try{joyDefault();}catch(_){}});resize();
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -634,7 +674,7 @@ const EVO={
 };
 const wmax=k=>{ if(k==='ls') return 3; if(k==='slotplus') return 4; return EVO[k]?6:MAXLV; };
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
-let state='menu';
+let state='lobby';
 const AURA_R=150;
 let maxWeaponSlots=6, rerollLeft=2;
 let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true, accountBestTime=0;
@@ -889,14 +929,15 @@ function bindStartButtons(){
   ['startBtn','lobbyStart','startBtn1','startBtn2','restartBtn1','restartBtn2'].forEach(id=>{
     const el=$(id); if(!el) return;
     el.style.pointerEvents='auto';
-    el.style.touchAction='auto';
-    el.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); startGame(); }, {passive:false});
-    el.addEventListener('touchend', (e)=>{ e.preventDefault(); startGame(); }, {passive:false});
+    el.style.touchAction='manipulation';
   });
 }
 bindStartButtons();
-$('startBtn').onclick=startGame;
-$('lobbyStart').onclick=startGame;
+// Chỉ cho phép click thật sự để bắt đầu, tránh touchend ghost trên iOS tự auto vào game
+const _lobbyStartBtn = $('lobbyStart');
+if(_lobbyStartBtn){ _lobbyStartBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
+const _startBtn = $('startBtn');
+if(_startBtn){ _startBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
 const lobbyPanelData={
  character:['Nhân vật','<div class="inventory-item"><b>🧍 Survivor</b><small>Nhân vật mặc định hiện tại. Sử dụng nhân vật này để bắt đầu trận đấu.</small></div>'],
  weapon:['Vũ khí','<div class="inventory-item"><b>🗡️ Dao găm Kunai</b><small>Vũ khí khởi đầu hiện tại. Tự động phóng kunai vào kẻ địch gần nhất.</small></div>'],
@@ -924,7 +965,7 @@ $('restartBtn2').onclick=startGame;
 $('resumeBtn').onclick=togglePause;
 $('returnLobbyBtn').onclick=returnToLobby;
 $('overLobbyBtn').onclick=returnToLobby;
-['returnLobbyBtn','overLobbyBtn'].forEach(id=>{const el=$(id); if(!el) return; el.style.pointerEvents='auto'; el.style.touchAction='manipulation'; el.addEventListener('touchend',(e)=>{e.preventDefault(); returnToLobby();},{passive:false});});
+['returnLobbyBtn','overLobbyBtn'].forEach(id=>{const el=$(id); if(!el) return; el.style.pointerEvents='auto'; el.style.touchAction='manipulation';});
 $('pauseBtn').onclick=togglePause;
 // n = số sao đang tô vàng; newIdx = ngôi sao (1..) sẽ nhận được khi chọn thẻ -> nhấp nháy; evo = thẻ tiến hóa (sao thứ 6)
 function stars(n,newIdx,evo){
@@ -2781,10 +2822,10 @@ function returnToLobby(){
   if(state==='play'||state==='pause'||state==='levelup'){
     if(!runRewardSaved && typeof saveRunResult==='function') saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0);
   }
-  state='menu';
+  state='lobby';
   show('menu',false);show('pause',false);show('levelup',false);show('over',false);
-  $('hud').style.display='none';
-  document.getElementById('lobby').style.display='flex';
+  const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
+  const lobbyEl=document.getElementById('lobby'); if(lobbyEl) lobbyEl.style.display='flex';
   refreshLobbyProfile();
   setTimeout(()=>{ try{ fetchLeaderboard(); }catch(_){} }, 200);
   joy.active=false;joy.dx=joy.dy=0;
@@ -3890,5 +3931,5 @@ requestAnimationFrame(loop);
 })();
 
 </script>
-</body>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
