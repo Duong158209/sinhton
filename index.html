@@ -84,6 +84,27 @@
 :where(code, pre, kbd, samp) {
   font-family: "Optimistic Mono", ui-monospace, monospace;
 }
+</style><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
 </style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -477,6 +498,10 @@ const SK={
   dmg:{n:'Găng sức mạnh',ic:'💪',type:'p',d:'Tăng 15% sát thương mọi vũ khí.'},
   ls:{n:'Hút máu',ic:'🩸',type:'p',d:'Hồi máu bằng 1-1.5% sát thương gây ra. Max 3% - chỉ 3 cấp.'},
   xp:{n:'Kinh nghiệm',ic:'📘',type:'p',d:'Nhận thêm kinh nghiệm từ ngọc.'},
+  crit:{n:'Mắt Đại Bàng',ic:'🦅',type:'p',d:'Tăng 8% tỉ lệ chí mạng (x2.2 dame). Max 40%.'},
+  cdr:{n:'Đồng Hồ Thời Gian',ic:'⏳',type:'p',d:'Giảm 10% hồi chiêu toàn bộ vũ khí.'},
+  armor:{n:'Giáp Thép',ic:'🦾',type:'p',d:'Giảm 12% sát thương nhận vào. Max 60%.'},
+  ice:{n:'Bão Băng Giá',ic:'❄️',type:'w',d:'Tạo vòng băng gây sát thương và làm chậm 60% quái 1.5s. Mỗi cấp tăng dame + bán kính.'},
   heal30:{n:'Hồi 30% máu',ic:'💊',type:'h',d:'Hồi ngay 30% máu tối đa.'},
   healfull:{n:'Hồi đầy máu',ic:'💖',type:'h',d:'Hồi đầy toàn bộ máu.'}
 };
@@ -494,22 +519,23 @@ const EVO={
   drone:{n:'Drone Laser 4 Hướng',ic:'💥',d:'TIẾN HÓA: drone bắn 4 tia laser cùng lúc, sát thương x3, tốc độ x2. Bắn 10s nghỉ 2.5s.'},
   golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem tóc xanh, mắt đỏ, to hơn, dame +80%, rễ trói rộng hơn, đất lăn to hơn và không biến mất.'},
   hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn, gây thêm 1.5% máu tối đa của địch mỗi tick và hồi 1.5% máu đó cho bản thân, tồn tại 6.5s.'},
-  tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Lập tức giết tất cả quái dưới 30% máu (không tính boss). Boss dưới 50% máu nhận thêm 20% sát thương. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'}
+  tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Lập tức giết tất cả quái dưới 30% máu (không tính boss). Boss dưới 50% máu nhận thêm 20% sát thương. Vẫn giữ 15% kết liễu khi địch dưới 20% máu.'},
+  ice:{n:'Bão Tuyết Vĩnh Cửu',ic:'🌨️',d:'TIẾN HÓA: Bão băng khổng lồ 280 bán kính, đóng băng 100% quái 1s, nổ băng gây 400% dame, để lại vệt băng làm chậm 3s.'}
 };
 const wmax=k=>{ if(k==='ls') return 3; return SK[k].type==='w'&&EVO[k]?6:MAXLV; };
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='menu';
-let P,enemies,gems,coinsArr,projs,fx,texts,bolts,rings,clouds,arcs,warns,eprojs,bossIdx,lastBossHp,lastBossDmg,blackholes,droneSt,golemSt,chests;
+let P,enemies,gems,coinsArr,projs,fx,texts,bolts,rings,clouds,arcs,warns,eprojs,bossIdx,lastBossHp,lastBossDmg,blackholes,droneSt,golemSt,chests,iceRings;
 let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magnets,magnetT,monsterScale,monsterHpScale,monsterDmgScale,lastScaleT,frenzyNext,frenzyActive,frenzyT,frenzyDuration,frenzyCount,tuocdoatProcT;
 const AURA_R=150;
 let lv={},ps={};
 function reset(){
   P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
-  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];
+  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=150;frenzyActive=false;frenzyT=0;frenzyDuration=25;frenzyCount=0;tuocdoatProcT=5;
-  lv={kunai:1};ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0};
+  lv={kunai:1};ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0,crit:0,cdr:0,armor:0};
   window.lastPlayerBuffT=120; window.playerBonusDmg=0;
-  cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0,hoden:0};
+  cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0,hoden:0,ice:0};
   droneSt={ang:0,active:10,rest:0,firing:true,orbit:48};
   golemSt={active:false,x:0,y:0,life:0,cd:0,atk:0,combo:0,rootCd:5,earthCd:8,summons:0,walk:0,moving:false};
   golemAttackFx=0; golemRootFx=0;
@@ -918,7 +944,7 @@ function bossAI(e,dt){
     if(e.dashDmg){
       const d=Math.hypot(P.x-e.x,P.y-e.y);
       if(d < e.r+18){
-        e.dashDmg=false; P.hp-=Math.min(e.dmg*1.35, P.maxhp*0.8)*sm;
+        e.dashDmg=false; P.hp-=applyArmor(Math.min(e.dmg*1.35, P.maxhp*0.8)*sm);
         P.hurt=0.35; P.inv=0.3; shake=8;
         fx.push({x:P.x,y:P.y,ring:50,t:.3,T:.3,c:'#ff2222'});
         texts.push({x:P.x,y:P.y-20,v:'-LƯỚT CHÉM!',t:0.8,c:true});
@@ -969,7 +995,9 @@ function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
   if(typeof sfx==='function'){ if(crit) sfx('crit'); else sfx(e.t==='b'?'boss_hit':'hit'); }
   dmg*=1+.15*ps.dmg;
   if(e.t==='b' && lv.tuocdoat>=6 && e.hp<e.max*0.5) dmg*=1.2; // Tước Đoạt max: boss dưới 50% máu nhận +20% sát thương
-  if(Math.random()<.1){dmg*=2;crit=true;}
+  const critChance = (typeof getCritChance==='function'?getCritChance():0.1);
+  if(Math.random()<critChance){dmg*= (typeof getCritMul==='function'?getCritMul():2); crit=true;}
+  else if(Math.random()<.02){dmg*=2;crit=true;}
   if(ps.ls)P.hp=Math.min(P.maxhp,P.hp+Math.min(dmg,Math.max(e.hp,0))*LS[ps.ls]);
   e.hp-=dmg;e.flash=.1;
   const d=Math.hypot(kx,ky)||1;const kb=e.t==='b'?.06:1;e.kx+=kx/d*90*kb;e.ky+=ky/d*90*kb;
@@ -1024,6 +1052,12 @@ function nearest(n,range){
   return arr.slice(0,n).map(a=>a[1]);
 }
 const at=(a,l)=>a[Math.min(l,a.length)-1];
+function getCritChance(){ return 0.10 + (ps.crit||0)*0.08; } // 10% base + 8% mỗi cấp, max 50%
+function getCritMul(){ return 2.2; }
+function getCdrMul(){ const c=ps.cdr||0; return Math.max(0.5, 1 - c*0.10); } // giảm 10% mỗi cấp, min 0.5
+function getArmorMul(){ const a=ps.armor||0; return Math.max(0.4, 1 - a*0.12); } // giảm 12% dame nhận, max 60%
+function applyArmor(dmg){ return dmg * getArmorMul(); }
+
 function fireWeapons(dt){
   // Tước Đoạt max: cứ mỗi 5 giây, mỗi quái thường có 5% cơ hội chết ngay.
   if(lv.tuocdoat>=6){
@@ -1057,20 +1091,20 @@ function fireWeapons(dt){
         const sy=Math.min(ty-320,P.y-H/zoom/2-120);
         projs.push({k,sky:true,x:tx,y:sy,tx,ty,vx:0,vy:850,a:Math.PI/2,dmg:700,rad:105,big:4,delay:i*.14,life:6,r:8,hit:new Set()});
       }
-      cd[k]=4;continue;
+      cd[k]=4 * getCdrMul();continue;
     }
     if(k==='lightning'&&l>=6){
       sfx('lightning');
       for(let i=0;i<4;i++){const a=i*Math.PI/2+rnd(0,.5);
         clouds.push({x:P.x+Math.cos(a)*70,y:P.y+Math.sin(a)*70,life:10,T:10,zt:rnd(0,.25),ph:rnd(0,6),flash:0});}
-      cd[k]=2.5;continue;
+      cd[k]=2.5 * getCdrMul();continue;
     }
     if(k==='ringz'&&l>=6){cd[k]=1;continue;}
     if(k==='ringz'){
       sfx('ringz');
       rings.push({r:0,ph:0,hit:new Set(),maxR:110+12*l,dmg:25+9*l});
       shake=Math.max(shake,1.5);
-      cd[k]=3.4-.25*l;continue;
+      cd[k]=(3.4-.25*l) * getCdrMul();continue;
     }
     if(k==='boomerang'&&l>=6){
       sfx('boomerang');
@@ -1079,7 +1113,7 @@ function fireWeapons(dt){
       for(let i=0;i<3;i++){
         projs.push({k,x:P.x,y:P.y,vx:0,vy:0,a:0,dmg:135,chain:true,ph:0,tgt:tg[i%tg.length],left:15,hit:new Set(),r:24,big:2.3,life:9});
       }
-      cd[k]=2.2;continue;
+      cd[k]=2.2 * getCdrMul();continue;
     }
     if(k==='kunai'){
       sfx('kunai');
@@ -1090,7 +1124,7 @@ function fireWeapons(dt){
         const a=base+(i-(n-1)/2)*.18;
         projs.push({k,x:P.x,y:P.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg:(12+4*l)*(1+0.10*(l-1)),pierce:l>=4?2:1,hit:new Set(),life:1,r:6});
       }
-      cd[k]=.85-.06*l;
+      cd[k]=(.85-.06*l) * getCdrMul();
     }
     if(k==='rocket'){
       sfx('rocket');
@@ -1102,7 +1136,7 @@ function fireWeapons(dt){
         const a=Math.atan2(t.y-P.y,t.x-P.x)+(i?rnd(-.3,.3):0);
         projs.push({k,x:P.x,y:P.y,vx:Math.cos(a)*220,vy:Math.sin(a)*220,a,dmg:28+8*l,rad:52+6*l,tgt:t,life:2.2,r:8,hit:new Set()});
       }
-      cd[k]=2.5-.2*l;
+      cd[k]=(2.5-.2*l) * getCdrMul();
     }
     if(k==='lightning'){
       sfx('lightning');
@@ -1119,7 +1153,7 @@ function fireWeapons(dt){
         }
         shake=Math.max(shake,2);
       }
-      cd[k]=1.9-.15*l;
+      cd[k]=(1.9-.15*l) * getCdrMul();
     }
     if(k==='boomerang'){
       sfx('boomerang');
@@ -1131,7 +1165,7 @@ function fireWeapons(dt){
         const a=Math.atan2(t.y-P.y,t.x-P.x)+(n>1?(i-(n-1)/2)*.5:0);
         projs.push({k,x:P.x,y:P.y,vx:Math.cos(a)*330,vy:Math.sin(a)*330,a:0,dmg:14+5*l,ph:0,pt:0,hit:new Set(),r:13,life:4});
       }
-      cd[k]=2.1-.15*l;
+      cd[k]=(2.1-.15*l) * getCdrMul();
     }
     if(k==='drone'){
       sfx(l>=6?'drone_laser':'drone');
@@ -1159,14 +1193,14 @@ function fireWeapons(dt){
             projs.push({k:'drone',laser:true,x:droneX,y:droneY,vx:Math.cos(a)*720,vy:Math.sin(a)*720,a,dmg,life:0.7,r:7,pierce:99,hit:new Set()});
           }
         }
-        cd[k]=0.22 - (l-6)*0.02;
+        cd[k]=(0.22 - (l-6)*0.02) * getCdrMul();
       }else{
         const tg = nearest(1, 460);
         if(!tg.length){ cd[k]=0.12; continue; }
         const a = Math.atan2(tg[0].y - droneY, tg[0].x - droneX);
         const dmg = 14 + 7*l;
         projs.push({k:'drone',x:droneX,y:droneY,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg,life:1.2,r:5,pierce:1,hit:new Set()});
-        cd[k]=Math.max(0.18, 0.62 - 0.07*l);
+        cd[k]=Math.max(0.18, 0.62 - 0.07*l) * getCdrMul();
       }
     }
     if(k==='tuocdoat'){
@@ -1179,7 +1213,7 @@ function fireWeapons(dt){
           if(typeof sfx==='function') sfx('tuocdoat');
         }
       }
-      cd[k]=l>=6?0.2:0.5;
+      cd[k]=(l>=6?0.2:0.5) * getCdrMul();
       continue;
     }
     if(k==='hoden'){
@@ -1217,10 +1251,41 @@ function fireWeapons(dt){
       fx.push({x:bestX,y:bestY,ring:pullRad,t:.6,T:.6,c:'#7a00ff'});
       shake=Math.max(shake,3);
       if(typeof sfx==='function') sfx('hoden');
-      cd[k]= isEvo ? 5 : (6 - 0.3*l);
+      cd[k]= (isEvo ? 5 : (6 - 0.3*l)) * getCdrMul();
+      continue;
+    }
+    if(k==='ice'){
+      sfx('ringz');
+      const isEvo = l>=6;
+      const rad = isEvo ? 280 : (90 + 15*l);
+      const dmg = isEvo ? (80 + 25*l) : (22 + 10*l);
+      const slowT = isEvo ? 3.0 : 1.5;
+      const freeze = isEvo;
+      // gây dame + slow ngay lập tức
+      let hitCnt=0;
+      for(const e of enemies){
+        if(e.dead) continue;
+        const d=Math.hypot(e.x-P.x,e.y-P.y);
+        if(d < rad + e.r){
+          hitEnemy(e, isEvo? dmg*4 : dmg, e.x-P.x, e.y-P.y);
+          e.slowT = Math.max(e.slowT||0, slowT);
+          e.slowFactor = isEvo ? 0 : 0.6; // 0 = đóng băng 100%
+          e.freeze = freeze;
+          hitCnt++;
+        }
+      }
+      iceRings.push({x:P.x,y:P.y,r:0,maxR:rad,T:0.6,life:0.6,dmg:dmg,slowT:slowT,freeze:freeze,isEvo:isEvo});
+      fx.push({x:P.x,y:P.y,ring:rad,t:.6,T:.6,c:isEvo?'#a0e8ff':'#7fd4ff'});
+      fx.push({x:P.x,y:P.y,ring:rad*0.6,t:.4,T:.4,c:'#ffffff'});
+      if(isEvo) texts.push({x:P.x,y:P.y-50,v:'BÃO TUYẾT VĨNH CỬU!',t:1.2,c:true,big:true});
+      else texts.push({x:P.x,y:P.y-40,v:'BÃO BĂNG!',t:.8,c:true});
+      shake=Math.max(shake, isEvo?8:3);
+      cd[k]= (isEvo ? 3.5 : (3.6 - 0.3*l)) * getCdrMul();
       continue;
     }
   }
+  // apply cdr to other weapons cd set earlier - we patch generic by multiplying at assignment? We'll handle per weapon above, generic fallback:
+  // (đã nhân cdr cho ice và hoden, các skill khác sẽ được nhân ở chỗ set cd)
 }
 function explode(p){
   for(const e of enemies){
@@ -1622,6 +1687,29 @@ function update(dt){
     }
   }
   rings=rings.filter(g=>!g.dead);
+  // --- ICE RINGS update ---
+  for(const ir of iceRings){
+    ir.life-=dt;
+    ir.T+=dt;
+    ir.r+= (ir.maxR/0.6)*dt*1.2; // expand quickly
+    // dame tick mỗi 0.2s cho quái trong vòng
+    if(ir.T%0.2 < dt){
+      for(const e of enemies){
+        if(e.dead) continue;
+        const d=Math.hypot(e.x-ir.x,e.y-ir.y);
+        if(d < ir.r + e.r && d < ir.maxR + e.r){
+          // chỉ làm chậm, không dame liên tục để tránh OP, evo thì dame nhẹ
+          if(ir.isEvo && Math.random()<0.5) hitEnemy(e, ir.dmg*0.15, e.x-ir.x, e.y-ir.y);
+          e.slowT = Math.max(e.slowT||0, ir.slowT||0.2);
+          if(ir.freeze) e.freeze=true;
+        }
+      }
+    }
+    if(ir.r>=ir.maxR) ir.r=ir.maxR;
+    if(ir.life<=0) ir.dead=true;
+  }
+  iceRings=iceRings.filter(r=>!r.dead);
+
   for(const c of clouds){
     c.life-=dt;c.ph+=dt;c.zt-=dt;c.flash=Math.max(0,c.flash-dt);
     let best=null,bd=1e9;
@@ -1728,7 +1816,7 @@ function update(dt){
     w.t-=dt;
     if(w.t<=0){
       w.dead=true;shake=7;
-      if(Math.hypot(P.x-w.x,P.y-w.y)<w.r){P.hp-=Math.min(w.dmg||35,P.maxhp*(w.cap||.65))*(w.sm||1);P.hurt=.35; shake=Math.max(shake,8); if(typeof sfx==='function') sfx('boss_meteor_hit');}
+      if(Math.hypot(P.x-w.x,P.y-w.y)<w.r){P.hp-=applyArmor(Math.min(w.dmg||35,P.maxhp*(w.cap||.65))*(w.sm||1));P.hurt=.35; shake=Math.max(shake,8); if(typeof sfx==='function') sfx('boss_meteor_hit');}
       fx.push({x:w.x,y:w.y,ring:w.r,t:.35,T:.35,c:'#ff5040'});
     }
   }
@@ -1746,7 +1834,15 @@ function update(dt){
     const d=Math.hypot(P.x-e.x,P.y-e.y)||1;
     const chase=e.t==='r'?(d>190?1:d<140?-.8:0):(e.t==='b'&&e.bt==='r')?(d>300?1:d<220?-.9:0):1;
     const fsp=(frenzyActive&&e.t!=='b')?1.3:1; // điên loạn: quái thường +30% tốc chạy (boss không bị ảnh hưởng)
-    let vx=(P.x-e.x)/d*e.sp*fsp*chase+e.kx,vy=(P.y-e.y)/d*e.sp*fsp*chase+e.ky;
+    let slowMul=1;
+    if(e.slowT>0){
+      e.slowT-=dt;
+      if(e.freeze) slowMul=0;
+      else slowMul=0.4; // chậm 60%
+      if(e.slowT<=0){ e.slowT=0; e.freeze=false; }
+    }
+    if(e.inBH) e.inBH=Math.max(0,e.inBH-dt);
+    let vx=(P.x-e.x)/d*e.sp*fsp*slowMul*chase+e.kx,vy=(P.y-e.y)/d*e.sp*fsp*slowMul*chase+e.ky;
     if(e.t==='r'){e.sh-=dt;if(e.sh<=0&&d<340){e.sh=6.6+rnd(0,1.8);sfx('enemy_attack');eprojs.push({x:e.x,y:e.y,vx:(P.x-e.x)/d*190,vy:(P.y-e.y)/d*190,dmg:e.dmg,life:3,r:5,c:'acid'});}} // giảm tốc đánh 2 lần
     e.kx*=Math.pow(.001,dt);e.ky*=Math.pow(.001,dt);
     const cx=Math.floor(e.x/22),cy=Math.floor(e.y/22);
@@ -1764,12 +1860,12 @@ function update(dt){
     e.flash=Math.max(0,e.flash-dt);
     if(d<e.r+4){
       if(e.t==='b'){sfx('boss_hit');
-        P.hp-=Math.min(e.dmg*1.0, P.maxhp*0.65)*dt*2.5; P.hurt=.25;
+        P.hp-=applyArmor(Math.min(e.dmg*1.0, P.maxhp*0.65)*dt*2.5); P.hurt=.25;
       }else if(e.isBomber){
         // Quái bom phát nổ khi chạm người chơi, gây 1,5 lần sát thương hiện tại.
         if((e.inBH||0)<=0 && (P.inv||0)<=0){
           const explosionDmg=e.dmg*1.5;
-          P.hp-=explosionDmg;
+          P.hp-=applyArmor(explosionDmg);
           P.hurt=.4;
           P.inv=.8;
           e.dead=true;
@@ -1781,29 +1877,28 @@ function update(dt){
         }
       }else{
         if((e.inBH||0)<=0 && (P.inv||0)<=0){
-          P.hp-=Math.min(e.dmg*1.2,P.maxhp*.2)*dt;
+          P.hp-=applyArmor(Math.min(e.dmg*1.2,P.maxhp*.2)*dt);
           P.hurt=.12;
           P.inv=0.4;
           if(typeof sfx==='function') sfx('player_hurt');
         }
       }
     }
-    if(e.inBH) e.inBH=Math.max(0,e.inBH-dt);
     if(d>Math.max(W,H)/zoom){const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;e.x=P.x+Math.cos(a)*r;e.y=P.y+Math.sin(a)*r;}
   }
   for(const b of eprojs){
-    if(b.fromSky){ b.y+=b.vy*dt; b.life-=dt; if(b.y>=P.y-10){ if(Math.hypot(P.x-b.x,P.y-b.y)<42+18){ P.hp-=b.dmg*(b.sm||1); P.hurt=0.3; if(typeof sfx==='function') sfx('arrow_hit'); } b.dead=true; continue; } }
-    if(b.c==='archer' || b.c==='archer_boss' || b.c==='archer_rain'){ if(Math.hypot(P.x-b.x,P.y-b.y)<18){ P.hp-=b.dmg*(b.sm||1); P.hurt=0.25; b.dead=true; texts.push({x:P.x,y:P.y-18,v:'-'+Math.round(b.dmg*(b.sm||1)),t:.5,c:true}); if(typeof sfx==='function') sfx('arrow_hit'); fx.push({x:b.x,y:b.y,ring:14,t:.2,T:.2,c:'#88ff88'}); continue; } }
+    if(b.fromSky){ b.y+=b.vy*dt; b.life-=dt; if(b.y>=P.y-10){ if(Math.hypot(P.x-b.x,P.y-b.y)<42+18){ P.hp-=applyArmor(b.dmg*(b.sm||1)); P.hurt=0.3; if(typeof sfx==='function') sfx('arrow_hit'); } b.dead=true; continue; } }
+    if(b.c==='archer' || b.c==='archer_boss' || b.c==='archer_rain'){ if(Math.hypot(P.x-b.x,P.y-b.y)<18){ P.hp-=applyArmor(b.dmg*(b.sm||1)); P.hurt=0.25; b.dead=true; texts.push({x:P.x,y:P.y-18,v:'-'+Math.round(b.dmg*(b.sm||1)),t:.5,c:true}); if(typeof sfx==='function') sfx('arrow_hit'); fx.push({x:b.x,y:b.y,ring:14,t:.2,T:.2,c:'#88ff88'}); continue; } }
     b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
     if(Math.hypot(P.x-b.x,P.y-b.y)<b.r+4){
       if(b.redOrb){
-        P.hp-=P.maxhp*0.25*(b.sm||1);
+        P.hp-=applyArmor(P.maxhp*0.25*(b.sm||1));
         P.hurt=.35; shake=Math.max(shake,6);
         fx.push({x:P.x,y:P.y,ring:35,t:.4,T:.4,c:'#ff0000'});
         texts.push({x:P.x,y:P.y-20,v:'-'+Math.round(25*(b.sm||1))+'% HP!',t:.8,c:true});
         b.dead=true;
       }else if((P.inv||0)<=0){
-        P.hp-=Math.min(b.dmg,P.maxhp*.15)*(b.sm||1);P.inv=.5;P.hurt=.15;b.dead=true;shake=Math.max(shake,2);
+        P.hp-=applyArmor(Math.min(b.dmg,P.maxhp*.15)*(b.sm||1));P.inv=.5;P.hurt=.15;b.dead=true;shake=Math.max(shake,2);
         if(typeof sfx==='function') sfx('player_hurt');
       }
     }
@@ -1926,6 +2021,18 @@ function drawZombie(e){
   const s=e.s,b=Math.sin(T*8+e.ph)*1.2;
   ctx.save();ctx.translate(e.x,e.y+b);ctx.scale(s,s);
   ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(0,9,8,3,0,0,7);ctx.fill();
+  // hiệu ứng băng
+  if(e.slowT>0){
+    ctx.save();ctx.translate(e.x,e.y);
+    if(e.freeze){
+      ctx.fillStyle='rgba(160,232,255,0.55)';ctx.beginPath();ctx.arc(0,0,e.r+8,0,7);ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,e.r+6,0,7);ctx.stroke();
+      ctx.fillStyle='#fff';ctx.font='900 12px Arial';ctx.textAlign='center';ctx.fillText('❄',0,-e.r-10);
+    }else{
+      ctx.fillStyle='rgba(127,212,255,0.25)';ctx.beginPath();ctx.arc(0,0,e.r+5,0,7);ctx.fill();
+    }
+    ctx.restore();
+  }
   const fl=e.flash>0;
   ctx.fillStyle=fl?'#fff':(e.t==='b'?(e.bt==='r'?'#3b2a7a':'#7a1f2b'):e.t==='f'?'#c24a3a':e.t==='t'?'#4a3f8c':e.t==='r'?'#8a4fc2':'#2f6fcf');ctx.fillRect(-6,0,12,9);
   ctx.fillStyle=fl?'#fff':'#5f4130';ctx.fillRect(-5,8,4,3);ctx.fillRect(1,8,4,3);
@@ -2576,6 +2683,31 @@ function render(){
     }
     ctx.restore();
   }
+  // ICE RINGS render
+  for(const ir of iceRings){
+    const prog = ir.r/ir.maxR;
+    const alpha = ir.life/0.6;
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    if(ir.isEvo){
+      ctx.shadowColor='#a0e8ff';ctx.shadowBlur=24;
+      const gr=ctx.createRadialGradient(ir.x,ir.y,ir.r*0.2,ir.x,ir.y,ir.r);
+      gr.addColorStop(0,'rgba(160,232,255,0.35)');gr.addColorStop(0.5,'rgba(80,180,255,0.18)');gr.addColorStop(1,'rgba(20,60,120,0)');
+      ctx.fillStyle=gr;ctx.beginPath();ctx.arc(ir.x,ir.y,ir.r,0,7);ctx.fill();
+      ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(ir.x,ir.y,ir.r,0,7);ctx.stroke();
+      ctx.strokeStyle='#7fd4ff';ctx.lineWidth=6;ctx.setLineDash([12,8]);ctx.beginPath();ctx.arc(ir.x,ir.y,ir.r*0.85,0,7);ctx.stroke();ctx.setLineDash([]);
+      // bông tuyết
+      for(let i=0;i<8;i++){ const a=i/8*Math.PI*2 + T*1.2; ctx.fillStyle='#fff'; ctx.font='900 14px Arial'; ctx.fillText('❄', ir.x+Math.cos(a)*ir.r*0.7, ir.y+Math.sin(a)*ir.r*0.7); }
+    }else{
+      ctx.shadowColor='#7fd4ff';ctx.shadowBlur=16;
+      const gr=ctx.createRadialGradient(ir.x,ir.y,ir.r*0.3,ir.x,ir.y,ir.r);
+      gr.addColorStop(0,'rgba(127,212,255,0.28)');gr.addColorStop(1,'rgba(30,100,180,0)');
+      ctx.fillStyle=gr;ctx.beginPath();ctx.arc(ir.x,ir.y,ir.r,0,7);ctx.fill();
+      ctx.strokeStyle='#b0e8ff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(ir.x,ir.y,ir.r,0,7);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   for(const f of fx){
     if(f.ring){
       const a=f.t/f.T;ctx.globalAlpha=a;ctx.strokeStyle=f.c;ctx.lineWidth=5*a;
@@ -2616,5 +2748,5 @@ requestAnimationFrame(loop);
 })();
 
 </script>
-<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script><script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
