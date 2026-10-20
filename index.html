@@ -211,8 +211,8 @@ const SK={
   healfull:{n:'Hồi đầy máu',ic:'💖',type:'h',d:'Hồi đầy toàn bộ máu.'}
 };
 const MAXLV=5;
-// Giảm 55% sát thương SKILL của boss ở giai đoạn đầu game (2 phút đầu). Muốn đổi: sửa 2 số dưới.
-const EARLY_BOSS_T=120, EARLY_BOSS_SKILL_MUL=0.45;
+// Giảm 55% + 75% sát thương SKILL của boss ở giai đoạn đầu game (2 phút đầu). Muốn đổi: sửa 2 số dưới.
+const EARLY_BOSS_T=120, EARLY_BOSS_SKILL_MUL=0.45*0.25; // giảm 55%, rồi giảm thêm 75% nữa (còn ~11% dame)
 const bossSkillMul=()=>(T<EARLY_BOSS_T?EARLY_BOSS_SKILL_MUL:1);
 const LS=[0,.01,.02,.03],LS_TXT=[1,2,3];
 const EVO={
@@ -618,8 +618,8 @@ function bossAI(e,dt){
     e.dash-=dt;
     if(e.dashDmg){
       const d=Math.hypot(P.x-e.x,P.y-e.y);
-      if(d < (e.r+18)*2.5){
-        P.hp-=Math.min(e.dmg*1.35, P.maxhp*0.8)*sm;
+      if(d < e.r+18){
+        e.dashDmg=false; P.hp-=Math.min(e.dmg*1.35, P.maxhp*0.8)*sm;
         P.hurt=0.35; P.inv=0.3; shake=8;
         fx.push({x:P.x,y:P.y,ring:50,t:.3,T:.3,c:'#ff2222'});
         texts.push({x:P.x,y:P.y-20,v:'-LƯỚT CHÉM!',t:0.8,c:true});
@@ -1781,8 +1781,8 @@ function render(){
   for(const e of list){
     if(e.t==='b'&&e.cw>0){
       ctx.save();ctx.translate(e.x,e.y);ctx.rotate(Math.atan2(e.dy,e.dx));
-      ctx.fillStyle='rgba(255,50,50,.28)';ctx.fillRect(0,-18,330,36);
-      ctx.strokeStyle='rgba(255,90,80,.9)';ctx.lineWidth=2;ctx.strokeRect(0,-18,330,36);ctx.restore();
+      const hw=e.r+18,dl=430*.65;ctx.fillStyle='rgba(255,50,50,.28)';ctx.fillRect(-hw,-hw,dl+hw*2,hw*2);
+      ctx.strokeStyle='rgba(255,90,80,.9)';ctx.lineWidth=2;ctx.strokeRect(-hw,-hw,dl+hw*2,hw*2);ctx.restore();
     }
   }
   for(const e of list)drawZombie(e);
