@@ -322,6 +322,9 @@ authSubmit.onclick = async () => {
   authSubmit.style.opacity = '0.6';
   authSubmit.style.pointerEvents = 'none';
   try{
+    // Ghi nhớ phiên đăng nhập trên trình duyệt để lần sau mở web không phải nhập lại.
+    // Firebase sẽ tự khôi phục phiên này qua onAuthStateChanged khi tải trang.
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     if(isRegisterMode){
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       await cred.user.updateProfile({ displayName: name });
