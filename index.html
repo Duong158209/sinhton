@@ -575,6 +575,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
+// Khai báo global để tránh lỗi strict mode Can't find variable
+let enemies=[], gems=[], coinsArr=[], projs=[], fx=[], texts=[], bolts=[], rings=[], clouds=[], arcs=[], warns=[], eprojs=[], blackholes=[], chests=[], iceRings=[], fireTornados=[], magnets=[], drBs=[];
+let bossIdx=0, lastBossHp=5000, lastBossDmg=250;
+let T=0, kills=0, coins=0, spawnAcc=0, burstT=30, shake=0, bossT=90;
+let P={}; let lv={}, ps={}, cd={};
+let droneSt={}, golemSt={};
+let kr={}, auraT=0, firstPick=true, bonusPicks=0, magnetT=25, monsterScale=1, monsterHpScale=1, monsterDmgScale=1, lastScaleT=120, frenzyNext=150, frenzyActive=false, frenzyT=0, frenzyDuration=25, frenzyCount=0, tuocdoatProcT=5;
+
 const golemImg=new Image(); golemImg.src=''; // removed large image to fix freeze - use procedural
 let golemAttackFx=0, golemRootFx=0;
 function golemExtraDmg(e){ return (lv.golem>=6 ? e.max*0.03 : 0); } // giảm từ 5% xuống 3% theo yêu cầu
@@ -653,8 +661,6 @@ function reset(){
   golemAttackFx=0; golemRootFx=0;
   updateHud();
 }
-let cd={};
-
 let audioCtx=null;
 function initAudio(){
   if(audioCtx) return;
