@@ -550,6 +550,8 @@ const wmax=k=>{ if(k==='ls') return 3; if(k==='slotplus') return 4; return EVO[k
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='menu';
 const AURA_R=150;
+let maxWeaponSlots=6, rerollLeft=2;
+let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true, accountBestTime=0;
 function reset(){
   P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];iceRings=[];
@@ -560,6 +562,7 @@ function reset(){
   droneSt={ang:0,active:10,rest:0,firing:true,orbit:48};
   golemSt={active:false,x:0,y:0,life:0,cd:0,atk:0,combo:0,rootCd:5,earthCd:8,summons:0,walk:0,moving:false};
   golemAttackFx=0; golemRootFx=0;
+  maxWeaponSlots=6; rerollLeft=2; armorImmortalT=0; armorBuffCd=0; armorDeathSaveCd=0; armorDeathReady=true;
   updateHud();
 }
 let audioCtx=null;
@@ -1195,7 +1198,9 @@ function getCritChance(){ return 0.10 + (ps.crit||0)*0.08; } // 10% base + 8% m�
 function getCritMul(){ return 2.2; }
 function getCdrMul(){ const c=ps.cdr||0; return Math.max(0.5, 1 - c*0.10); } // giảm 10% mỗi cấp, min 0.5
 function getArmorMul(){ const a=ps.armor||0; return Math.max(0.4, 1 - a*0.12); } // giảm 12% dame nhận, max 60%
-function applyArmor(dmg){ return dmg * getArmorMul(); }
+function applyArmor(dmg){ if(armorImmortalT>0) return 0; return dmg * getArmorMul(); }
+function triggerArmorBuff(){ armorImmortalT=5; armorBuffCd=15; texts.push({x:P.x,y:P.y-50,v:'BẤT TỬ 5s!',t:1.5,c:true,big:true}); fx.push({x:P.x,y:P.y,ring:120,t:.5,T:.5,c:'#4aa0ff'}); }
+function triggerArmorDeathSave(){ if(!armorDeathReady) return false; armorDeathReady=false; armorDeathSaveCd=60; armorImmortalT=Math.max(armorImmortalT,2); texts.push({x:P.x,y:P.y-50,v:'MIỄN TỬ! +50% máu',t:1.5,c:true,big:true}); fx.push({x:P.x,y:P.y,ring:160,t:.6,T:.6,c:'#7fda8a'}); return true; }
 
 function fireWeapons(dt){
   // Tước Đoạt max: cứ mỗi 5 giây, mỗi quái thường có 5% cơ hội chết ngay.
