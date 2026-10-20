@@ -234,7 +234,7 @@ let T,kills,coins,spawnAcc,burstT,shake,bossT,kr,auraT,firstPick,bonusPicks,magn
 const AURA_R=150;
 let lv={},ps={};
 function reset(){
-  P={x:0,y:0,hp:250,maxhp:250,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
+  P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=150;frenzyActive=false;frenzyT=0;frenzyDuration=25;frenzyCount=0;tuocdoatProcT=5;
   lv={kunai:1};ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0};
@@ -504,6 +504,8 @@ function spawnEnemy(forceType,px,py){
       e.hp=lastBossHp*3;
       e.dmg=lastBossDmg*1.5;
     }
+    // Giảm 25% sát thương của tất cả boss.
+    e.dmg*=0.75;
     lastBossHp=e.hp;lastBossDmg=e.dmg;
     if(e.bt==='a'){ e.sp=55; e.r=24; e.s=2.3; } else { e.sp=e.bt==='r'?68:72;e.r=e.bt==='r'?26:28;e.s=e.bt==='r'?2.5:2.7; }
     // 50% boss có khả năng miễn nhiễm sát thương 10s
@@ -517,8 +519,9 @@ function spawnEnemy(forceType,px,py){
     }
     bossIdx++;
   }
-  // Quái thường xuất hiện trước 1:30 gây thêm 25% sát thương.
+  // Quái thường trước 1:30 được cộng 25%, sau đó giảm 15% sát thương ở mọi thời điểm.
   if(e.t!=='b' && T<90) e.dmg*=1.25;
+  if(e.t!=='b') e.dmg*=0.85;
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
   if(px!==undefined){e.x=px;e.y=py;}
@@ -1468,6 +1471,20 @@ function update(dt){
     if(d<e.r+4){
       if(e.t==='b'){sfx('boss_hit');
         P.hp-=Math.min(e.dmg*1.0, P.maxhp*0.65)*dt*2.5; P.hurt=.25;
+      }else if(e.isBomber){
+        // Quái bom phát nổ khi chạm người chơi, gây 1,5 lần sát thương hiện tại.
+        if((e.inBH||0)<=0 && (P.inv||0)<=0){
+          const explosionDmg=e.dmg*1.5;
+          P.hp-=explosionDmg;
+          P.hurt=.4;
+          P.inv=.8;
+          e.dead=true;
+          shake=Math.max(shake,10);
+          fx.push({x:e.x,y:e.y,ring:72,t:.55,T:.55,c:'#ff6a00'});
+          fx.push({x:e.x,y:e.y,ring:42,t:.4,T:.4,c:'#ffe066'});
+          texts.push({x:e.x,y:e.y-25,v:'NỔ BOM! -'+Math.round(explosionDmg),t:1,c:true,big:true});
+          if(typeof sfx==='function') sfx('bomber_explode');
+        }
       }else{
         if((e.inBH||0)<=0 && (P.inv||0)<=0){
           P.hp-=Math.min(e.dmg*1.2,P.maxhp*.2)*dt;
@@ -1632,8 +1649,24 @@ function drawZombie(e){
     }
   }
   ctx.restore();
+  // Quái bom cầm quả bom trên tay, có ngòi cháy và nhấp nháy cảnh báo.
   if(e.isBomber){
-    ctx.save(); ctx.translate(e.x,e.y); ctx.fillStyle='#ff4400'; ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fill(); ctx.fillStyle='#ffff00'; ctx.font='900 12px Arial'; ctx.textAlign='center'; ctx.fillText('💣',0,4); ctx.fillStyle=e.bombT<1?'#ff0000':'#ffaa00'; ctx.fillRect(-10,-16,20*(e.bombT/2.5),3); ctx.restore();
+    ctx.save();
+    ctx.translate(e.x+10,e.y+4);
+    const pulse=0.85+Math.sin(T*12+e.ph)*0.15;
+    ctx.strokeStyle='#4a2a18'; ctx.lineWidth=2.5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-7,-2); ctx.lineTo(-13,-7); ctx.stroke();
+    ctx.fillStyle='#252525'; ctx.beginPath(); ctx.arc(0,0,7,0,7); ctx.fill();
+    ctx.strokeStyle='#0b0b0b'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#ff6a00'; ctx.globalAlpha=pulse;
+    ctx.beginPath(); ctx.arc(0,0,4,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#ffe066'; ctx.shadowColor='#ff3b00'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(-13,-8,3,0,7); ctx.fill(); ctx.shadowBlur=0;
+    ctx.restore();
+    // Cánh tay đang giữ bom.
+    ctx.save(); ctx.strokeStyle='#5f4130'; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(e.x+5,e.y+2); ctx.lineTo(e.x+10,e.y+4); ctx.stroke(); ctx.restore();
   }
   if(e.isArcher){
     ctx.save(); ctx.translate(e.x,e.y); ctx.fillStyle='#5a8a3a'; ctx.fillRect(-2,-8,4,10); ctx.fillStyle='#8b5a2b'; ctx.fillRect(-6,0,12,2); ctx.fillStyle='#aaff88'; ctx.fillRect(4,-4,8,2); ctx.restore();
