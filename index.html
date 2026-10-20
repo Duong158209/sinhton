@@ -212,7 +212,7 @@
   .map-panel:before{content:"";position:absolute;inset:-20%;z-index:-1;opacity:.7;background:linear-gradient(35deg,transparent 39%,#d5d9c033 40%,#d5d9c033 43%,transparent 44%),linear-gradient(125deg,transparent 24%,#b4c5d033 25%,#b4c5d033 28%,transparent 29%),repeating-linear-gradient(0deg,transparent 0 36px,#ffffff09 37px 39px),repeating-linear-gradient(90deg,transparent 0 36px,#ffffff09 37px 39px);transform:rotate(-8deg)}
   .map-badge{align-self:flex-start;background:#101827c9;border:1px solid #ffffff45;border-radius:9px;padding:7px 11px;font-size:11px;font-weight:900;letter-spacing:1px;color:#bfe7ff}
   .map-info{margin-top:auto}.map-info h2{font-size:28px;margin:20px 0 4px;text-shadow:0 3px 8px #000}.map-info p{margin:0 0 14px;color:#c5d2e4;font-size:13px}
-  #lobbyStart{width:100%;max-width:440px;align-self:center;margin:0;padding:15px 20px;font-size:20px;border-radius:14px;letter-spacing:1px}
+  #lobbyStart{position:relative;z-index:99;pointer-events:auto!important;touch-action:auto!important;width:100%;max-width:440px;align-self:center;margin:0;padding:15px 20px;font-size:20px;border-radius:14px;letter-spacing:1px}
   .lobby-section-title{font-size:11px;color:#92a3c1;font-weight:900;letter-spacing:2px;margin:0 0 -5px 3px}
   .lobby-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
   .lobby-nav button{min-width:0;background:linear-gradient(160deg,#283650,#182237);border:1px solid #52627d;border-radius:14px;padding:12px 3px;color:#eaf1ff;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 0 #0b1220}
@@ -293,7 +293,7 @@
   </div>
   <div class="lobby-brand"><h1>SURVIVOR</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
   <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
-  <button class="btn" id="lobbyStart">▶ BẮT ĐẦU</button>
+  <button class="btn" id="lobbyStart" onclick="window.startGame&&window.startGame()">▶ BẮT ĐẦU</button>
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
   <div id="leaderboardBox" style="background:linear-gradient(160deg,#1a2744,#121c32);border:1px solid #4a5a7a;border-radius:14px;padding:10px 10px 6px;box-shadow:0 4px 0 #0b1220;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -310,18 +310,10 @@
     <button data-lobby-panel="skill"><span>⚡</span>Skill</button>
     <button data-lobby-panel="costume"><span>👕</span>Trang phục</button>
   </div>
-  <div class="lobby-section-title" style="margin-top:10px">🏆 BẢNG XẾP HẠNG - SỐNG LÂU NHẤT</div>
-  <div id="leaderboardBox" style="background:linear-gradient(160deg,#1a2744,#121c32);border:1px solid #4a5a7a;border-radius:14px;padding:10px 10px 6px;box-shadow:0 4px 0 #0b1220">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-weight:900;color:#ffd23a;font-size:13px">⏱ TOP SỐNG LÂU - Chỉ tính kỷ lục cao nhất mỗi người</div>
-      <button id="lbRefresh" style="background:#283650;border:1px solid #4a5a7a;color:#aebbd4;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;cursor:pointer">↻ Làm mới</button>
-    </div>
-    <div id="lbList" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto"><div style="color:#667799;font-size:12px;text-align:center;padding:14px">Đang tải BXH...</div></div>
-    <div id="lbMyRank" style="margin-top:8px;padding:8px;background:rgba(255,210,58,0.08);border:1px dashed #665a2a;border-radius:8px;font-size:12px;color:#d0c090;text-align:center"></div>
-  </div>
+  
   <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
 </div>
-<div class="ov" id="menu" style="display:none"><h1>SURVIVOR</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn">Bắt đầu</div></div>
+<div class="ov" id="menu" style="display:none"><h1>SURVIVOR</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn" onclick="window.startGame&&window.startGame()">Bắt đầu</div></div>
 
 <div class="ov" id="levelup">
   <div class="banner">Chọn kỹ năng</div>
@@ -498,13 +490,20 @@ auth.onAuthStateChanged(async (user) => {
       refreshLobbyProfile(nm);
     }catch(_){}
   } else {
+    // Nếu là khách (bấm Chơi ngay) thì không chặn
+    if(window.isGuestMode){
+      authOv.style.display = 'none';
+      document.getElementById('lobby').style.display = 'flex';
+      return;
+    }
     authOv.style.display = 'flex';
     userBar.style.display = 'none';
-    document.getElementById('lobby').style.display = 'none';
+    // Cho phép hiện lobby ngay cả khi chưa đăng nhập để có thể bấm BẮT ĐẦU (chế độ khách)
+    const lobbyEl=document.getElementById('lobby');
+    if(lobbyEl) lobbyEl.style.display='flex';
     document.getElementById('menu').style.display = 'none';
-    // Nếu đang chơi thì về menu (reset)
-    if(typeof state !== 'undefined' && state !== 'menu'){
-      try{ state='menu'; if(typeof reset==='function') reset(); }catch(_){}
+    if(typeof state !== 'undefined' && state !== 'menu' && state !== 'play' && state !== 'pause'){
+      try{ if(state==='over'){} else { state='menu'; if(typeof reset==='function') reset(); } }catch(_){}
     }
   }
 });
@@ -551,11 +550,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
       guestBtn.style.textAlign='center';
       const authBox=document.getElementById('authBox');
       if(authBox) authBox.appendChild(guestBtn);
-      guestBtn.addEventListener('click', ()=>{
+      guestBtn.addEventListener('click', (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        window.isGuestMode=true;
         authOvEl.style.display='none';
         lobbyEl.style.display='flex';
         const menu=document.getElementById('menu');
         if(menu) menu.style.display='none';
+        console.log('Guest mode ON');
+      });
+      // Auto click guest if user wants to start directly
+      lobbyEl.addEventListener('click', (e)=>{
+        if(e.target && e.target.id==='lobbyStart'){
+          window.isGuestMode=true;
+          authOvEl.style.display='none';
+        }
       });
     }
   }
@@ -790,13 +799,32 @@ function pauseBackgroundMusic(){
   try{ music.pause(); }catch(_){}
 }
 function startGame(){
-  startBackgroundMusic();
-  initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
-  if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
-  reset();runRewardSaved=false;state='play';
-  show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
-  $('hud').style.display='block';joyDefault();
+  try{
+    console.log('startGame called');
+    window.isGuestMode=true;
+    const authOvEl=document.getElementById('authOv');
+    if(authOvEl) authOvEl.style.display='none';
+    startBackgroundMusic();
+    initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
+    if(typeof lobbyReturnTimer!=='undefined' && lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
+    if(typeof reset==='function') reset();
+    runRewardSaved=false;
+    state='play';
+    show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
+    const hud=$('hud'); if(hud) hud.style.display='block';
+    if(typeof joyDefault==='function') joyDefault();
+    // Force canvas focus
+    const cv=document.getElementById('c'); if(cv) cv.focus();
+  }catch(e){
+    console.error('startGame error', e);
+    alert('Lỗi bắt đầu trận: '+e.message);
+    // fallback: still try to show game
+    state='play';
+    show('lobby',false);show('menu',false);show('over',false);
+    const hud=$('hud'); if(hud) hud.style.display='block';
+  }
 }
+window.startGame=startGame;
 function togglePause(){
   if(state==='play'){
     state='pause';
