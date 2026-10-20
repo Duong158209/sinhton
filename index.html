@@ -236,7 +236,7 @@
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
   <div id="leaderboardBox" style="background:linear-gradient(160deg,#1a2744,#121c32);border:1px solid #4a5a7a;border-radius:14px;padding:10px 10px 6px;box-shadow:0 4px 0 #0b1220;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-weight:900;color:#ffd23a;font-size:12px">⏱ TOP SỐNG LÂU - Kỷ lục cao nhất mỗi người</div>
+      <div style="font-weight:900;color:#ffd23a;font-size:12px">⏱ TOP 5 SỐNG LÂU - Kỷ lục cao nhất</div>
       <button id="lbRefresh" style="background:#283650;border:1px solid #4a5a7a;color:#aebbd4;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;cursor:pointer">↻</button>
     </div>
     <div id="lbList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"><div style="color:#667799;font-size:12px;text-align:center;padding:10px">Đang tải BXH...</div></div>
@@ -2517,13 +2517,7 @@ function update(dt){
 
 
 // === LEADERBOARD FIX - ROBUST VERSION ===
-function getLocalLeaderboard(){
-  try{
-    const raw=localStorage.getItem('localLeaderboard');
-    if(raw) return JSON.parse(raw);
-  }catch(_){}
-  return [];
-}
+
 function saveLocalLeaderboardEntry(name, avatar, bestTime){
   try{
     let lb=getLocalLeaderboard();
@@ -2551,7 +2545,7 @@ function renderLeaderboardFromData(list, myBest){
     return;
   }
   let html=''; let rank=1;
-  list.slice(0,10).forEach(item=>{
+  list.slice(0,5).forEach(item=>{
     const name=item.name||'Ẩn danh';
     const av=item.avatar||'🧑';
     const bt=item.bestTime||0;
@@ -2596,6 +2590,176 @@ async function saveBestTimeIfNeeded(finalTime){
   }catch(e){ console.log('saveBestTime err', e); return false; }
 }
 
+
+// === LEADERBOARD ULTRA ROBUST - FIX RULES + LOCAL ===
+function getLocalLeaderboard(){
+  try{
+    const raw=localStorage.getItem('localLeaderboard');
+    if(raw) return JSON.parse(raw);
+  }catch(_){}
+  return [];
+}
+function saveLocalLeaderboardEntry(name, avatar, bestTime){
+  try{
+    let lb=getLocalLeaderboard();
+    let found=lb.find(x=>x.isMe);
+    if(found){
+      if(bestTime>found.bestTime){ found.bestTime=bestTime; found.name=name; found.avatar=avatar; }
+    }else{
+      lb.push({name:name||'Bạn', avatar:avatar||'🧑', bestTime:bestTime, isMe:true});
+    }
+    lb.sort((a,b)=>b.bestTime-a.bestTime);
+    lb=lb.slice(0,20);
+    localStorage.setItem('localLeaderboard', JSON.stringify(lb));
+    return lb;
+  }catch(e){ return []; }
+}
+function renderLeaderboardFromData(list, myBest){
+  const lbList=document.getElementById('lbList');
+  const myRankEl=document.getElementById('lbMyRank');
+  if(!lbList) return;
+  if(!list || list.length===0){
+    const timeStr = myBest>0 ? String(Math.floor(myBest/60)).padStart(2,'0')+':'+String(Math.floor(myBest%60)).padStart(2,'0') : '';
+    lbList.innerHTML='<div style="color:#9eacc9;font-size:12px;text-align:center;padding:12px">Chưa có kỷ lục nào<br><span style="font-size:11px">Chơi 1 trận để tạo kỷ lục! '+(timeStr?'Kỷ lục hiện tại: '+timeStr:'')+'</span></div>';
+    if(myRankEl){
+      if(myBest>0) myRankEl.innerHTML=`Kỷ lục của bạn: <b style="color:#7fd4ff">${timeStr}</b> - đang hạng #1 (ngoại tuyến)`;
+      else myRankEl.textContent='Bạn chưa có kỷ lục, chơi 1 trận để lên BXH!';
+    }
+    return;
+  }
+  let html=''; let rank=1;
+  list.slice(0,5).forEach(item=>{
+    const name=item.name||'Ẩn danh';
+    const av=item.avatar||'🧑';
+    const bt=item.bestTime||0;
+    const m=Math.floor(bt/60).toString().padStart(2,'0'); const s=Math.floor(bt%60).toString().padStart(2,'0');
+    const timeStr=m+':'+s;
+    const topClass = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
+    const rankClass = rank===1?'r1':rank===2?'r2':rank===3?'r3':'rn';
+    const isMe = item.isMe;
+    html+=`<div class="lb-item ${topClass}" style="${isMe?'outline:2px solid #ffd23a;':''}"><div class="lb-rank ${rankClass}">${rank}</div><div class="lb-avatar">${av}</div><div class="lb-name">${name}${isMe?' (Bạn)':''}</div><div class="lb-time">⏱ ${timeStr}</div></div>`;
+    rank++;
+  });
+  lbList.innerHTML=html;
+  if(myRankEl){
+    if(myBest>0){
+      const sorted=[...list].sort((a,b)=>b.bestTime-a.bestTime);
+      const myIdx=sorted.findIndex(x=>x.isMe);
+      const myRank = myIdx>=0?myIdx+1:1;
+      const timeStr = String(Math.floor(myBest/60)).padStart(2,'0')+':'+String(Math.floor(myBest%60)).padStart(2,'0');
+      myRankEl.innerHTML=`Bạn đang hạng <b style="color:#ffd23a">#${myRank}</b> với kỷ lục <b style="color:#7fd4ff">${timeStr}</b>`;
+    }else{
+      myRankEl.textContent='';
+    }
+  }
+}
+async function fetchLeaderboard(){
+  const lbList=document.getElementById('lbList');
+  if(!lbList) return;
+  const localBest = parseInt(localStorage.getItem('myBestTime')||'0',10);
+  let localLB = getLocalLeaderboard();
+  // Hiện ngay lập tức từ local, không bao giờ để "Đang tải..." mãi
+  if(localLB.length===0 && localBest>0){
+    const nm=(currentUser&&(currentUser.displayName||currentUser.email.split('@')[0]))||document.getElementById('lobbyName')?.textContent||'Bạn';
+    localLB=saveLocalLeaderboardEntry(nm, accountAvatar, localBest);
+  }
+  if(localLB.length>0){
+    renderLeaderboardFromData(localLB, localBest);
+  }else{
+    // chưa có local, hiện placeholder ngay
+    lbList.innerHTML='<div style="color:#667799;font-size:12px;text-align:center;padding:10px">Đang tải BXH...<br><span style="font-size:10px">Nếu mãi không load, bấm ↻ hoặc kiểm tra Rules Firebase</span></div>';
+  }
+  // Thử tải từ Firebase với timeout 4s
+  if(!db){
+    if(localLB.length===0) renderLeaderboardFromData([], localBest);
+    return;
+  }
+  try{
+    const controller = new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 4000));
+    const query = db.collection('users').orderBy('bestTime','desc').limit(5).get();
+    const snap = await Promise.race([query, controller]);
+    if(snap.empty){
+      if(localLB.length>0) return;
+      renderLeaderboardFromData(localLB, localBest);
+      return;
+    }
+    let list=[];
+    snap.forEach(doc=>{
+      const d=doc.data();
+      if(!d.bestTime || d.bestTime<=0) return;
+      const name=d.name||d.displayName|| (d.email||'').split('@')[0] || 'Ẩn danh';
+      const av=d.avatar||'🧑';
+      const bt=d.bestTime||0;
+      const isMe = currentUser && doc.id===currentUser.uid;
+      list.push({name, avatar:av, bestTime:bt, isMe});
+    });
+    // merge local
+    if(localBest>0){
+      const myEntry=list.find(x=>x.isMe);
+      if(!myEntry){
+        const nm=(currentUser&&(currentUser.displayName||currentUser.email.split('@')[0]))||'Bạn';
+        list.push({name:nm, avatar:accountAvatar, bestTime:localBest, isMe:true});
+      }else if(localBest>myEntry.bestTime){
+        myEntry.bestTime=localBest;
+      }
+    }
+    list.sort((a,b)=>b.bestTime-a.bestTime);
+    if(list.length>0){
+      renderLeaderboardFromData(list.slice(0,5), localBest);
+      try{ localStorage.setItem('localLeaderboardCache', JSON.stringify(list)); }catch(_){}
+    }else{
+      renderLeaderboardFromData(localLB, localBest);
+    }
+  }catch(e){
+    console.log('BXH Firebase lỗi (dùng local):', e.message);
+    // Giữ local, không để treo
+    renderLeaderboardFromData(localLB, localBest);
+    const myRankEl=document.getElementById('lbMyRank');
+    if(myRankEl && localLB.length===0 && e.message.includes('permission') || e.message.includes('Missing')){
+      myRankEl.innerHTML = '<span style="color:#ff8a65;font-size:11px">⚠️ Firebase Rules đang chặn đọc BXH. Cần sửa Rules: cho phép đọc users/bestTime. Xem hướng dẫn bên dưới.</span>';
+    }
+  }
+}
+async function saveBestTimeIfNeeded(finalTime){
+  try{
+    if(finalTime<=0) return false;
+    const oldLocal=parseInt(localStorage.getItem('myBestTime')||'0',10);
+    let isNewLocal=false;
+    if(finalTime>oldLocal){
+      localStorage.setItem('myBestTime', String(finalTime));
+      const nm=(currentUser&&(currentUser.displayName||currentUser.email.split('@')[0]))||document.getElementById('lobbyName')?.textContent||'Bạn';
+      saveLocalLeaderboardEntry(nm, accountAvatar, finalTime);
+      isNewLocal=true;
+    }
+    if(!currentUser || !db){
+      if(isNewLocal){
+        if(typeof accountBestTime!=='undefined') accountBestTime=finalTime;
+        if(typeof pushText!=='undefined') pushText({x:P.x,y:P.y-70,v:'KỶ LỤC MỚI! '+fmt(finalTime),t:2,c:true,big:true});
+      }
+      return isNewLocal;
+    }
+    const uid=currentUser.uid;
+    const ref=db.collection('users').doc(uid);
+    const snap=await ref.get();
+    let oldBest=0;
+    if(snap.exists){ oldBest=snap.data().bestTime||0; }
+    const bestToSave=Math.max(finalTime, oldBest, oldLocal);
+    if(bestToSave>oldBest){
+      await ref.set({bestTime:bestToSave,bestTimeUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
+      if(typeof accountBestTime!=='undefined') accountBestTime=bestToSave;
+      if(finalTime>oldBest && typeof pushText!=='undefined'){
+        pushText({x:P.x,y:P.y-70,v:'KỶ LỤC MỚI! '+fmt(finalTime),t:2,c:true,big:true});
+      }
+      return finalTime>oldBest || isNewLocal;
+    }
+    return isNewLocal;
+  }catch(e){ 
+    console.log('saveBestTime err', e);
+    return parseInt(localStorage.getItem('myBestTime')||'0',10)>0;
+  }
+}
+
+
 function returnToLobby(){
   stopBackgroundMusic();
   if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
@@ -2607,13 +2771,13 @@ function returnToLobby(){
   $('hud').style.display='none';
   document.getElementById('lobby').style.display='flex';
   refreshLobbyProfile();
-  try{ fetchLeaderboard(); }catch(_){}
+  setTimeout(()=>{ try{ fetchLeaderboard(); }catch(_){} }, 200);
   joy.active=false;joy.dx=joy.dy=0;
 }
 
 
 document.addEventListener('DOMContentLoaded', ()=>{
-  try{ fetchLeaderboard(); }catch(_){}
+  setTimeout(()=>{ try{ fetchLeaderboard(); }catch(_){} }, 500);
   setTimeout(()=>{
     const navBtns=document.querySelectorAll('[data-lobby-panel]');
     const panel=document.getElementById('lobbyPanel');
@@ -2762,11 +2926,11 @@ function drawBg(cx,cy,vw,vh){
   }
 }
 
+
 function drawZombie(e){
   const s=e.s,b=Math.sin(T*8+e.ph)*1.2;
   ctx.save();ctx.translate(e.x,e.y+b);ctx.scale(s,s);
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(0,9,8,3,0,0,7);ctx.fill();
-  // hiệu ứng băng
   if(e.slowT>0){
     ctx.save();
     if(e.freeze){
@@ -2780,77 +2944,143 @@ function drawZombie(e){
   }
   const fl=e.flash>0;
   if(e.t==='b'){
-    // BOSS MODELS DISTINCT
-    if(e.bt==='r'){ // BOSS PHÁP SƯ - Mage
-      ctx.fillStyle=fl?'#fff':'#2a1a5a'; ctx.beginPath(); ctx.moveTo(-9,10); ctx.lineTo(9,10); ctx.lineTo(7,-6); ctx.lineTo(-7,-6); ctx.closePath(); ctx.fill();
-      ctx.fillStyle=fl?'#fff':'#4a2a9a'; ctx.beginPath(); ctx.moveTo(-10,-6); ctx.lineTo(0,-32); ctx.lineTo(10,-6); ctx.fill(); // mũ nhọn
-      ctx.fillStyle='#ffd23a'; ctx.fillRect(-10,-9,20,3);
-      ctx.fillStyle=fl?'#fff':'#d8c7ff'; ctx.beginPath(); ctx.arc(0,-2,7,0,7); ctx.fill();
-      ctx.fillStyle='#000'; if(!fl){ ctx.fillRect(-3, -4,2,2); ctx.fillRect(1,-4,2,2); }
-      ctx.fillStyle='#8b5a2b'; ctx.fillRect(10,-2,2,18); // gậy
-      ctx.fillStyle='#b24bff'; ctx.shadowColor='#b24bff'; ctx.shadowBlur=fl?0:10; ctx.beginPath(); ctx.arc(11,-6,5,0,7); ctx.fill(); ctx.shadowBlur=0;
-    }else if(e.bt==='a'){ // BOSS CUNG THỦ
-      ctx.fillStyle=fl?'#fff':'#1a4a1a'; ctx.fillRect(-7,0,14,10);
-      ctx.fillStyle=fl?'#fff':'#2a6a2a'; ctx.fillRect(-8,-10,16,12);
-      ctx.fillStyle=fl?'#fff':'#a0dca0'; ctx.beginPath(); ctx.arc(0,-6,6,0,7); ctx.fill();
-      if(!fl){ ctx.fillStyle='#000'; ctx.fillRect(-2,-7,1.5,2); ctx.fillRect(1,-7,1.5,2); }
-      ctx.fillStyle='#3d2a0a'; ctx.fillRect(-9,-8,2,16); // cung sau lưng
-      ctx.strokeStyle='#88ff88'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(9,-8); ctx.quadraticCurveTo(18,0,9,8); ctx.stroke();
+    // === BOSS REDESIGN - ĐẸP HƠN ===
+    if(e.bt==='r'){ // BOSS PHÁP SƯ - Evil Wizard
+      // áo choàng tím đậm
+      ctx.fillStyle=fl?'#fff':'#1a0a3a';
+      ctx.beginPath(); ctx.moveTo(-14,14); ctx.lineTo(14,14); ctx.lineTo(10,-8); ctx.lineTo(-10,-8); ctx.closePath(); ctx.fill();
+      // viền áo
+      ctx.strokeStyle=fl?'#fff':'#6a3aff'; ctx.lineWidth=1.5; ctx.stroke();
+      // đầu
+      ctx.fillStyle=fl?'#fff':'#c9b0ff';
+      ctx.beginPath(); ctx.arc(0,-4,9,0,7); ctx.fill();
+      // mắt đỏ phát sáng
+      if(!fl){
+        ctx.fillStyle='#ff0040'; ctx.shadowColor='#ff0040'; ctx.shadowBlur=8;
+        ctx.beginPath(); ctx.arc(-3,-5,2,0,7); ctx.arc(3,-5,2,0,7); ctx.fill();
+        ctx.shadowBlur=0;
+      }
+      // mũ nhọn phù thủy
+      ctx.fillStyle=fl?'#fff':'#2a1a5a';
+      ctx.beginPath(); ctx.moveTo(-11,-10); ctx.lineTo(0,-30); ctx.lineTo(11,-10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#ffd23a'; ctx.fillRect(-11,-12,22,3);
+      // gậy phép
+      ctx.fillStyle='#4a2a0a'; ctx.fillRect(12,-2,3,22);
+      ctx.fillStyle='#b24bff'; ctx.shadowColor='#b24bff'; ctx.shadowBlur=fl?0:14;
+      ctx.beginPath(); ctx.arc(13.5,-6,6,0,7); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(13.5,-6,2,0,7); ctx.fill();
+    }else if(e.bt==='a'){ // BOSS CUNG THỦ - Shadow Archer
+      // thân
+      ctx.fillStyle=fl?'#fff':'#0a2a0a';
+      ctx.fillRect(-8,0,16,14);
+      // giáp ngực xanh đen
+      ctx.fillStyle=fl?'#fff':'#1a5a1a';
+      ctx.beginPath(); ctx.roundRect(-9,-10,18,14,4); ctx.fill();
+      // đầu trùm mũ
+      ctx.fillStyle=fl?'#fff':'#1a3a1a';
+      ctx.beginPath(); ctx.arc(0,-6,8,0,7); ctx.fill();
+      // mắt xanh lá
+      if(!fl){
+        ctx.fillStyle='#00ff88'; ctx.shadowColor='#00ff88'; ctx.shadowBlur=6;
+        ctx.beginPath(); ctx.arc(-2.5,-7,1.5,0,7); ctx.arc(2.5,-7,1.5,0,7); ctx.fill();
+        ctx.shadowBlur=0;
+      }
       // áo choàng
-      ctx.fillStyle=fl?'#fff':'#0a3a0a'; ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(-12,12); ctx.lineTo(12,12); ctx.lineTo(8,0); ctx.fill();
-    }else if(e.bt==='tanker'){ // BOSS TANKER - to, khiên
-      const big=1.4;
+      ctx.fillStyle=fl?'#fff':'#0a1a0a';
+      ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(-15,16); ctx.lineTo(15,16); ctx.lineTo(9,0); ctx.fill();
+      // cung
+      ctx.strokeStyle='#5a3a0a'; ctx.lineWidth=2.5; ctx.beginPath();
+      ctx.moveTo(12,-8); ctx.quadraticCurveTo(22,2,12,12); ctx.stroke();
+      ctx.strokeStyle='#aaff66'; ctx.lineWidth=1.5; ctx.beginPath();
+      ctx.moveTo(12,-8); ctx.lineTo(12,12); ctx.stroke();
+    }else if(e.bt==='tanker'){ // BOSS TANKER - Iron Giant
+      const big=1.35;
       ctx.scale(big,big);
-      ctx.fillStyle=fl?'#fff':'#3a3a4a'; ctx.beginPath(); ctx.roundRect(-12,-12,24,20,6); ctx.fill();
-      ctx.fillStyle=fl?'#fff':'#6a6a7a'; ctx.fillRect(-10,8,8,6); ctx.fillRect(2,8,8,6);
-      ctx.fillStyle=fl?'#fff':'#ff4a4a'; ctx.beginPath(); ctx.arc(0,-4,8,0,7); ctx.fill();
-      if(!fl){ ctx.fillStyle='#000'; ctx.fillRect(-3,-5,2,2); ctx.fillRect(1,-5,2,2); ctx.fillStyle='#fff'; ctx.fillRect(-2,1,1,2); ctx.fillRect(1,1,1,2); }
-      // khiên to
-      ctx.fillStyle=fl?'#fff':'#4a5a7a'; ctx.strokeStyle='#aab'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(-16,0,12, -0.5,0.5); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#ffd23a'; ctx.beginPath(); ctx.arc(-16,0,4,0,7); ctx.fill();
-    }else{ // BOSS THƯỜNG - melee brute có sừng
-      ctx.fillStyle=fl?'#fff':'#4a0a0a'; ctx.fillRect(-8,0,16,12);
-      ctx.fillStyle=fl?'#fff':'#7a1a1a'; ctx.fillRect(-9,-12,18,14);
-      ctx.fillStyle=fl?'#fff':'#ffb3b3'; ctx.beginPath(); ctx.arc(0,-6,6.5,0,7); ctx.fill();
-      if(!fl){ ctx.fillStyle='#ff0000'; ctx.fillRect(-3,-7,2,2); ctx.fillRect(1,-7,2,2); }
-      ctx.fillStyle='#e8dcc8'; ctx.beginPath(); ctx.moveTo(-6,-10); ctx.lineTo(-10,-18); ctx.lineTo(-3,-12); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(6,-10); ctx.lineTo(10,-18); ctx.lineTo(3,-12); ctx.fill();
+      // chân
+      ctx.fillStyle=fl?'#fff':'#2a2a3a';
+      ctx.fillRect(-11,10,8,8); ctx.fillRect(3,10,8,8);
+      // thân giáp sắt
+      ctx.fillStyle=fl?'#fff':'#3a4a5a';
+      ctx.beginPath(); ctx.roundRect(-15,-12,30,24,6); ctx.fill();
+      ctx.strokeStyle='#7a8aaa'; ctx.lineWidth=1.5; ctx.stroke();
+      // đinh tán
+      if(!fl){
+        ctx.fillStyle='#5a6a7a';
+        ctx.beginPath(); ctx.arc(-8,-6,1.5,0,7); ctx.arc(8,-6,1.5,0,7); ctx.arc(-8,4,1.5,0,7); ctx.arc(8,4,1.5,0,7); ctx.fill();
+      }
+      // đầu robot
+      ctx.fillStyle=fl?'#fff':'#1a1a2a';
+      ctx.beginPath(); ctx.roundRect(-10,-18,20,14,4); ctx.fill();
+      // mắt đỏ
+      if(!fl){
+        ctx.fillStyle='#ff2222'; ctx.shadowColor='#ff2222'; ctx.shadowBlur=10;
+        ctx.fillRect(-6,-14,4,2); ctx.fillRect(2,-14,4,2);
+        ctx.shadowBlur=0;
+      }
+      // khiên khổng lồ bên trái
+      ctx.fillStyle=fl?'#fff':'#4a5a7a';
+      ctx.strokeStyle='#aabbcc'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.roundRect(-28,-8,14,24,6); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(-21,4,4,0,7); ctx.fill();
+      // tay phải búa
+      ctx.fillStyle=fl?'#fff':'#2a2a2a';
+      ctx.fillRect(15,-4,8,18);
+      ctx.fillStyle='#5a5a5a'; ctx.beginPath(); ctx.arc(19,-8,8,0,7); ctx.fill();
+    }else{ // BOSS THƯỜNG - Demon Brute
+      // thân cơ bắp đỏ đô
+      ctx.fillStyle=fl?'#fff':'#5a0a0a';
+      ctx.beginPath(); ctx.roundRect(-12,-2,24,16,5); ctx.fill();
+      // ngực
+      ctx.fillStyle=fl?'#fff':'#8a1a1a';
+      ctx.beginPath(); ctx.roundRect(-13,-14,26,16,6); ctx.fill();
+      // đầu quỷ
+      ctx.fillStyle=fl?'#fff':'#ffaaaa';
+      ctx.beginPath(); ctx.arc(0,-8,9,0,7); ctx.fill();
+      if(!fl){
+        ctx.fillStyle='#ff0000'; ctx.beginPath(); ctx.arc(-3,-9,2,0,7); ctx.arc(3,-9,2,0,7); ctx.fill();
+        ctx.fillStyle='#000'; ctx.fillRect(-2,-4,4,2);
+        // răng nanh
+        ctx.fillStyle='#fff'; ctx.fillRect(-3,-2,1,3); ctx.fillRect(2,-2,1,3);
+      }
+      // sừng
+      ctx.fillStyle='#e8dcc8';
+      ctx.beginPath(); ctx.moveTo(-7,-14); ctx.lineTo(-13,-24); ctx.lineTo(-4,-16); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(7,-14); ctx.lineTo(13,-24); ctx.lineTo(4,-16); ctx.fill();
+      ctx.fillStyle='#4a0a0a'; ctx.beginPath(); ctx.arc(-6,2,4,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(6,2,4,0,7); ctx.fill();
     }
   }else{
-    // QUÁI THƯỜNG MODELS
-    if(e.t==='f'){ // FAST - gầy, đỏ, chạy nhanh
+    // QUÁI THƯỜNG - giữ nguyên đẹp
+    if(e.t==='f'){
       ctx.fillStyle=fl?'#fff':'#7a1a1a'; ctx.fillRect(-4,0,8,8);
       ctx.fillStyle=fl?'#fff':'#c24a3a'; ctx.beginPath(); ctx.ellipse(0,-6,5,7,0,0,7); ctx.fill();
       ctx.fillStyle='#000'; if(!fl){ ctx.fillRect(-2,-7,1,1.5); ctx.fillRect(1,-7,1,1.5); }
-      ctx.fillStyle='#ffaaaa'; ctx.beginPath(); ctx.moveTo(-5,-2); ctx.lineTo(-9,1); ctx.lineTo(-4,0); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(5,-2); ctx.lineTo(9,1); ctx.lineTo(4,0); ctx.fill();
-      // đuôi
       ctx.strokeStyle='#c24a3a'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,6); ctx.quadraticCurveTo(4,10,0,12); ctx.stroke();
-    }else if(e.t==='t'){ // TANKER - béo ú
+    }else if(e.t==='t'){
       ctx.fillStyle=fl?'#fff':'#3a2a5a'; ctx.beginPath(); ctx.arc(0,2,10,0,7); ctx.fill();
       ctx.fillStyle=fl?'#fff':'#6a4a9a'; ctx.beginPath(); ctx.arc(0,-8,8,0,7); ctx.fill();
       ctx.fillStyle=fl?'#fff':'#a0dca0'; ctx.beginPath(); ctx.arc(0,-8,5,0,7); ctx.fill();
       if(!fl){ ctx.fillStyle='#000'; ctx.fillRect(-2,-9,1,1); ctx.fillRect(1,-9,1,1); }
-    }else if(e.t==='r'){ // RANGED - tím có túi axit
+    }else if(e.t==='r'){
       ctx.fillStyle=fl?'#fff':'#3a2a5a'; ctx.fillRect(-5,0,10,8);
       ctx.fillStyle=fl?'#fff':'#8a4fc2'; ctx.beginPath(); ctx.arc(0,-5,7,0,7); ctx.fill();
       if(!fl){ ctx.fillStyle='#b6ff3a'; ctx.beginPath(); ctx.arc(0,-2,3.5,0,7); ctx.fill(); ctx.fillStyle='#000'; ctx.fillRect(-2,-6,1,1); ctx.fillRect(1,-6,1,1); }
-    }else if(e.t==='sk'){ // SKELETON
+    }else if(e.t==='sk'){
       ctx.fillStyle=fl?'#fff':'#d8d8d8'; ctx.fillRect(-5,0,10,8);
       ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,-6,6,0,7); ctx.fill(); ctx.strokeStyle='#aaa'; ctx.lineWidth=1; ctx.stroke();
       ctx.fillStyle='#000'; if(!fl){ ctx.fillRect(-2,-7,1.5,1.5); ctx.fillRect(1,-7,1.5,1.5); }
       if(e.revived){ ctx.fillStyle='#7ff'; ctx.fillRect(-3,-10,6,2); }
-    }else if(e.t==='bom'){ // BOMBER - đã có bom riêng, thêm mũ
+    }else if(e.t==='bom'){
       ctx.fillStyle=fl?'#fff':'#4a3a2a'; ctx.fillRect(-5,0,10,8);
       ctx.fillStyle=fl?'#fff':'#7fcf6a'; ctx.beginPath(); ctx.arc(0,-5,6,0,7); ctx.fill();
       if(!fl){ ctx.fillStyle='#000'; ctx.fillRect(-2,-6,1,1); ctx.fillRect(1,-6,1,1); }
-      ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(0,-11,3,0,7); ctx.fill(); // mũ
-    }else if(e.t==='arc'){ // ARCHER
+      ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(0,-11,3,0,7); ctx.fill();
+    }else if(e.t==='arc'){
       ctx.fillStyle=fl?'#fff':'#2a5a2a'; ctx.fillRect(-4,0,8,9);
       ctx.fillStyle=fl?'#fff':'#5a8a3a'; ctx.fillRect(-5,-8,10,9);
       ctx.fillStyle=fl?'#fff':'#aaff88'; ctx.beginPath(); ctx.arc(0,-5,4,0,7); ctx.fill();
-      ctx.fillStyle='#8b5a2b'; ctx.fillRect(5,-4,6,1.5); // cung nhỏ
-    }else{ // NORMAL - zombie cơ bản
+      ctx.fillStyle='#8b5a2b'; ctx.fillRect(5,-4,6,1.5);
+    }else{
       ctx.fillStyle=fl?'#fff':'#2f5a8a'; ctx.fillRect(-5,0,10,8);
       ctx.fillStyle=fl?'#fff':'#5f8a3a'; ctx.fillRect(-4,8,3,3); ctx.fillRect(1,8,3,3);
       ctx.fillStyle=fl?'#fff':'#7fcf6a';ctx.beginPath();ctx.roundRect(-7,-10,14,11,3);ctx.fill();
@@ -2863,10 +3093,8 @@ function drawZombie(e){
     }
   }
   ctx.restore();
-  // Quái bom cầm quả bom trên tay, có ngòi cháy và nhấp nháy cảnh báo.
   if(e.isBomber && e.t!=='b'){
-    ctx.save();
-    ctx.translate(e.x+10,e.y+4);
+    ctx.save(); ctx.translate(e.x+10,e.y+4);
     const pulse=0.85+Math.sin(T*12+e.ph)*0.15;
     ctx.strokeStyle='#4a2a18'; ctx.lineWidth=2.5; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(-7,-2); ctx.lineTo(-13,-7); ctx.stroke();
@@ -2881,12 +3109,8 @@ function drawZombie(e){
     ctx.save(); ctx.strokeStyle='#5f4130'; ctx.lineWidth=4; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(e.x+5,e.y+2); ctx.lineTo(e.x+10,e.y+4); ctx.stroke(); ctx.restore();
   }
-  if(e.isArcher && e.t!=='b'){
-    ctx.save(); ctx.translate(e.x,e.y); ctx.fillStyle='#5a8a3a'; ctx.fillRect(-2,-8,4,10); ctx.fillStyle='#8b5a2a'; ctx.fillRect(-6,0,12,2); ctx.fillStyle='#aaff88'; ctx.fillRect(4,-4,8,2); ctx.restore();
-  }
   if(e.t==='b'){const w=56,y=e.y-e.r-34;
     ctx.fillStyle='#000c';ctx.fillRect(e.x-w/2-1,y-1,w+2,7);ctx.fillStyle='#e22';ctx.fillRect(e.x-w/2,y,w*Math.max(0,e.hp)/e.max,5);
-    // thêm giáp boss
     if(e.hasArmor && e.armor>0){ ctx.fillStyle='#00e5ff'; ctx.fillRect(e.x-w/2, y-6, w*(e.armor/e.max),3); }
   }
   else if(e.t==='t'&&e.hp<e.max){ctx.fillStyle='#000a';ctx.fillRect(e.x-10,e.y-24,20,3);ctx.fillStyle='#e44';ctx.fillRect(e.x-10,e.y-24,20*e.hp/e.max,3);}
