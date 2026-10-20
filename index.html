@@ -319,92 +319,114 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 let currentUser = null;
-let isRegisterMode = false;
-let accountCoins = 0;
-let accountAvatar = '🧑';
-let runRewardSaved = false;
-let lobbyReturnTimer = null;
-function refreshLobbyProfile(name){
-  const n=name || (currentUser && (currentUser.displayName || currentUser.email.split("@")[0])) || "Người chơi";
-  const nameEl=document.getElementById("lobbyName"), av=document.getElementById("lobbyAvatar"), coinEl=document.getElementById("lobbyCoins");
-  if(nameEl) nameEl.textContent=n; if(av) av.textContent=accountAvatar || (n[0]||"?").toUpperCase(); if(coinEl) coinEl.textContent=accountCoins.toLocaleString("vi-VN");
-}
 
-
-const authOv = document.getElementById('authOv');
+// === AUTH FIX - HIỆN LỖI + LƯU ĐĂNG NHẬP ===
 const authErr = document.getElementById('authErr');
 const authSubmit = document.getElementById('authSubmit');
+const authEmail = document.getElementById('authEmail');
+const authPass = document.getElementById('authPass');
+const authName = document.getElementById('authName');
 const tabLogin = document.getElementById('tabLogin');
 const tabReg = document.getElementById('tabReg');
 const regFields = document.getElementById('regFields');
-const userBar = document.getElementById('userBar');
-
-function setAuthMode(reg){
-  isRegisterMode = reg;
-  tabLogin.classList.toggle('on', !reg);
-  tabReg.classList.toggle('on', reg);
-  regFields.style.display = reg ? 'block' : 'none';
-  authSubmit.textContent = reg ? 'Đăng ký' : 'Đăng nhập';
-  authErr.textContent = '';
-  document.getElementById('authPass').autocomplete = reg ? 'new-password' : 'current-password';
-}
-tabLogin.onclick = () => setAuthMode(false);
-tabReg.onclick = () => setAuthMode(true);
 
 function showAuthError(msg){
+  if(!authErr) return;
   authErr.textContent = msg || '';
+  authErr.style.display = msg ? 'block' : 'none';
+  authErr.style.color = '#ff6b6b';
+  authErr.style.background = 'rgba(255,80,80,0.12)';
+  authErr.style.border = '1px solid rgba(255,80,80,0.3)';
+  authErr.style.padding = msg ? '8px 10px' : '0';
+  authErr.style.borderRadius = '8px';
+  authErr.style.marginTop = '8px';
+  authErr.style.fontSize = '12px';
+  console.log('AuthError:', msg);
 }
 
-authSubmit.onclick = async () => {
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  const name = document.getElementById('authName').value.trim();
+// Đảm bảo lưu đăng nhập
+firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e=>console.log('setPersistence err', e));
+
+let isRegisterMode = false;
+if(tabLogin && tabReg){
+  tabLogin.onclick = ()=>{ isRegisterMode=false; tabLogin.classList.add('on'); tabReg.classList.remove('on'); regFields.style.display='none'; authSubmit.textContent='Đăng nhập'; showAuthError(''); };
+  tabReg.onclick = ()=>{ isRegisterMode=true; tabReg.classList.add('on'); tabLogin.classList.remove('on'); regFields.style.display='block'; authSubmit.textContent='Đăng ký'; showAuthError(''); };
+}
+
+if(authSubmit){
+authSubmit.onclick = async ()=>{
+  const email = authEmail.value.trim();
+  const pass = authPass.value;
+  const name = authName.value.trim();
+  if(!email || !pass){ showAuthError('Nhập email và mật khẩu'); return; }
+  if(pass.length<6){ showAuthError('Mật khẩu tối thiểu 6 ký tự'); return; }
+  authSubmit.style.opacity='0.6'; authSubmit.style.pointerEvents='none'; authSubmit.textContent='Đang xử lý...';
   showAuthError('');
-  if(!email || !pass){ showAuthError('Vui lòng nhập email và mật khẩu'); return; }
-  if(pass.length < 6){ showAuthError('Mật khẩu tối thiểu 6 ký tự'); return; }
-  if(isRegisterMode && !name){ showAuthError('Vui lòng nhập tên hiển thị'); return; }
-  authSubmit.style.opacity = '0.6';
-  authSubmit.style.pointerEvents = 'none';
   try{
-    // Ghi nhớ phiên đăng nhập trên trình duyệt để lần sau mở web không phải nhập lại.
-    // Firebase sẽ tự khôi phục phiên này qua onAuthStateChanged khi tải trang.
-    try{ await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
     if(isRegisterMode){
+      if(!name){ showAuthError('Nhập tên hiển thị'); authSubmit.style.opacity='1'; authSubmit.style.pointerEvents='auto'; authSubmit.textContent='Đăng ký'; return; }
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
-      try{ await cred.user.updateProfile({ displayName: name }); }catch(_){}
-      // Lưu profile vào Firestore
-      try{ await db.collection('users').doc(cred.user.uid).set({
-        name: name,
-        email: email,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        highScore: 0,
-        bestTime: 0,
-        totalKills: 0,
-        coins: 0
-      }, { merge: true }); }catch(_){}
-    } else {
+      await cred.user.updateProfile({displayName:name});
+      try{
+        await db.collection('users').doc(cred.user.uid).set({
+          name:name, email:email, avatar:'🧑',
+          bestTime:0, coins:0, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, {merge:true});
+      }catch(_){}
+    }else{
       await auth.signInWithEmailAndPassword(email, pass);
     }
   }catch(e){
+    console.error('Auth error', e.code, e.message);
     const map = {
-      'auth/email-already-in-use': 'Email đã được đăng ký',
+      'auth/email-already-in-use': 'Email đã được đăng ký, hãy đăng nhập',
       'auth/invalid-email': 'Email không hợp lệ',
       'auth/weak-password': 'Mật khẩu quá yếu (tối thiểu 6 ký tự)',
-      'auth/user-not-found': 'Tài khoản không tồn tại',
+      'auth/user-not-found': 'Tài khoản không tồn tại, hãy đăng ký',
       'auth/wrong-password': 'Sai mật khẩu',
       'auth/invalid-credential': 'Email hoặc mật khẩu không đúng',
-      'auth/too-many-requests': 'Thử quá nhiều lần, vui lòng đợi',
-      'auth/network-request-failed': 'Lỗi mạng, kiểm tra kết nối rồi thử lại',
-      'auth/unauthorized-domain': 'Tên miền này chưa được cho phép trong Firebase (Authentication > Settings > Authorized domains)',
-      'auth/operation-not-allowed': 'Chưa bật đăng nhập Email/Mật khẩu trong Firebase Authentication',
-      'auth/operation-not-supported-in-this-environment': 'Trình duyệt/môi trường này không hỗ trợ đăng nhập, hãy mở web bằng http(s)',
-      'auth/user-disabled': 'Tài khoản đã bị vô hiệu hóa'
+      'auth/invalid-login-credentials': 'Email hoặc mật khẩu không đúng',
+      'auth/too-many-requests': 'Thử quá nhiều lần, đợi 1 phút rồi thử lại',
+      'auth/network-request-failed': 'Lỗi mạng, kiểm tra WiFi rồi thử lại',
+      'auth/unauthorized-domain': 'Lỗi: Domain github.io chưa được thêm vào Firebase > Authentication > Settings > Authorized domains',
+      'auth/operation-not-allowed': 'Chưa bật Email/Password trong Firebase Console > Authentication > Sign-in method',
+      'auth/user-disabled': 'Tài khoản đã bị vô hiệu hóa',
+      'auth/missing-email': 'Chưa nhập email'
     };
-    showAuthError(map[e.code] || e.message || 'Lỗi đăng nhập');
+    let msg = map[e.code] || e.message || 'Lỗi đăng nhập';
+    if(e.code==='auth/unauthorized-domain' || e.message.includes('unauthorized')){
+      msg += '\n\nCách fix: Vào Firebase Console > Authentication > Settings > Authorized domains > Add domain > gõ: duong158209.github.io';
+    }
+    if(e.code==='auth/operation-not-allowed'){
+      msg += '\n\nCách fix: Firebase Console > Authentication > Sign-in method > Email/Password > Bật Enable > Save';
+    }
+    showAuthError(msg);
   }
-  authSubmit.style.opacity = '1';
-  authSubmit.style.pointerEvents = 'auto';
+  authSubmit.style.opacity='1'; authSubmit.style.pointerEvents='auto'; authSubmit.textContent=isRegisterMode?'Đăng ký':'Đăng nhập';
 };
+}
+
+// Nút chơi khách (không cần đăng nhập)
+let guestBtn = document.getElementById('guestBtn');
+if(!guestBtn && authSubmit){
+  guestBtn = document.createElement('div');
+  guestBtn.id='guestBtn';
+  guestBtn.className='btn';
+  guestBtn.style.cssText='margin-top:10px;background:#2a3a5a;color:#9ec6ff;border:1px solid #3a4a6a;text-align:center';
+  guestBtn.textContent='Chơi khách (không lưu online)';
+  guestBtn.onclick = ()=>{
+    const ov=document.getElementById('authOv');
+    if(ov) ov.style.display='none';
+    document.getElementById('lobby').style.display='flex';
+    try{ fetchLeaderboard(); }catch(_){}
+  };
+  authSubmit.parentNode.insertBefore(guestBtn, authSubmit.nextSibling);
+  const hint2=document.createElement('div');
+  hint2.style.cssText='font-size:10px;color:#6a7a9a;text-align:center;margin-top:6px';
+  hint2.textContent='Chơi khách vẫn lưu kỷ lục offline, BXH Top 5 vẫn hiện';
+  guestBtn.parentNode.insertBefore(hint2, guestBtn.nextSibling);
+}
+
 
 document.getElementById('logoutBtn').onclick = () => auth.signOut();
 
