@@ -99,7 +99,9 @@
   #timer{font-size:34px;font-weight:900;color:#fff;-webkit-text-stroke:5px #20202c;paint-order:stroke fill;letter-spacing:1px;margin-top:-2px}
   #stats{text-align:right;color:#fff;font-weight:800;font-size:14px;text-shadow:0 0 3px #000,0 0 3px #000;line-height:20px;min-width:70px}
   #stats b{display:inline-block;width:16px;height:16px;border-radius:50%;vertical-align:-3px;margin-right:4px}
-  .coin{background:#ffc928;border:2px solid #c28a00}
+  .lobby-coin-icon{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid #c28a00;background:radial-gradient(circle at 35% 28%,#fff29a 0 12%,#ffd43b 28%,#f3a900 78%);box-shadow:inset 0 1px 2px #fff8;flex:0 0 auto}
+  #returnLobbyBtn{background:linear-gradient(#596783,#35425e);color:#fff;box-shadow:0 4px 0 #1b2437}
+  .coin{background:#ffc928;border:2px solid #c28a00;box-shadow:inset 0 1px 2px #fff8}
   .skull{background:#ddd;border:2px solid #888;border-radius:6px 6px 4px 4px!important}
   #xpWrap{position:relative;margin-top:4px;height:18px;background:#1c1c28;border:2px solid #0d0d14;border-radius:4px;overflow:hidden}
   #xpBar{height:100%;width:0;background:linear-gradient(#9dff35,#56c910)}
@@ -230,7 +232,7 @@
 <div id="lobby">
   <div class="lobby-top">
     <button class="profile-chip" id="profileOpen" type="button" aria-label="Mở thông tin tài khoản"><div class="profile-avatar" id="lobbyAvatar">?</div><div style="min-width:0"><div class="profile-label">TÀI KHOẢN</div><div class="profile-name" id="lobbyName">Người chơi</div></div></button>
-    <div class="wallet-chip">🪙 <span id="lobbyCoins">0</span> xu</div>
+    <div class="wallet-chip"><b class="coin lobby-coin-icon"></b><span id="lobbyCoins">0</span> xu</div>
   </div>
   <div class="lobby-brand"><h1>SURVIVOR</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
   <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
@@ -239,8 +241,7 @@
   <div class="lobby-nav">
     <button data-lobby-panel="character"><span>🧍</span>Nhân vật</button>
     <button data-lobby-panel="weapon"><span>⚔️</span>Vũ khí</button>
-    <button data-lobby-panel="skill"><span>⚡</span>Kĩ năng</button>
-    <button data-lobby-panel="function"><span>❤️</span>Chức năng</button>
+    <button data-lobby-panel="skill"><span>⚡</span>Skill</button>
     <button data-lobby-panel="costume"><span>👕</span>Trang phục</button>
   </div>
   <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
@@ -257,6 +258,7 @@
   <h1 style="font-size:34px">Tạm dừng</h1>
   <div class="btn" id="resumeBtn">Tiếp tục</div>
   <div class="btn sec" id="restartBtn1">Chơi lại</div>
+  <div class="btn sec" id="returnLobbyBtn">⌂ Về sảnh</div>
 </div>
 
 <div class="ov" id="over">
@@ -266,6 +268,7 @@
   <div class="res" id="rLvl"></div>
   <div class="res" id="rCoins" style="margin-bottom:16px"></div>
   <div class="btn" id="restartBtn2">Chơi lại</div>
+  <div class="btn sec" id="overLobbyBtn">⌂ Về sảnh</div>
 </div>
 
 <script>
@@ -292,6 +295,8 @@ let currentUser = null;
 let isRegisterMode = false;
 let accountCoins = 0;
 let accountAvatar = '🧑';
+let runRewardSaved = false;
+let lobbyReturnTimer = null;
 function refreshLobbyProfile(name){
   const n=name || (currentUser && (currentUser.displayName || currentUser.email.split("@")[0])) || "Người chơi";
   const nameEl=document.getElementById("lobbyName"), av=document.getElementById("lobbyAvatar"), coinEl=document.getElementById("lobbyCoins");
@@ -432,6 +437,7 @@ async function saveRunResult(timeSec, kills, lvl, coins){
       }, { merge: true });
       accountCoins=totalCoins;
     });
+    runRewardSaved = true;
     refreshLobbyProfile();
   }catch(e){ console.warn('saveRunResult', e); }
 }
@@ -646,7 +652,8 @@ function startBackgroundMusic(){
 function startGame(){
   startBackgroundMusic();
   initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
-  reset();state='play';
+  if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
+  reset();runRewardSaved=false;state='play';
   show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
   $('hud').style.display='block';joyDefault();
 }
@@ -659,8 +666,7 @@ $('lobbyStart').onclick=startGame;
 const lobbyPanelData={
  character:['Nhân vật','<div class="inventory-item"><b>🧍 Survivor</b><small>Nhân vật mặc định hiện tại. Sử dụng nhân vật này để bắt đầu trận đấu.</small></div>'],
  weapon:['Vũ khí','<div class="inventory-item"><b>🗡️ Dao găm Kunai</b><small>Vũ khí khởi đầu hiện tại. Tự động phóng kunai vào kẻ địch gần nhất.</small></div>'],
- skill:['Kĩ năng vũ khí','<div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='w'&&k!=='kunai').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div>'],
- function:['Chức năng hỗ trợ','<div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='p'||v.type==='h').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div>'],
+ skill:['Skill','<h3 style="margin:8px 0;color:#8fd7ff">⚡ Kĩ năng</h3><div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='w'&&k!=='kunai').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div><h3 style="margin:18px 0 8px;color:#ff9da8">❤️ Chức năng</h3><div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='p'||v.type==='h').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div>'],
  costume:['Trang phục','<div class="inventory-item"><b>👕 Trang phục mặc định</b><small>Đang sử dụng trang phục mặc định của Survivor.</small></div>']
 };
 function openLobbyPanel(title,html){$('lobbyPanelTitle').textContent=title;$('lobbyPanelBody').innerHTML=html;$('lobbyPanel').style.display='block';$('lobbyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});}
@@ -680,6 +686,8 @@ function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&am
 $('restartBtn1').onclick=startGame;
 $('restartBtn2').onclick=startGame;
 $('resumeBtn').onclick=togglePause;
+$('returnLobbyBtn').onclick=returnToLobby;
+$('overLobbyBtn').onclick=returnToLobby;
 $('pauseBtn').onclick=togglePause;
 // n = số sao đang tô vàng; newIdx = ngôi sao (1..) sẽ nhận được khi chọn thẻ -> nhấp nháy; evo = thẻ tiến hóa (sao thứ 6)
 function stars(n,newIdx,evo){
@@ -1871,14 +1879,29 @@ function update(dt){
   updateHud();
   if(P.hp<=0)gameOver();
 }
+function returnToLobby(){
+  if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
+  if(state==='play'||state==='pause'||state==='levelup'){
+    if(!runRewardSaved && typeof saveRunResult==='function') saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0);
+  }
+  state='menu';
+  show('menu',false);show('pause',false);show('levelup',false);show('over',false);
+  $('hud').style.display='none';
+  document.getElementById('lobby').style.display='flex';
+  refreshLobbyProfile();
+  joy.active=false;joy.dx=joy.dy=0;
+}
 function gameOver(){
+  if(state==='over') return;
   state='over';
   $('rTime').textContent='⏱ Thời gian sống sót: '+fmt(T);
   $('rKills').textContent='💀 Zombie đã diệt: '+kills;
   $('rLvl').textContent='⭐ Cấp độ: '+P.lvl;
   $('rCoins').textContent='🪙 Xu thu được: '+coins;
   show('over',true);
-  if(typeof saveRunResult==='function') saveRunResult(Math.floor(T), kills||0, (P&&P.lvl)||1, coins||0);
+  if(typeof saveRunResult==='function' && !runRewardSaved) saveRunResult(Math.floor(T), kills||0, (P&&P.lvl)||1, coins||0);
+  // Cho xem kết quả ngắn rồi tự động quay về sảnh.
+  lobbyReturnTimer=setTimeout(()=>{ if(state==='over') returnToLobby(); },2200);
 }
 const CELL=40,BLOCK=20;
 function isRoadX(ix){const m=((ix%BLOCK)+BLOCK)%BLOCK;return m<4;}
