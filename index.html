@@ -851,9 +851,9 @@ function startGame(){
     if(authOvEl) authOvEl.style.display='none';
     startBackgroundMusic();
     initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
-    if(typeof lobbyReturnTimer!=='undefined' && lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
-    if(typeof reset==='function') reset();
-    runRewardSaved=false;
+    try{ if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;} }catch(_){}
+    try{ if(typeof reset==='function') reset(); }catch(_){}
+    try{ runRewardSaved=false; }catch(_){}
     state='play';
     show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
     const hud=$('hud'); if(hud) hud.style.display='block';
@@ -2817,18 +2817,30 @@ function restartLeaderboardLive(){
 
 
 function returnToLobby(){
-  stopBackgroundMusic();
-  if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;}
-  if(state==='play'||state==='pause'||state==='levelup'){
-    if(!runRewardSaved && typeof saveRunResult==='function') saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0);
-  }
+  try{ stopBackgroundMusic(); }catch(_){}
+  try{ if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;} }catch(_){}
+  try{
+    if(state==='play'||state==='pause'||state==='levelup'){
+      if(!runRewardSaved && typeof saveRunResult==='function'){
+        try{ saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0); }catch(_){}
+      }
+    }
+  }catch(_){}
+  try{ runRewardSaved=false; }catch(_){}
   state='lobby';
-  show('menu',false);show('pause',false);show('levelup',false);show('over',false);
-  const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
-  const lobbyEl=document.getElementById('lobby'); if(lobbyEl) lobbyEl.style.display='flex';
-  refreshLobbyProfile();
-  setTimeout(()=>{ try{ fetchLeaderboard(); }catch(_){} }, 200);
-  joy.active=false;joy.dx=joy.dy=0;
+  try{ show('menu',false);show('pause',false);show('levelup',false);show('over',false); }catch(_){}
+  try{
+    const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
+    const lobbyEl=document.getElementById('lobby'); if(lobbyEl) lobbyEl.style.display='flex';
+    const overEl=document.getElementById('over'); if(overEl) overEl.style.display='none';
+  }catch(_){}
+  try{
+    const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||document.getElementById('lobbyName')?.textContent||'Người chơi';
+    if(typeof refreshLobbyProfile==='function') refreshLobbyProfile(name);
+  }catch(_){}
+  setTimeout(()=>{ try{ if(typeof fetchLeaderboard==='function') fetchLeaderboard(); }catch(_){} }, 300);
+  try{ joy.active=false;joy.dx=joy.dy=0; }catch(_){}
+  try{ reset(); }catch(_){}
 }
 
 
