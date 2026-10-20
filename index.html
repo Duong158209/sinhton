@@ -152,6 +152,8 @@
   /* ===== LOBBY ===== */
   #lobby{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
   .lobby-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+  .profile-chip{cursor:pointer;text-align:left;color:inherit;font:inherit;flex:1;max-width:70%;}
+  .profile-chip:focus-visible{outline:2px solid #ffd45a;outline-offset:3px}
   .profile-chip,.wallet-chip{display:flex;align-items:center;gap:9px;background:#111827dd;border:1px solid #63718b;border-radius:16px;padding:8px 12px;box-shadow:0 5px 16px #0005;min-width:0}
   .profile-avatar{width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ffe27a,#ff8a00);border:2px solid #fff8;color:#492600;font-size:20px;font-weight:1000}
   .profile-name{font-weight:900;max-width:135px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile-label{font-size:10px;color:#9eacc9;letter-spacing:1px}
@@ -166,6 +168,14 @@
   .lobby-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
   .lobby-nav button{min-width:0;background:linear-gradient(160deg,#283650,#182237);border:1px solid #52627d;border-radius:14px;padding:12px 3px;color:#eaf1ff;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 0 #0b1220}
   .lobby-nav button span{display:block;font-size:24px;margin-bottom:6px}.lobby-nav button:active{transform:translateY(2px);box-shadow:0 2px 0 #0b1220}
+  .avatar-choices{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0 18px}
+  .avatar-choice{font-size:25px;border:1px solid #53627c;background:#202c40;border-radius:12px;padding:9px 0;cursor:pointer}
+  .avatar-choice.selected{border:2px solid #ffc04a;background:#4b3820}
+  .account-id{font-size:12px;overflow-wrap:anywhere;background:#20283a;padding:10px;border-radius:9px;color:#cbd8ed}
+  .account-logout{width:100%;margin-top:18px;background:#c43d49;color:#fff;border:0;border-radius:12px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}
+  .inventory-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .inventory-item{background:#202c40;border:1px solid #43536e;border-radius:12px;padding:10px}
+  .inventory-item b{display:block;color:#fff;margin-bottom:3px}.inventory-item small{color:#b9c7dc;line-height:1.35;display:block}
   #lobbyPanel{display:none;background:#101827f5;border:1px solid #52627d;border-radius:16px;padding:16px;line-height:1.5}.lobby-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#ffd45a;font-weight:900}.lobby-close{border:0;border-radius:8px;padding:6px 10px;background:#384660;color:white;font-weight:800}
   @media(max-height:650px){#lobby{gap:9px;padding-top:calc(env(safe-area-inset-top,0px) + 8px)}.map-panel{min-height:170px}.lobby-brand p{display:none}.profile-avatar{width:34px;height:34px}.lobby-nav button{padding:8px 2px}.lobby-nav button span{font-size:20px}}
 
@@ -219,7 +229,7 @@
 
 <div id="lobby">
   <div class="lobby-top">
-    <div class="profile-chip"><div class="profile-avatar" id="lobbyAvatar">?</div><div style="min-width:0"><div class="profile-label">TÀI KHOẢN</div><div class="profile-name" id="lobbyName">Người chơi</div></div></div>
+    <button class="profile-chip" id="profileOpen" type="button" aria-label="Mở thông tin tài khoản"><div class="profile-avatar" id="lobbyAvatar">?</div><div style="min-width:0"><div class="profile-label">TÀI KHOẢN</div><div class="profile-name" id="lobbyName">Người chơi</div></div></button>
     <div class="wallet-chip">🪙 <span id="lobbyCoins">0</span> xu</div>
   </div>
   <div class="lobby-brand"><h1>SURVIVOR</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
@@ -229,7 +239,8 @@
   <div class="lobby-nav">
     <button data-lobby-panel="character"><span>🧍</span>Nhân vật</button>
     <button data-lobby-panel="weapon"><span>⚔️</span>Vũ khí</button>
-    <button data-lobby-panel="skill"><span>✨</span>Kĩ năng</button>
+    <button data-lobby-panel="skill"><span>⚡</span>Kĩ năng</button>
+    <button data-lobby-panel="function"><span>❤️</span>Chức năng</button>
     <button data-lobby-panel="costume"><span>👕</span>Trang phục</button>
   </div>
   <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
@@ -280,10 +291,11 @@ const db = firebase.firestore();
 let currentUser = null;
 let isRegisterMode = false;
 let accountCoins = 0;
+let accountAvatar = '🧑';
 function refreshLobbyProfile(name){
   const n=name || (currentUser && (currentUser.displayName || currentUser.email.split("@")[0])) || "Người chơi";
   const nameEl=document.getElementById("lobbyName"), av=document.getElementById("lobbyAvatar"), coinEl=document.getElementById("lobbyCoins");
-  if(nameEl) nameEl.textContent=n; if(av) av.textContent=(n[0]||"?").toUpperCase(); if(coinEl) coinEl.textContent=accountCoins.toLocaleString("vi-VN");
+  if(nameEl) nameEl.textContent=n; if(av) av.textContent=accountAvatar || (n[0]||"?").toUpperCase(); if(coinEl) coinEl.textContent=accountCoins.toLocaleString("vi-VN");
 }
 
 
@@ -363,7 +375,7 @@ auth.onAuthStateChanged(async (user) => {
   currentUser = user;
   if(user){
     authOv.style.display = 'none';
-    userBar.style.display = 'flex';
+    userBar.style.display = 'none';
     const nm = user.displayName || user.email.split('@')[0];
     document.getElementById('userName').textContent = nm;
     document.getElementById('userAv').textContent = (nm[0]||'?').toUpperCase();
@@ -383,6 +395,9 @@ auth.onAuthStateChanged(async (user) => {
         });
         accountCoins=0;
       } else { accountCoins=Math.max(0, Number(snap.data().coins)||0); }
+      const profileSnap = await ref.get();
+      const profileData = profileSnap.exists ? profileSnap.data() : {};
+      accountAvatar = profileData.avatar || '🧑';
       refreshLobbyProfile(nm);
     }catch(_){}
   } else {
@@ -641,9 +656,27 @@ function togglePause(){
 }
 $('startBtn').onclick=startGame;
 $('lobbyStart').onclick=startGame;
-const lobbyPanelData={character:['Nhân vật','Nhân vật hiện tại: Survivor 🧍<br>Hãy tiếp tục chiến đấu để làm quen với lối chơi.'],weapon:['Vũ khí','Vũ khí hiện tại: Vũ khí tự động ⚔️<br>Nhân vật tự động tấn công kẻ địch trong phạm vi.'],skill:['Kĩ năng','Kĩ năng được chọn trong trận khi lên cấp ✨<br>Thu thập ngọc xanh để mở lựa chọn kĩ năng.'],costume:['Trang phục','Trang phục mặc định 👕<br>Các ô tùy chỉnh đã được tạo sẵn cho hệ thống trang phục.']};
-document.querySelectorAll('[data-lobby-panel]').forEach(btn=>btn.addEventListener('click',()=>{const d=lobbyPanelData[btn.dataset.lobbyPanel];$('lobbyPanelTitle').textContent=d[0];$('lobbyPanelBody').innerHTML=d[1];$('lobbyPanel').style.display='block';$('lobbyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});}));
+const lobbyPanelData={
+ character:['Nhân vật','<div class="inventory-item"><b>🧍 Survivor</b><small>Nhân vật mặc định hiện tại. Sử dụng nhân vật này để bắt đầu trận đấu.</small></div>'],
+ weapon:['Vũ khí','<div class="inventory-item"><b>🗡️ Dao găm Kunai</b><small>Vũ khí khởi đầu hiện tại. Tự động phóng kunai vào kẻ địch gần nhất.</small></div>'],
+ skill:['Kĩ năng vũ khí','<div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='w'&&k!=='kunai').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div>'],
+ function:['Chức năng hỗ trợ','<div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='p'||v.type==='h').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div>'],
+ costume:['Trang phục','<div class="inventory-item"><b>👕 Trang phục mặc định</b><small>Đang sử dụng trang phục mặc định của Survivor.</small></div>']
+};
+function openLobbyPanel(title,html){$('lobbyPanelTitle').textContent=title;$('lobbyPanelBody').innerHTML=html;$('lobbyPanel').style.display='block';$('lobbyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});}
+$('profileOpen').addEventListener('click',()=>{
+ const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||$('lobbyName').textContent||'Người chơi';
+ const avatars=['🧑','👨','👩','🧔','👧','👦','🥷','🧙','🦸','🐱','🐼','🐸','🦊','🐺','🤖'];
+ const html='<div style="text-align:center"><div style="font-size:48px">'+(accountAvatar||'🧑')+'</div><h3 style="margin:8px 0">'+escapeHtml(name)+'</h3></div><p style="margin:12px 0 5px;color:#9eacc9;font-size:12px">ID TÀI KHOẢN</p><div class="account-id" id="accountIdValue">'+currentUser.uid+'</div><button type="button" id="copyAccountId" class="lobby-close" style="margin-top:8px">Sao chép ID</button><p style="margin:16px 0 5px;color:#9eacc9;font-size:12px">CHỌN AVATAR</p><div class="avatar-choices">'+avatars.map(a=>'<button type="button" class="avatar-choice '+(a===accountAvatar?'selected':'')+'" data-avatar="'+a+'">'+a+'</button>').join('')+'</div><div id="avatarSaveMsg" style="font-size:12px;color:#b8c7df"></div><button type="button" class="account-logout" id="accountLogout">ĐĂNG XUẤT</button>';
+ openLobbyPanel('Tài khoản',html);
+ $('copyAccountId').onclick=()=>{const val=currentUser.uid;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(val).then(()=>{$('copyAccountId').textContent='Đã sao chép ✓'}).catch(()=>prompt('Sao chép ID tài khoản:',val));else prompt('Sao chép ID tài khoản:',val);};
+ document.querySelectorAll('[data-avatar]').forEach(b=>b.onclick=async()=>{accountAvatar=b.dataset.avatar;refreshLobbyProfile();document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x===b));$('avatarSaveMsg').textContent='Đang lưu avatar…';try{await db.collection('users').doc(currentUser.uid).set({avatar:accountAvatar},{merge:true});$('avatarSaveMsg').textContent='Đã lưu avatar ✓';}catch(e){$('avatarSaveMsg').textContent='Không lưu được lúc này. Kiểm tra kết nối rồi thử lại.';}});
+ $('accountLogout').onclick=()=>auth.signOut();
+});
+document.querySelectorAll('[data-lobby-panel]').forEach(btn=>btn.addEventListener('click',()=>{const d=lobbyPanelData[btn.dataset.lobbyPanel];openLobbyPanel(d[0],d[1]);}));
 $('lobbyPanelClose').onclick=()=>$('lobbyPanel').style.display='none';
+function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
 $('restartBtn1').onclick=startGame;
 $('restartBtn2').onclick=startGame;
 $('resumeBtn').onclick=togglePause;
