@@ -46,8 +46,9 @@
   /* === WEAPON INVENTORY FIX === */
   .weapon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .weapon-card{position:relative;background:linear-gradient(160deg,#283650,#182237);border:2px solid #52627d;border-radius:14px;padding:10px 10px 8px;text-align:center;cursor:pointer;transition:all .15s;min-height:140px}
-  .weapon-card .w-ic{font-size:34px;width:100%;height:58px;display:grid;place-items:center;margin-bottom:6px}
+  .weapon-card .w-ic{font-size:34px;width:100%;min-height:58px;height:auto;display:grid;place-items:center;margin-bottom:6px}
   .weapon-card .w-ic img{width:58px;height:58px;object-fit:contain;border-radius:8px;background:#0e1528}
+  .weapon-card .survivor-sprite{pointer-events:none}
   .weapon-card .w-name{font-weight:900;font-size:13px;color:#fff;margin-bottom:2px}
   .weapon-card .w-desc{font-size:10px;color:#9eacc9;line-height:1.3;min-height:26px}
   .weapon-card.equipped{border-color:#22c55e!important;box-shadow:0 0 12px #22c55e88;background:linear-gradient(160deg,#1f3a2a,#182a1f)}
@@ -68,7 +69,7 @@
 </style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>SURVIVOR - Diệt Zombie</title>
+<title>SURVIVAL - Diệt Zombie</title>
 <style>
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:"Segoe UI",Roboto,Arial,sans-serif;touch-action:manipulation}
@@ -143,7 +144,10 @@
   .profile-chip{cursor:pointer;text-align:left;color:inherit;font:inherit;flex:1;max-width:70%;}
   .profile-chip:focus-visible{outline:2px solid #ffd45a;outline-offset:3px}
   .profile-chip,.wallet-chip{display:flex;align-items:center;gap:9px;background:#111827dd;border:1px solid #63718b;border-radius:16px;padding:8px 12px;box-shadow:0 5px 16px #0005;min-width:0}
-  .profile-avatar{width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ffe27a,#ff8a00);border:2px solid #fff8;color:#492600;font-size:20px;font-weight:1000}
+  .profile-avatar{width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ffe27a,#ff8a00);border:2px solid #fff8;color:#492600;font-size:20px;font-weight:1000;overflow:hidden}
+  .profile-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+  #userBar .av{overflow:hidden}
+  #userBar .av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
   .profile-name{font-weight:900;max-width:135px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile-label{font-size:10px;color:#9eacc9;letter-spacing:1px}
   .wallet-chip{font-weight:900;color:#ffd54a;white-space:nowrap}
   .lobby-brand{text-align:center;margin:2px 0 0}.lobby-brand h1{font-size:clamp(30px,7vw,44px);letter-spacing:2px;margin:0;text-shadow:0 4px 0 #5b2a00,0 0 20px #ff9f0055}.lobby-brand p{margin:4px 0;color:#aebbd4;font-size:12px;letter-spacing:2px}
@@ -188,7 +192,7 @@
 
 <div id="authOv">
   <div id="authBox">
-    <h2>SURVIVOR</h2>
+    <h2>SURVIVAL</h2>
     <p class="sub">Đăng nhập để chơi & lưu tiến độ</p>
     <div class="tabs">
       <div class="tab on" id="tabLogin">Đăng nhập</div>
@@ -230,7 +234,7 @@
     <button class="profile-chip" id="profileOpen" type="button" aria-label="Mở thông tin tài khoản"><div class="profile-avatar" id="lobbyAvatar">?</div><div style="min-width:0"><div class="profile-label">TÀI KHOẢN</div><div class="profile-name" id="lobbyName">Người chơi</div></div></button>
     <div class="wallet-chip"><b class="coin lobby-coin-icon"></b><span id="lobbyCoins">0</span> xu</div>
   </div>
-  <div class="lobby-brand"><h1>SURVIVOR</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
+  <div class="lobby-brand"><h1>SURVIVAL</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
   <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
   <button class="btn" id="lobbyStart" onclick="">▶ BẮT ĐẦU</button>
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
@@ -252,7 +256,7 @@
   
   <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
 </div>
-<div class="ov" id="menu" style="display:none"><h1>SURVIVOR</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn" onclick="">Bắt đầu</div></div>
+<div class="ov" id="menu" style="display:none"><h1>SURVIVAL</h1><p class="sub">Sống sót càng lâu càng tốt!</p><div class="btn" id="startBtn" onclick="">Bắt đầu</div></div>
 
 <div class="ov" id="levelup">
   <div class="banner">Chọn kỹ năng</div>
@@ -338,6 +342,57 @@ function isWeaponUnlocked(id){ if(id==='kunai') return true; return (unlockedWea
 // Nếu đang trang bị súng axit mà chưa mở khóa → về kunai
 if(equippedWeapon==='acid' && !isWeaponUnlocked('acid')){ equippedWeapon='kunai'; try{ localStorage.setItem('equippedWeapon','kunai'); }catch(_){} }
 
+function isPhotoAvatar(v){
+  return typeof v==='string' && (v.startsWith('data:image') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('blob:'));
+}
+function setAvatarElement(el, avatar, fallbackLetter){
+  if(!el) return;
+  const av = avatar || '🧑';
+  if(isPhotoAvatar(av)){
+    el.innerHTML = '<img src="'+av+'" alt="av" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">';
+    el.style.overflow = 'hidden';
+    el.style.padding = '0';
+    el.style.background = '#1a2235';
+  }else{
+    el.textContent = av || (fallbackLetter||'?');
+    el.style.overflow = '';
+    el.style.padding = '';
+  }
+}
+function compressImageFile(file, maxSide, quality){
+  return new Promise((resolve, reject)=>{
+    if(!file || !file.type || !file.type.startsWith('image/')){ reject(new Error('Không phải ảnh')); return; }
+    if(file.size > 8*1024*1024){ reject(new Error('Ảnh quá lớn (tối đa 8MB)')); return; }
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error('Không đọc được ảnh'));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error('Ảnh không hợp lệ'));
+      img.onload = ()=>{
+        const side = maxSide || 256;
+        let w = img.width, h = img.height;
+        const scale = Math.min(1, side / Math.max(w, h));
+        w = Math.max(1, Math.round(w*scale));
+        h = Math.max(1, Math.round(h*scale));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        let q = quality || 0.72;
+        let data = c.toDataURL('image/jpeg', q);
+        // Giới hạn ~180KB để vừa localStorage + Firestore
+        while(data.length > 180000 && q > 0.35){
+          q -= 0.08;
+          data = c.toDataURL('image/jpeg', q);
+        }
+        if(data.length > 240000){ reject(new Error('Ảnh vẫn quá lớn, hãy chọn ảnh khác')); return; }
+        resolve(data);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function refreshLobbyProfile(nm){
   try{
     const name = nm || (currentUser && (currentUser.displayName || (currentUser.email||'').split('@')[0])) || document.getElementById('lobbyName')?.textContent || 'Người chơi';
@@ -347,11 +402,15 @@ function refreshLobbyProfile(nm){
     const userName=document.getElementById('userName');
     const userAv=document.getElementById('userAv');
     if(lobbyName) lobbyName.textContent = name;
-    if(lobbyAvatar) lobbyAvatar.textContent = accountAvatar || (name[0]||'?').toUpperCase();
+    setAvatarElement(lobbyAvatar, accountAvatar, (name[0]||'?').toUpperCase());
     if(lobbyCoins) lobbyCoins.textContent = String(accountCoins||0);
     if(userName) userName.textContent = name;
-    if(userAv) userAv.textContent = accountAvatar || (name[0]||'?').toUpperCase();
-    try{ localStorage.setItem('accountCoins', String(accountCoins||0)); localStorage.setItem('accountAvatar', accountAvatar||'🧑'); }catch(_){}
+    setAvatarElement(userAv, accountAvatar, (name[0]||'?').toUpperCase());
+    try{
+      localStorage.setItem('accountCoins', String(accountCoins||0));
+      // Ảnh lớn có thể vượt quota localStorage — bỏ qua lỗi
+      try{ localStorage.setItem('accountAvatar', accountAvatar||'🧑'); }catch(_){}
+    }catch(_){}
   }catch(e){ console.warn('refreshLobbyProfile', e); }
 }
 function saveLocalCoins(){ try{ localStorage.setItem('accountCoins', String(accountCoins||0)); }catch(_){} }
@@ -1006,10 +1065,115 @@ function openLobbyPanel(title,html){$('lobbyPanelTitle').textContent=title;$('lo
 $('profileOpen').addEventListener('click',()=>{
  const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||$('lobbyName').textContent||'Người chơi';
  const avatars=['🧑','👨','👩','🧔','👧','👦','🥷','🧙','🦸','🐱','🐼','🐸','🦊','🐺','🤖'];
- const html='<div style="text-align:center"><div style="font-size:48px">'+(accountAvatar||'🧑')+'</div><h3 style="margin:8px 0">'+escapeHtml(name)+'</h3></div><p style="margin:12px 0 5px;color:#9eacc9;font-size:12px">ID TÀI KHOẢN</p><div class="account-id" id="accountIdValue">'+currentUser.uid+'</div><button type="button" id="copyAccountId" class="lobby-close" style="margin-top:8px">Sao chép ID</button><p style="margin:16px 0 5px;color:#9eacc9;font-size:12px">CHỌN AVATAR</p><div class="avatar-choices">'+avatars.map(a=>'<button type="button" class="avatar-choice '+(a===accountAvatar?'selected':'')+'" data-avatar="'+a+'">'+a+'</button>').join('')+'</div><div id="avatarSaveMsg" style="font-size:12px;color:#b8c7df"></div><button type="button" class="account-logout" id="accountLogout">ĐĂNG XUẤT</button>';
+ const avPreview = isPhotoAvatar(accountAvatar)
+   ? '<img src="'+accountAvatar+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #ffc04a;display:block;margin:0 auto">'
+   : '<div style="font-size:48px">'+(accountAvatar||'🧑')+'</div>';
+ const uid = (currentUser&&currentUser.uid)||'Khách';
+ const html =
+   '<div style="text-align:center" id="accountAvatarPreview">'+avPreview+'</div>'
+   + '<h3 style="margin:8px 0;text-align:center">'+escapeHtml(name)+'</h3>'
+   + '<p style="margin:12px 0 5px;color:#9eacc9;font-size:12px">ID TÀI KHOẢN</p>'
+   + '<div class="account-id" id="accountIdValue">'+uid+'</div>'
+   + '<button type="button" id="copyAccountId" class="lobby-close" style="margin-top:8px">Sao chép ID</button>'
+   + '<p style="margin:16px 0 5px;color:#9eacc9;font-size:12px">ẢNH CỦA BẠN</p>'
+   + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+   + '<label style="flex:1;min-width:120px;background:linear-gradient(#3b82f6,#2563eb);color:#fff;font-weight:900;font-size:13px;padding:11px 12px;border-radius:10px;text-align:center;cursor:pointer">'
+   + '📷 Tải ảnh lên<input type="file" id="avatarFileInput" accept="image/*" style="display:none">'
+   + '</label>'
+   + (isPhotoAvatar(accountAvatar)?'<button type="button" id="avatarRemovePhoto" class="lobby-close" style="background:#c43d49">Xóa ảnh</button>':'')
+   + '</div>'
+   + '<p style="margin:8px 0 5px;color:#9eacc9;font-size:12px">HOẶC CHỌN EMOJI</p>'
+   + '<div class="avatar-choices">'+avatars.map(a=>'<button type="button" class="avatar-choice '+(!isPhotoAvatar(accountAvatar)&&a===accountAvatar?'selected':'')+'" data-avatar="'+a+'">'+a+'</button>').join('')+'</div>'
+   + '<div id="avatarSaveMsg" style="font-size:12px;color:#b8c7df;min-height:18px;margin-top:6px"></div>'
+   + '<button type="button" class="account-logout" id="accountLogout">ĐĂNG XUẤT</button>';
  openLobbyPanel('Tài khoản',html);
- $('copyAccountId').onclick=()=>{const val=currentUser.uid;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(val).then(()=>{$('copyAccountId').textContent='Đã sao chép ✓'}).catch(()=>prompt('Sao chép ID tài khoản:',val));else prompt('Sao chép ID tài khoản:',val);};
- document.querySelectorAll('[data-avatar]').forEach(b=>b.onclick=async()=>{accountAvatar=b.dataset.avatar;refreshLobbyProfile();document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x===b));$('avatarSaveMsg').textContent='Đang lưu avatar…';try{await db.collection('users').doc(currentUser.uid).set({avatar:accountAvatar},{merge:true});$('avatarSaveMsg').textContent='Đã lưu avatar ✓';}catch(e){$('avatarSaveMsg').textContent='Không lưu được lúc này. Kiểm tra kết nối rồi thử lại.';}});
+
+ async function saveAvatarToCloud(av){
+   if(!currentUser) return;
+   try{
+     await db.collection('users').doc(currentUser.uid).set({avatar:av},{merge:true});
+   }catch(e){ throw e; }
+ }
+ function updatePreview(av){
+   const box=$('accountAvatarPreview');
+   if(!box) return;
+   if(isPhotoAvatar(av)){
+     box.innerHTML='<img src="'+av+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #ffc04a;display:block;margin:0 auto">';
+   }else{
+     box.innerHTML='<div style="font-size:48px">'+(av||'🧑')+'</div>';
+   }
+ }
+
+ $('copyAccountId').onclick=()=>{
+   const val=uid;
+   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(val).then(()=>{$('copyAccountId').textContent='Đã sao chép ✓'}).catch(()=>prompt('Sao chép ID tài khoản:',val));
+   else prompt('Sao chép ID tài khoản:',val);
+ };
+
+ document.querySelectorAll('[data-avatar]').forEach(b=>b.onclick=async()=>{
+   accountAvatar=b.dataset.avatar;
+   refreshLobbyProfile();
+   updatePreview(accountAvatar);
+   document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x===b));
+   $('avatarSaveMsg').textContent='Đang lưu avatar…';
+   try{
+     await saveAvatarToCloud(accountAvatar);
+     $('avatarSaveMsg').textContent='Đã lưu avatar ✓';
+   }catch(e){ $('avatarSaveMsg').textContent='Đã lưu máy; cloud lỗi — kiểm tra mạng.'; }
+ });
+
+ const fileInput=$('avatarFileInput');
+ if(fileInput){
+   fileInput.onchange=async()=>{
+     const file=fileInput.files&&fileInput.files[0];
+     if(!file) return;
+     $('avatarSaveMsg').textContent='Đang xử lý ảnh…';
+     try{
+       const dataUrl=await compressImageFile(file, 256, 0.7);
+       accountAvatar=dataUrl;
+       refreshLobbyProfile();
+       updatePreview(accountAvatar);
+       document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.remove('selected'));
+       $('avatarSaveMsg').textContent='Đang lưu ảnh…';
+       try{
+         await saveAvatarToCloud(accountAvatar);
+         $('avatarSaveMsg').textContent='Đã đặt ảnh đại diện ✓';
+       }catch(e){
+         $('avatarSaveMsg').textContent='Ảnh đã lưu trên máy; đồng bộ cloud thất bại (ảnh có thể quá lớn).';
+       }
+       // hiện lại nút xóa
+       if(!$('avatarRemovePhoto')){
+         const lab=fileInput.closest('label');
+         if(lab&&lab.parentElement){
+           const btn=document.createElement('button');
+           btn.type='button'; btn.id='avatarRemovePhoto'; btn.className='lobby-close';
+           btn.style.background='#c43d49'; btn.textContent='Xóa ảnh';
+           lab.parentElement.appendChild(btn);
+           btn.onclick=async()=>{
+             accountAvatar='🧑'; refreshLobbyProfile(); updatePreview(accountAvatar);
+             document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x.dataset.avatar==='🧑'));
+             try{ await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã xóa ảnh, về emoji mặc định'; }catch(_){}
+             btn.remove();
+           };
+         }
+       }
+     }catch(err){
+       $('avatarSaveMsg').textContent=err.message||'Không tải được ảnh';
+     }
+     fileInput.value='';
+   };
+ }
+
+ const rm=$('avatarRemovePhoto');
+ if(rm){
+   rm.onclick=async()=>{
+     accountAvatar='🧑'; refreshLobbyProfile(); updatePreview(accountAvatar);
+     document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x.dataset.avatar==='🧑'));
+     try{ await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã xóa ảnh'; }catch(_){}
+     rm.remove();
+   };
+ }
+
  $('accountLogout').onclick=()=>{ window.isGuestMode=false; auth.signOut(); };
 });
 // old lobby binding removed - handled by new nav logic
@@ -2615,7 +2779,10 @@ function renderLeaderboardFromData(list, myBest){
     const topClass = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
     const rankClass = rank===1?'r1':rank===2?'r2':rank===3?'r3':'rn';
     const isMe = item.isMe;
-    html+=`<div class="lb-item ${topClass}" style="${isMe?'outline:2px solid #ffd23a;':''}"><div class="lb-rank ${rankClass}">${rank}</div><div class="lb-avatar">${av}</div><div class="lb-name">${name}${isMe?' (Bạn)':''}</div><div class="lb-time">⏱ ${timeStr}</div></div>`;
+    const avHtml = (typeof av==='string' && (av.startsWith('data:image')||av.startsWith('http')))
+      ? '<img src="'+av+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">'
+      : av;
+    html+=`<div class="lb-item ${topClass}" style="${isMe?'outline:2px solid #ffd23a;':''}"><div class="lb-rank ${rankClass}">${rank}</div><div class="lb-avatar" style="overflow:hidden;padding:0">${avHtml}</div><div class="lb-name">${name}${isMe?' (Bạn)':''}</div><div class="lb-time">⏱ ${timeStr}</div></div>`;
     rank++;
   });
   lbList.innerHTML=html;
@@ -2900,47 +3067,20 @@ const LOBBY_CHARACTERS = [
   }
 ];
 
-function drawCharacterPreview(canvas, charId){
-  if(!canvas) return;
-  const dpr=Math.min(2, window.devicePixelRatio||1);
-  const W=120, H=140;
-  canvas.width=W*dpr; canvas.height=H*dpr;
-  canvas.style.width=W+'px'; canvas.style.height=H+'px';
-  const ctx=canvas.getContext('2d');
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,W,H);
-  // nền
-  const g=ctx.createRadialGradient(W/2,H/2,10,W/2,H/2,70);
-  g.addColorStop(0,'#2a3a55'); g.addColorStop(1,'#12182a');
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  // vẽ model giống trong trận (scale lớn)
-  const cx=W/2, cy=H/2+18, s=3.2;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(s,s);
-  // bóng
-  ctx.fillStyle='rgba(0,0,0,.28)';
-  ctx.beginPath(); ctx.ellipse(0,10,9,3.5,0,0,Math.PI*2); ctx.fill();
-  // thân
-  ctx.fillStyle='#2c2f4a'; ctx.fillRect(-6,1,12,9);
-  // áo đỏ
-  ctx.fillStyle='#d8353a'; ctx.fillRect(-7,-1,14,4);
-  // đầu
-  ctx.fillStyle='#f0c9a0';
-  if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(-8,-12,16,13,4); ctx.fill(); }
-  else { ctx.fillRect(-8,-12,16,13); }
-  // mũ xanh
-  ctx.fillStyle='#4aa6e8'; ctx.fillRect(-8,-13,16,5);
-  // mắt
-  ctx.fillStyle='#1c1c28'; ctx.fillRect(-4,-5,3,3); ctx.fillRect(2,-5,3,3);
-  // súng
-  ctx.fillStyle='#bfc4d8'; ctx.fillRect(7,2,7,2);
-  ctx.restore();
-  // nhãn
-  ctx.fillStyle='#ffd23a';
-  ctx.font='900 11px Arial';
-  ctx.textAlign='center';
-  ctx.fillText(charId==='survivor'?'SURVIVOR':'?', W/2, 18);
+// Sprite HTML của Survivor (giống model trong trận) — luôn hiện ổn định trên mobile
+function survivorSpriteHTML(scale){
+  const s = scale||1;
+  const w = Math.round(56*s), h = Math.round(64*s);
+  return '<div class="survivor-sprite" style="position:relative;width:'+w+'px;height:'+h+'px;margin:0 auto">'
+    + '<div style="position:absolute;left:50%;bottom:4px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(8*s)+'px;background:rgba(0,0,0,.3);border-radius:50%"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(28*s)+'px;transform:translateX(-50%);width:'+Math.round(22*s)+'px;height:'+Math.round(18*s)+'px;background:#2c2f4a;border-radius:3px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(24*s)+'px;transform:translateX(-50%);width:'+Math.round(26*s)+'px;height:'+Math.round(8*s)+'px;background:#d8353a;border-radius:2px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(6*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(24*s)+'px;background:#f0c9a0;border-radius:'+Math.round(6*s)+'px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(2*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(10*s)+'px;background:#4aa6e8;border-radius:'+Math.round(3*s)+'px '+Math.round(3*s)+'px 0 0"></div>'
+    + '<div style="position:absolute;left:calc(50% - '+Math.round(9*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(6*s)+'px;height:'+Math.round(6*s)+'px;background:#1c1c28;border-radius:1px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(3*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(6*s)+'px;height:'+Math.round(6*s)+'px;background:#1c1c28;border-radius:1px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(12*s)+'px);top:'+Math.round(32*s)+'px;width:'+Math.round(14*s)+'px;height:'+Math.round(5*s)+'px;background:#bfc4d8;border-radius:2px"></div>'
+    + '</div>';
 }
 
 function renderCharacterPanel(){
@@ -2970,7 +3110,9 @@ function renderCharacterPanel(){
     }
     const tickHtml = isEquipped ? '<div class="tick" style="display:grid">✓</div>' : '<div class="tick" style="display:none">✓</div>';
     card.innerHTML = tickHtml
-      + '<div class="w-ic" style="height:72px;display:grid;place-items:center"><canvas class="char-preview" width="72" height="72" style="width:72px;height:72px;border-radius:10px;background:#0e1528"></canvas></div>'
+      + '<div class="w-ic" style="height:78px!important;min-height:78px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">'
+      + survivorSpriteHTML(1.15)
+      + '</div>'
       + '<div class="w-name">'+ch.name+(isEquipped?' ✓':'')+'</div>'
       + '<div class="w-desc">'+ch.desc.substring(0,52)+'...</div>';
     card.onclick=()=>{
@@ -2978,110 +3120,56 @@ function renderCharacterPanel(){
       selectedCharacterId=ch.id; renderCharacterPanel();
     };
     grid.appendChild(card);
-    // vẽ model lên canvas trong card
-    const cv=card.querySelector('canvas.char-preview');
-    if(cv){
-      // mini preview
-      const dpr=Math.min(2,window.devicePixelRatio||1);
-      const s=72;
-      cv.width=s*dpr; cv.height=s*dpr;
-      const ctx=cv.getContext('2d');
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-      ctx.clearRect(0,0,s,s);
-      const bg=ctx.createRadialGradient(s/2,s/2,4,s/2,s/2,36);
-      bg.addColorStop(0,'#2a3a55'); bg.addColorStop(1,'#0e1528');
-      ctx.fillStyle=bg; ctx.fillRect(0,0,s,s);
-      ctx.save();
-      ctx.translate(s/2, s/2+10);
-      ctx.scale(2.4,2.4);
-      ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,10,9,3.5,0,0,7); ctx.fill();
-      ctx.fillStyle='#2c2f4a'; ctx.fillRect(-6,1,12,9);
-      ctx.fillStyle='#d8353a'; ctx.fillRect(-7,-1,14,4);
-      ctx.fillStyle='#f0c9a0';
-      if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(-8,-12,16,13,4); ctx.fill(); } else ctx.fillRect(-8,-12,16,13);
-      ctx.fillStyle='#4aa6e8'; ctx.fillRect(-8,-13,16,5);
-      ctx.fillStyle='#1c1c28'; ctx.fillRect(-4,-5,3,3); ctx.fillRect(2,-5,3,3);
-      ctx.fillStyle='#bfc4d8'; ctx.fillRect(7,2,7,2);
-      ctx.restore();
-    }
   });
+
+  function buildDetail(ch, isEq){
+    const detail=document.createElement('div');
+    detail.className='weapon-detail';
+    if(isEq){
+      detail.style.border='2px solid #22c55e';
+      detail.style.boxShadow='0 0 12px #22c55e55';
+    }
+    detail.innerHTML =
+      '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
+      + '<div style="width:110px;height:130px;border-radius:12px;border:2px solid '+(isEq?'#22c55e':'#52627d')+';background:radial-gradient(ellipse at 50% 40%,#2a3a55,#0e1528);display:flex;align-items:center;justify-content:center;flex:none">'
+      + survivorSpriteHTML(1.7)
+      + '</div>'
+      + '<div style="flex:1;min-width:140px">'
+      + '<div style="font-weight:900;color:#ffd23a;margin-bottom:4px;font-size:15px">'+ch.name+' — '+(isEq?'<span style="color:#22c55e">Đang sử dụng</span>':'<span style="color:#9ca3af">Chưa trang bị</span>')+'</div>'
+      + '<div style="margin-bottom:8px;color:#c9d4e8;font-size:12px;line-height:1.4">'+ch.desc+'</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px">'
+      + '<span>❤️ Máu: <b style="color:#fff">'+ch.hp+'</b></span>'
+      + '<span>🏃 Tốc độ: <b style="color:#fff">'+ch.spd+'</b></span>'
+      + '<span>🛡️ Giáp: <b style="color:#fff">'+ch.armor+'</b></span>'
+      + '<span>💥 Chí mạng: <b style="color:#fff">'+ch.crit+'</b></span>'
+      + '<span>🎯 Vai trò: <b style="color:#fff">'+ch.role+'</b></span>'
+      + '</div>'
+      + '<div class="weapon-actions">'
+      + (isEq
+        ? '<button class="btn-equip" data-act="equip" style="opacity:.9">✓ Đã trang bị</button>'
+        : '<button class="btn-equip" data-act="equip">Trang bị</button>')
+      + '</div>'
+      + '</div></div>';
+    detailContainer.appendChild(detail);
+    detail.querySelectorAll('button').forEach(btn=>{
+      btn.onclick=(e)=>{
+        e.stopPropagation();
+        if(btn.dataset.act==='equip'){
+          equippedCharacter=ch.id; saveEquippedCharacter();
+          selectedCharacterId=ch.id;
+          renderCharacterPanel();
+          if(typeof toastMsg==='function') toastMsg('Đã trang bị '+ch.name, '#22c55e');
+        }
+      };
+    });
+  }
 
   if(selectedCharacterId){
     const ch = LOBBY_CHARACTERS.find(x=>x.id===selectedCharacterId);
-    if(ch){
-      const detail=document.createElement('div');
-      detail.className='weapon-detail';
-      const isEq = equippedCharacter===ch.id;
-      detail.innerHTML =
-        '<div style="display:flex;gap:12px;align-items:flex-start">'
-        + '<canvas id="charDetailPreview" style="width:120px;height:140px;border-radius:12px;border:2px solid '+(isEq?'#22c55e':'#52627d')+';background:#0e1528;flex:none"></canvas>'
-        + '<div style="flex:1;min-width:0">'
-        + '<div style="font-weight:900;color:#ffd23a;margin-bottom:4px;font-size:15px">'+ch.name+' — '+(isEq?'<span style="color:#22c55e">Đang sử dụng</span>':'<span style="color:#9ca3af">Chưa trang bị</span>')+'</div>'
-        + '<div style="margin-bottom:8px;color:#c9d4e8;font-size:12px;line-height:1.4">'+ch.desc+'</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px">'
-        + '<span>❤️ Máu: <b style="color:#fff">'+ch.hp+'</b></span>'
-        + '<span>🏃 Tốc độ: <b style="color:#fff">'+ch.spd+'</b></span>'
-        + '<span>🛡️ Giáp: <b style="color:#fff">'+ch.armor+'</b></span>'
-        + '<span>💥 Chí mạng: <b style="color:#fff">'+ch.crit+'</b></span>'
-        + '<span>🎯 Vai trò: <b style="color:#fff">'+ch.role+'</b></span>'
-        + '</div>'
-        + '<div class="weapon-actions">'
-        + (isEq
-          ? '<button class="btn-unequip" data-act="unequip">Gỡ trang bị</button>'
-          : '<button class="btn-equip" data-act="equip">Trang bị</button>')
-        + '</div>'
-        + '</div></div>';
-      detailContainer.appendChild(detail);
-      const cv=document.getElementById('charDetailPreview');
-      if(cv) drawCharacterPreview(cv, ch.id);
-      detail.querySelectorAll('button').forEach(btn=>{
-        btn.onclick=(e)=>{
-          e.stopPropagation();
-          const act=btn.dataset.act;
-          if(act==='equip'){
-            equippedCharacter=ch.id; saveEquippedCharacter();
-            renderCharacterPanel();
-            if(typeof toastMsg==='function') toastMsg('Đã trang bị '+ch.name, '#22c55e');
-          }else if(act==='unequip'){
-            // luôn giữ 1 nhân vật — về survivor
-            equippedCharacter='survivor'; saveEquippedCharacter();
-            selectedCharacterId=null;
-            renderCharacterPanel();
-            if(typeof toastMsg==='function') toastMsg('Đã về nhân vật mặc định', '#3b82f6');
-          }
-        };
-      });
-    }
+    if(ch) buildDetail(ch, equippedCharacter===ch.id);
   } else {
-    // tự chọn nhân vật đang trang bị để hiện sẵn
     const eq = LOBBY_CHARACTERS.find(x=>x.id===equippedCharacter) || LOBBY_CHARACTERS[0];
-    if(eq){
-      selectedCharacterId = eq.id;
-      // tránh đệ quy vô hạn: chỉ auto-select lần đầu khi mở panel
-      // render lại 1 lần
-      const detail=document.createElement('div');
-      detail.className='weapon-detail';
-      detail.style.border='2px solid #22c55e';
-      detail.style.boxShadow='0 0 12px #22c55e55';
-      detail.innerHTML =
-        '<div style="display:flex;gap:12px;align-items:flex-start">'
-        + '<canvas id="charDetailPreview" style="width:120px;height:140px;border-radius:12px;border:2px solid #22c55e;background:#0e1528;flex:none"></canvas>'
-        + '<div style="flex:1;min-width:0">'
-        + '<div style="font-weight:900;color:#ffd23a;margin-bottom:4px;font-size:15px">'+eq.name+' — <span style="color:#22c55e">Đang sử dụng</span></div>'
-        + '<div style="margin-bottom:8px;color:#c9d4e8;font-size:12px;line-height:1.4">'+eq.desc+'</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px">'
-        + '<span>❤️ Máu: <b style="color:#fff">'+eq.hp+'</b></span>'
-        + '<span>🏃 Tốc độ: <b style="color:#fff">'+eq.spd+'</b></span>'
-        + '<span>🛡️ Giáp: <b style="color:#fff">'+eq.armor+'</b></span>'
-        + '<span>💥 Chí mạng: <b style="color:#fff">'+eq.crit+'</b></span>'
-        + '<span>🎯 Vai trò: <b style="color:#fff">'+eq.role+'</b></span>'
-        + '</div>'
-        + '<div class="weapon-actions"><button class="btn-equip" data-act="equip" style="opacity:.85">✓ Đã trang bị</button></div>'
-        + '</div></div>';
-      detailContainer.appendChild(detail);
-      const cv=document.getElementById('charDetailPreview');
-      if(cv) drawCharacterPreview(cv, eq.id);
-    }
+    if(eq) buildDetail(eq, true);
   }
 }
 
