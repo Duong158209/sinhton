@@ -42,27 +42,6 @@
 :where(code, pre, kbd, samp) {
   font-family: "Optimistic Mono", ui-monospace, monospace;
 }
-</style><style>
-@font-face {
-  font-family: "Optimistic";
-  font-style: normal;
-  font-weight: 400 600;
-  font-display: swap;
-  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Optimistic Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
-}
-:where(html) {
-  font-family: "Optimistic", system-ui, sans-serif;
-}
-:where(code, pre, kbd, samp) {
-  font-family: "Optimistic Mono", ui-monospace, monospace;
-}
 
   /* === WEAPON INVENTORY FIX === */
   .weapon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -345,8 +324,7 @@ let accountAvatar = localStorage.getItem('accountAvatar') || '🧑';
 let accountBestTime = 0;
 let runRewardSaved = false;
 let lobbyReturnTimer = null;
-// duplicate removed
-if(equippedWeapon==='') equippedWeapon='kunai';
+let equippedWeapon = (function(){ try{ const v=localStorage.getItem('equippedWeapon'); return (v===null||v==='')?'kunai':v; }catch(_){ return 'kunai'; } })();
 
 function refreshLobbyProfile(nm){
   try{
@@ -377,6 +355,8 @@ const authName = document.getElementById('authName');
 const tabLogin = document.getElementById('tabLogin');
 const tabReg = document.getElementById('tabReg');
 const regFields = document.getElementById('regFields');
+const authOv = document.getElementById('authOv');
+const userBar = document.getElementById('userBar');
 
 function showAuthError(msg){
   if(!authErr) return;
@@ -415,6 +395,7 @@ authSubmit.onclick = async ()=>{
       if(!name){ showAuthError('Nhập tên hiển thị'); authSubmit.style.opacity='1'; authSubmit.style.pointerEvents='auto'; authSubmit.textContent='Đăng ký'; return; }
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       await cred.user.updateProfile({displayName:name});
+      try{ refreshLobbyProfile(name); }catch(_){}
       try{
         await db.collection('users').doc(cred.user.uid).set({
           name:name, email:email, avatar:'🧑',
@@ -482,7 +463,7 @@ if(!guestBtn && authSubmit){
 }
 
 
-document.getElementById('logoutBtn').onclick = () => auth.signOut();
+document.getElementById('logoutBtn').onclick = () => { window.isGuestMode=false; auth.signOut(); };
 
 auth.onAuthStateChanged(async (user) => {
   currentUser = user;
@@ -582,7 +563,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Cho phép nhấn BẮT ĐẦU ngay cả khi chưa đăng nhập (chế độ khách)
   // Nếu authOv đang hiện mà lobby bị ẩn, thêm nút Chơi ngay
   if(authOvEl && lobbyEl){
-    let guestBtn=document.getElementById('guestPlayBtn');
+    let guestBtn=document.getElementById('guestPlayBtn')||document.getElementById('guestBtn');
     if(!guestBtn){
       guestBtn=document.createElement('div');
       guestBtn.id='guestPlayBtn';
@@ -708,7 +689,7 @@ const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='lobby';
 const AURA_R=150;
 let maxWeaponSlots=6, rerollLeft=2;
-let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true, accountBestTime=0;
+let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true;
 function reset(){
   P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];iceRings=[];
@@ -877,7 +858,7 @@ function startGame(){
       return;
     }
     console.log('startGame called with weapon', equippedWeapon);
-    window.isGuestMode=true;
+    if(!currentUser) window.isGuestMode=true;
     const authOvEl=document.getElementById('authOv');
     if(authOvEl) authOvEl.style.display='none';
     startBackgroundMusic();
@@ -982,7 +963,7 @@ $('profileOpen').addEventListener('click',()=>{
  openLobbyPanel('Tài khoản',html);
  $('copyAccountId').onclick=()=>{const val=currentUser.uid;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(val).then(()=>{$('copyAccountId').textContent='Đã sao chép ✓'}).catch(()=>prompt('Sao chép ID tài khoản:',val));else prompt('Sao chép ID tài khoản:',val);};
  document.querySelectorAll('[data-avatar]').forEach(b=>b.onclick=async()=>{accountAvatar=b.dataset.avatar;refreshLobbyProfile();document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x===b));$('avatarSaveMsg').textContent='Đang lưu avatar…';try{await db.collection('users').doc(currentUser.uid).set({avatar:accountAvatar},{merge:true});$('avatarSaveMsg').textContent='Đã lưu avatar ✓';}catch(e){$('avatarSaveMsg').textContent='Không lưu được lúc này. Kiểm tra kết nối rồi thử lại.';}});
- $('accountLogout').onclick=()=>auth.signOut();
+ $('accountLogout').onclick=()=>{ window.isGuestMode=false; auth.signOut(); };
 });
 // old lobby binding removed - handled by new nav logic
 $('lobbyPanelClose').onclick=()=>$('lobbyPanel').style.display='none';
@@ -1860,113 +1841,7 @@ function updateProjs(dt){
     for(const e of enemies){
       if(e.dead||p.hit.has(e))continue;
       if(Math.hypot(e.x-p.x,e.y-p.y)<e.r+p.r){
-        if(p.k==='acid'){
-    ctx.save();
-    if(p.fog){
-      // sương độc xanh lá
-      ctx.rotate(p.a);
-      const grad=ctx.createRadialGradient(0,0,2,0,0,18);
-      grad.addColorStop(0,'rgba(74,222,128,0.9)'); grad.addColorStop(0.4,'rgba(34,197,94,0.5)'); grad.addColorStop(1,'rgba(34,197,94,0)');
-      ctx.fillStyle=grad;
-      ctx.beginPath(); ctx.ellipse(0,0,18,10,0,0,7); ctx.fill();
-      ctx.fillStyle='rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.arc(4,0,5,0,7); ctx.fill();
-else{
-      // TIA AXIT - beam dài để phân biệt với đạn quái
-      ctx.rotate(p.a);
-      ctx.shadowColor='#22c55e'; ctx.shadowBlur=14;
-      const beamLen=36, beamW=8;
-      const grad=ctx.createLinearGradient(-beamLen*0.4,0,beamLen*0.6,0);
-      grad.addColorStop(0,'rgba(34,197,94,0)');
-      grad.addColorStop(0.2,'rgba(74,222,128,0.7)');
-      grad.addColorStop(0.5,'rgba(34,197,94,0.95)');
-      grad.addColorStop(1,'rgba(134,239,172,1)');
-      ctx.fillStyle=grad;
-      ctx.beginPath();
-      ctx.roundRect(-beamLen*0.4,-beamW/2,beamLen,beamW,beamW/2);
-      ctx.fill();
-      ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(220,252,231,0.95)';
-      ctx.beginPath();
-      ctx.roundRect(-beamLen*0.2,-2,beamLen*0.7,4,2);
-      ctx.fill();
-      ctx.fillStyle='#bbf7d0';
-      ctx.beginPath();
-      ctx.arc(beamLen*0.5,0,5,0,7);
-      ctx.fill();
-      ctx.fillStyle='#fff';
-      ctx.beginPath();
-      ctx.arc(beamLen*0.5,0,2.2,0,7);
-      ctx.fill();
-      ctx.fillStyle='rgba(34,197,94,0.28)'; ctx.beginPath(); ctx.arc(-8,0,4,0,7); ctx.fill();
-    }
-    ctx.restore();
-    ctx.restore();
-    return;
-  }
-  if(p.k==='acidBottle'){
-    ctx.save();
-    ctx.rotate(p.a||0);
-    ctx.fillStyle='#166534'; ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.roundRect(-10,-7,20,14,4); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#22c55e'; ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fill();
-    ctx.fillStyle='rgba(74,222,128,0.6)'; ctx.beginPath(); ctx.arc(-6,-2,3,0,7); ctx.fill();
-    ctx.restore();
-    ctx.restore();
-    return;
-  }
-
-  if(p.k==='acid'){
-    ctx.save();
-    if(p.fog){
-      ctx.rotate(p.a);
-      const grad=ctx.createRadialGradient(0,0,2,0,0,18);
-      grad.addColorStop(0,'rgba(74,222,128,0.9)'); grad.addColorStop(0.4,'rgba(34,197,94,0.5)'); grad.addColorStop(1,'rgba(34,197,94,0)');
-      ctx.fillStyle=grad; ctx.beginPath(); ctx.ellipse(0,0,18,10,0,0,7); ctx.fill();
-      ctx.fillStyle='rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.arc(4,0,5,0,7); ctx.fill();
-else{
-      // TIA AXIT - beam dài để phân biệt với đạn quái
-      ctx.rotate(p.a);
-      ctx.shadowColor='#22c55e'; ctx.shadowBlur=14;
-      const beamLen=36, beamW=8;
-      const grad=ctx.createLinearGradient(-beamLen*0.4,0,beamLen*0.6,0);
-      grad.addColorStop(0,'rgba(34,197,94,0)');
-      grad.addColorStop(0.2,'rgba(74,222,128,0.7)');
-      grad.addColorStop(0.5,'rgba(34,197,94,0.95)');
-      grad.addColorStop(1,'rgba(134,239,172,1)');
-      ctx.fillStyle=grad;
-      ctx.beginPath();
-      ctx.roundRect(-beamLen*0.4,-beamW/2,beamLen,beamW,beamW/2);
-      ctx.fill();
-      ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(220,252,231,0.95)';
-      ctx.beginPath();
-      ctx.roundRect(-beamLen*0.2,-2,beamLen*0.7,4,2);
-      ctx.fill();
-      ctx.fillStyle='#bbf7d0';
-      ctx.beginPath();
-      ctx.arc(beamLen*0.5,0,5,0,7);
-      ctx.fill();
-      ctx.fillStyle='#fff';
-      ctx.beginPath();
-      ctx.arc(beamLen*0.5,0,2.2,0,7);
-      ctx.fill();
-      ctx.fillStyle='rgba(34,197,94,0.28)'; ctx.beginPath(); ctx.arc(-9,0,5,0,7); ctx.fill();
-    }
-    ctx.restore();
-    ctx.restore();
-    return;
-  }
-  if(p.k==='acidBottle'){
-    ctx.save();
-    ctx.rotate(p.a||0);
-    ctx.fillStyle='#166534'; ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.roundRect(-10,-7,20,14,4); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#22c55e'; ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fill();
-    ctx.restore();
-    ctx.restore();
-    return;
-  }
-  if(p.k==='rocket'){explode(p);p.dead=true;break;}
+        if(p.k==='rocket'){explode(p);p.dead=true;break;}
         p.hit.add(e);
         hitEnemy(e,p.dmg,p.vx,p.vy);
         if(p.pierce!==undefined){p.pierce--;if(p.pierce<=0){p.dead=true;break;}}
