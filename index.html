@@ -244,7 +244,7 @@
       <button id="lbRefresh" style="background:#283650;border:1px solid #4a5a7a;color:#aebbd4;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;cursor:pointer">↻</button>
     </div>
     <div id="lbList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"><div style="color:#667799;font-size:12px;text-align:center;padding:10px">Đang tải BXH...</div></div>
-    <div id="lbMyRank" style="margin-top:8px;padding:6px;background:rgba(255,210,58,0.08);border:1px dashed #665a2a;border-radius:8px;font-size:11px;color:#d0c090;text-align:center"></div>
+    <div id="lbMyRank" style="display:none"></div>
   </div>
   <div class="lobby-section-title">KHO ĐỒ & TÙY CHỈNH</div>
   <div class="lobby-nav">
@@ -763,7 +763,7 @@ const EVO={
   ringz:{n:'Vòng Điện Hấp Huyết',ic:'🔮',d:'TIẾN HÓA: vòng điện tím bao quanh người, quái chạm vào bị giật liên tục.'},
   drone:{n:'Drone Laser 4 Hướng',ic:'💥',d:'TIẾN HÓA: drone bắn 4 tia laser cùng lúc, sát thương x3.'},
   golem:{n:'Golem Cổ Thụ Ultimate',ic:'🌲',d:'TIẾN HÓA: Golem to hơn, dame +80%, ném 3 đá khổng lồ, phạm vi to hơn.'},
-  hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn, gây thêm 1.5% máu tối đa.'},
+  hoden:{n:'Hố Đen Nuốt Chửng',ic:'🌌',d:'TIẾN HÓA: Hố đen to gấp đôi, hút mạnh hơn; khi nổ gây 30% máu tối đa mọi quái/boss trong vòng.'},
   tuocdoat:{n:'Tước Đoạt Vĩnh Hằng',ic:'👁️',d:'TIẾN HÓA: Lập tức giết tất cả quái dưới 30% máu.'},
   ice:{n:'Bão Tuyết Vĩnh Cửu',ic:'🌨️',d:'TIẾN HÓA: Bão băng khổng lồ 280 bán kính, đóng băng 100% quái 1s.'},
   firestorm:{n:'Bão Lửa Vĩnh Hằng',ic:'🌋',d:'TIẾN HÓA: 3 lốc lửa khổng lồ, đốt 3% máu tối đa mỗi tick, hút mạnh.'},
@@ -2339,15 +2339,26 @@ function update(dt){
       }
       if(golemSt.earthCd<=0){
         golemSt.earthCd=8;
-        let ang;
+        let baseAng;
         if(golemSt.onlyBoss && golemSt.target && !golemSt.target.dead){
-          ang = Math.atan2(golemSt.target.y-golemSt.y,golemSt.target.x-golemSt.x);
+          baseAng = Math.atan2(golemSt.target.y-golemSt.y,golemSt.target.x-golemSt.x);
         }else{
-          ang = Math.atan2(P.y-golemSt.y,P.x-golemSt.x) || rnd(0,6.28);
+          const tg=nearest(1,400);
+          baseAng = tg.length ? Math.atan2(tg[0].y-golemSt.y,tg[0].x-golemSt.x) : (Math.atan2(P.y-golemSt.y,P.x-golemSt.x) || rnd(0,6.28));
         }
-        const earthDmg = 50 + lv.golem*5; // nerf
-        projs.push({k:'golemEarth',x:golemSt.x,y:golemSt.y,vx:Math.cos(ang)*150,vy:Math.sin(ang)*150,a:ang,dmg:earthDmg* (lv.golem>=6?1.5:1),life:4.5,r:38,hit:new Set(),earth:true,onlyBoss:golemSt.onlyBoss});
-        pushText({x:golemSt.x,y:golemSt.y-45,v:golemSt.onlyBoss?'Đất lăn! -> BOSS':'Đất lăn!',t:1,c:true});
+        const earthDmg = 50 + lv.golem*5;
+        const isUlt = lv.golem>=6;
+        // Lv6: ném 3 quả cầu to hơn, mạnh hơn; dưới lv6: 1 quả
+        const count = isUlt ? 3 : 1;
+        const ballR = isUlt ? 52 : 38;
+        const ballSpd = isUlt ? 175 : 150;
+        const ballDmg = earthDmg * (isUlt ? 2.2 : 1);
+        for(let i=0;i<count;i++){
+          const spread = count===1 ? 0 : (i-1)*0.32;
+          const ang = baseAng + spread + rnd(-0.05,0.05);
+          projs.push({k:'golemEarth',x:golemSt.x,y:golemSt.y,vx:Math.cos(ang)*ballSpd,vy:Math.sin(ang)*ballSpd,a:ang,dmg:ballDmg,life:4.5,r:ballR,hit:new Set(),earth:true,onlyBoss:golemSt.onlyBoss,big:isUlt});
+        }
+        pushText({x:golemSt.x,y:golemSt.y-45,v:isUlt?'3 CẦU ĐẤT!':(golemSt.onlyBoss?'Đất lăn! -> BOSS':'Đất lăn!'),t:1,c:true,big:isUlt});
       }
             if(golemSt.life<=0 && lv.golem<6){
         golemSt.active=false;
@@ -2471,18 +2482,20 @@ function update(dt){
         }
       }
       if(bh.isEvo){
-        const explDmg = bh.total*3;
+        // Nổ: 30% máu tối đa của từng quái/boss trong vòng hút
+        let hitN=0;
         for(const e of enemies){
           if(e.dead) continue;
           if(Math.hypot(e.x-bh.x,e.y-bh.y) < bh.pullRad*0.8 + e.r){
-            const extraExpl = e.max*0.02;
-            hitEnemy(e, explDmg + extraExpl, e.x-bh.x, e.y-bh.y);
-            if(Math.random()<0.2 && !e.dead){ gems.push({x:e.x,y:e.y,v:2,m:false}); }
+            const pctDmg = e.max * 0.30;
+            hitEnemy(e, pctDmg, e.x-bh.x, e.y-bh.y);
+            hitN++;
+            if(Math.random()<0.15 && !e.dead){ gems.push({x:e.x,y:e.y,v:2,m:false}); }
           }
         }
         fx.push({x:bh.x,y:bh.y,ring:bh.pullRad,t:.6,T:.6,c:'#000'});
         fx.push({x:bh.x,y:bh.y,ring:bh.pullRad*0.6,t:.5,T:.5,c:'#b86bff'});
-        pushText({x:bh.x,y:bh.y-30,v:'NỔ HỐ ĐEN! '+Math.round(explDmg),t:1.2,c:true,big:true});
+        pushText({x:bh.x,y:bh.y-30,v:'NỔ HỐ ĐEN! -30% HP',t:1.2,c:true,big:true});
         shake=Math.max(shake,8);
         if(typeof sfx==='function') sfx('hoden_explo');
       }else{
@@ -2763,7 +2776,7 @@ function renderLeaderboardFromData(list, myBest){
   if(!list || list.length===0){
     const timeStr = myBest>0 ? String(Math.floor(myBest/60)).padStart(2,'0')+':'+String(Math.floor(myBest%60)).padStart(2,'0') : '';
     lbList.innerHTML='<div style="color:#9eacc9;font-size:12px;text-align:center;padding:12px">Chưa có kỷ lục nào<br><span style="font-size:11px">Chơi 1 trận để tạo kỷ lục! '+(timeStr?'Kỷ lục hiện tại: '+timeStr:'')+'</span></div>';
-    if(myRankEl){
+    if(false&&myRankEl){
       if(myBest>0) myRankEl.innerHTML=`Kỷ lục của bạn: <b style="color:#7fd4ff">${timeStr}</b> - đang hạng #1 (ngoại tuyến)`;
       else myRankEl.textContent='Bạn chưa có kỷ lục, chơi 1 trận để lên BXH!';
     }
@@ -3940,10 +3953,11 @@ function render(){
     }
     // tán lá trên đầu - chỉnh theo yêu cầu: ultimate tóc xanh thay vì đỏ
     if(isEvo){
-      ctx.fillStyle='#1a3a6b'; ctx.beginPath(); ctx.ellipse(0,-h*0.78,22,14,0,0,7); ctx.fill();
-      ctx.fillStyle='#2a5ab2'; ctx.beginPath(); ctx.ellipse(-10,-h*0.82,14,10,0,0,7); ctx.fill();
+      // Lv6 tóc xanh rêu (không còn xanh dương)
+      ctx.fillStyle='#2d5a28'; ctx.beginPath(); ctx.ellipse(0,-h*0.78,22,14,0,0,7); ctx.fill();
+      ctx.fillStyle='#3d7a32'; ctx.beginPath(); ctx.ellipse(-10,-h*0.82,14,10,0,0,7); ctx.fill();
       ctx.beginPath(); ctx.ellipse(10,-h*0.82,14,10,0,0,7); ctx.fill();
-      ctx.fillStyle='#4aa0ff'; ctx.shadowColor='#0088ff'; ctx.shadowBlur=12; ctx.beginPath(); ctx.ellipse(0,-h*0.88,10,7,0,0,7); ctx.fill(); ctx.shadowBlur=0;
+      ctx.fillStyle='#6fbf4a'; ctx.shadowColor='#4a9a30'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(0,-h*0.88,10,7,0,0,7); ctx.fill(); ctx.shadowBlur=0;
     }else{
       ctx.fillStyle='#3a7a2a'; ctx.beginPath(); ctx.ellipse(0,-h*0.78,22,14,0,0,7); ctx.fill();
       ctx.fillStyle='#5fbf4a'; ctx.beginPath(); ctx.ellipse(-10,-h*0.82,14,10,0,0,7); ctx.fill();
