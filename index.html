@@ -776,7 +776,9 @@ const AURA_R=150;
 let maxWeaponSlots=6, rerollLeft=2;
 let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true;
 function reset(){
-  P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
+  const _cb = (typeof getCharBonus==='function') ? getCharBonus() : {hpMul:1};
+  const baseHp = Math.round(400 * (_cb.hpMul||1));
+  P={x:0,y:0,hp:baseHp,maxhp:baseHp,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];iceRings=[];
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=120;frenzyActive=false;frenzyT=0;frenzyDuration=18;frenzyCount=0;tuocdoatProcT=5;
   lv={}; lv[equippedWeapon||'kunai']=1;ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0,crit:0,cdr:0,armor:0};
@@ -1519,6 +1521,7 @@ function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
   if(e.t==='b' && e.immuneActive){ pushText({x:e.x+rnd(-6,6),y:e.y-18,v:'MIỄN NHIỄM!',t:.5,c:true}); fx.push({x:e.x,y:e.y,ring:30,t:.25,T:.25,c:'#00ffff'}); return; }
   if(typeof sfx==='function'){ if(crit) sfx('crit'); else sfx(e.t==='b'?'boss_hit':'hit'); }
   dmg*=1+.15*ps.dmg;
+  if(typeof getCharDmgMul==='function') dmg*=getCharDmgMul(); // Gojo +5% dame mọi vũ khí
   if(e.t==='b' && lv.tuocdoat>=6 && e.hp<e.max*0.5) dmg*=1.2; // Tước Đoạt max: boss dưới 50% máu nhận +20% sát thương
   const critChance = (typeof getCritChance==='function'?getCritChance():0.1);
   if(Math.random()<critChance){dmg*= (typeof getCritMul==='function'?getCritMul():2); crit=true;}
@@ -1577,10 +1580,24 @@ function nearest(n,range){
   return arr.slice(0,n).map(a=>a[1]);
 }
 const at=(a,l)=>a[Math.min(l,a.length)-1];
-function getCritChance(){ return 0.10 + (ps.crit||0)*0.08; } // 10% base + 8% mỗi cấp, max 50%
+function getCharBonus(){
+  if(typeof equippedCharacter!=='undefined' && equippedCharacter==='gojo'){
+    return { hpMul:1.2, armor:0.05, dmgMul:1.05, critBase:0.07 };
+  }
+  return { hpMul:1, armor:0, dmgMul:1, critBase:0.05 };
+}
+function getCharDmgMul(){ return getCharBonus().dmgMul||1; }
+function getCritChance(){
+  const base = getCharBonus().critBase;
+  return Math.min(0.55, base + (ps.crit||0)*0.08);
+}
 function getCritMul(){ return 2.2; }
 function getCdrMul(){ const c=ps.cdr||0; return Math.max(0.5, 1 - c*0.10); } // giảm 10% mỗi cấp, min 0.5
-function getArmorMul(){ const a=ps.armor||0; return Math.max(0.4, 1 - a*0.12); } // giảm 12% dame nhận, max 60%
+function getArmorMul(){
+  const a=ps.armor||0;
+  const charArmor = getCharBonus().armor||0;
+  return Math.max(0.35, 1 - a*0.12 - charArmor);
+}
 function applyArmor(dmg){ if(armorImmortalT>0) return 0; return dmg * getArmorMul(); }
 function triggerArmorBuff(){ armorImmortalT=5; armorBuffCd=15; pushText({x:P.x,y:P.y-50,v:'BẤT TỬ 5s!',t:1.5,c:true,big:true}); fx.push({x:P.x,y:P.y,ring:120,t:.5,T:.5,c:'#4aa0ff'}); }
 function triggerArmorDeathSave(){ if(!armorDeathReady) return false; armorDeathReady=false; armorDeathSaveCd=60; armorImmortalT=Math.max(armorImmortalT,2); pushText({x:P.x,y:P.y-50,v:'MIỄN TỬ! +50% máu',t:1.5,c:true,big:true}); fx.push({x:P.x,y:P.y,ring:160,t:.6,T:.6,c:'#7fda8a'}); return true; }
@@ -3082,12 +3099,12 @@ const LOBBY_CHARACTERS = [
     id:'gojo',
     name:'Gojo',
     ic:'⚪',
-    desc:'Pháp sư tóc trắng, áo đen ôm body, quần xám ống rộng. Model anime, tay chân liền mạch (chỉ số cập nhật sau).',
-    hp:'—',
-    spd:'—',
-    armor:'—',
-    crit:'—',
-    role:'Sắp ra mắt chỉ số'
+    desc:'Pháp sư tóc trắng. Máu x1.2, phòng thủ 5%, +5% dame mọi vũ khí, chí mạng 7%.',
+    hp:'480',
+    spd:'Trung bình',
+    armor:'5%',
+    crit:'7%',
+    role:'Toàn diện'
   }
 ];
 
@@ -3305,43 +3322,32 @@ function survivorSpriteHTML(scale){
     + '<div style="position:absolute;left:calc(50% + '+Math.round(12*s)+'px);top:'+Math.round(32*s)+'px;width:'+Math.round(14*s)+'px;height:'+Math.round(5*s)+'px;background:#bfc4d8;border-radius:2px"></div>'
     + '</div>';
 }
+function gojoSpriteHTML(scale){
+  const s = scale||1;
+  const w = Math.round(64*s), h = Math.round(78*s);
+  return '<div class="gojo-sprite" style="position:relative;width:'+w+'px;height:'+h+'px;margin:0 auto;flex:none">'
+    + '<div style="position:absolute;left:50%;bottom:'+Math.round(2*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(7*s)+'px;background:rgba(0,0,0,.28);border-radius:50%"></div>'
+    + '<div style="position:absolute;left:calc(50% - '+Math.round(12*s)+'px);top:'+Math.round(48*s)+'px;width:'+Math.round(10*s)+'px;height:'+Math.round(16*s)+'px;background:#b8b8c4;border-radius:'+Math.round(4*s)+'px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(2*s)+'px);top:'+Math.round(48*s)+'px;width:'+Math.round(10*s)+'px;height:'+Math.round(16*s)+'px;background:#b8b8c4;border-radius:'+Math.round(4*s)+'px"></div>'
+    + '<div style="position:absolute;left:calc(50% - '+Math.round(14*s)+'px);top:'+Math.round(62*s)+'px;width:'+Math.round(12*s)+'px;height:'+Math.round(5*s)+'px;background:#1a1a22;border-radius:3px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(2*s)+'px);top:'+Math.round(62*s)+'px;width:'+Math.round(12*s)+'px;height:'+Math.round(5*s)+'px;background:#1a1a22;border-radius:3px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(40*s)+'px;transform:translateX(-50%);width:'+Math.round(34*s)+'px;height:'+Math.round(18*s)+'px;background:#c8c8d2;border-radius:'+Math.round(8*s)+'px '+Math.round(8*s)+'px 4px 4px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(38*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(5*s)+'px;background:#22222a;border-radius:2px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(22*s)+'px;transform:translateX(-50%);width:'+Math.round(26*s)+'px;height:'+Math.round(20*s)+'px;background:#1c1c24;border-radius:'+Math.round(6*s)+'px '+Math.round(6*s)+'px 2px 2px"></div>'
+    + '<div style="position:absolute;left:calc(50% - '+Math.round(18*s)+'px);top:'+Math.round(24*s)+'px;width:'+Math.round(7*s)+'px;height:'+Math.round(16*s)+'px;background:#f0c4a0;border-radius:4px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(11*s)+'px);top:'+Math.round(24*s)+'px;width:'+Math.round(7*s)+'px;height:'+Math.round(16*s)+'px;background:#f0c4a0;border-radius:4px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(10*s)+'px;transform:translateX(-50%);width:'+Math.round(24*s)+'px;height:'+Math.round(18*s)+'px;background:#f5c9a8;border-radius:'+Math.round(8*s)+'px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(2*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(16*s)+'px;background:#f5f5fa;border-radius:'+Math.round(14*s)+'px '+Math.round(14*s)+'px 6px 6px"></div>'
+    + '<div style="position:absolute;left:calc(50% - '+Math.round(7*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(5*s)+'px;height:'+Math.round(4*s)+'px;background:#2a6aaa;border-radius:2px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(2*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(5*s)+'px;height:'+Math.round(4*s)+'px;background:#2a6aaa;border-radius:2px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(22*s)+'px;transform:translateX(-50%);width:'+Math.round(8*s)+'px;height:2px;background:#c08068;border-radius:2px"></div>'
+    + '</div>';
+}
 function characterPreviewHTML(chId, scale){
-  const s = scale||1.15;
-  if(chId==='gojo'){
-    const w = Math.round(80*s), h = Math.round(100*s);
-    return '<canvas class="char-preview-cv" data-char="gojo" style="width:'+w+'px;height:'+h+'px;display:block;margin:0 auto;border-radius:10px;background:#121a2c"></canvas>';
-  }
+  if(chId==='gojo') return gojoSpriteHTML(scale||1.15);
   return survivorSpriteHTML(scale);
 }
-function paintCharacterPreviews(root){
-  const scope = root||document;
-  const list = scope.querySelectorAll ? scope.querySelectorAll('canvas.char-preview-cv[data-char="gojo"]') : [];
-  list.forEach(cv=>{
-    try{
-      const cssW = parseInt(cv.style.width,10) || cv.clientWidth || 88;
-      const cssH = parseInt(cv.style.height,10) || cv.clientHeight || 110;
-      const dpr = Math.min(2.5, window.devicePixelRatio||1);
-      cv.width = Math.round(cssW * dpr);
-      cv.height = Math.round(cssH * dpr);
-      const ctx = cv.getContext('2d');
-      if(!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, cssW, cssH);
-      // nền
-      const g = ctx.createRadialGradient(cssW/2, cssH*0.4, 4, cssW/2, cssH/2, cssW*0.65);
-      g.addColorStop(0, '#2a3a55');
-      g.addColorStop(1, '#0e1528');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cssW, cssH);
-      // model giữa khung
-      ctx.save();
-      ctx.translate(cssW/2, cssH * 0.52);
-      const sc = Math.min(cssW, cssH) / 48;
-      drawGojoModel(ctx, 0.8, false, 1, sc);
-      ctx.restore();
-    }catch(err){ console.warn('paint gojo', err); }
-  });
-}
+function paintCharacterPreviews(root){ /* lobby dùng HTML sprite */ }
 
 function renderCharacterPanel(){
   const body=document.getElementById('lobbyPanelBody');
