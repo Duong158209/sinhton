@@ -2851,7 +2851,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if(type==='weapon'){
           renderWeaponPanel();
         } else if(type==='character'){
-          body.innerHTML='<div style="color:#9eacc9;font-size:13px">Nhân vật mặc định: Survivor. Tùy chỉnh sẽ ra mắt sau.</div>';
+          renderCharacterPanel();
         } else if(type==='skill'){
           {
             const wList = Object.entries(SK).filter(([k,v])=>v.type==='w' && k!=='kunai' && k!=='acid');
@@ -2881,6 +2881,209 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if(panelClose){ panelClose.onclick=()=>panel.style.display='none'; }
   },500);
 });
+
+// === CHARACTER LOBBY SYSTEM ===
+let selectedCharacterId = null;
+let equippedCharacter = (function(){ try{ const v=localStorage.getItem('equippedCharacter'); return v||'survivor'; }catch(_){ return 'survivor'; } })();
+function saveEquippedCharacter(){ try{ localStorage.setItem('equippedCharacter', equippedCharacter||'survivor'); }catch(_){} }
+const LOBBY_CHARACTERS = [
+  {
+    id:'survivor',
+    name:'Survivor',
+    ic:'🧍',
+    desc:'Chiến binh sinh tồn mặc định. Cân bằng máu, tốc độ và khả năng thích nghi với mọi vũ khí.',
+    hp:'400',
+    spd:'Trung bình',
+    armor:'0%',
+    crit:'5%',
+    role:'Cân bằng'
+  }
+];
+
+function drawCharacterPreview(canvas, charId){
+  if(!canvas) return;
+  const dpr=Math.min(2, window.devicePixelRatio||1);
+  const W=120, H=140;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  // nền
+  const g=ctx.createRadialGradient(W/2,H/2,10,W/2,H/2,70);
+  g.addColorStop(0,'#2a3a55'); g.addColorStop(1,'#12182a');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // vẽ model giống trong trận (scale lớn)
+  const cx=W/2, cy=H/2+18, s=3.2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s,s);
+  // bóng
+  ctx.fillStyle='rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(0,10,9,3.5,0,0,Math.PI*2); ctx.fill();
+  // thân
+  ctx.fillStyle='#2c2f4a'; ctx.fillRect(-6,1,12,9);
+  // áo đỏ
+  ctx.fillStyle='#d8353a'; ctx.fillRect(-7,-1,14,4);
+  // đầu
+  ctx.fillStyle='#f0c9a0';
+  if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(-8,-12,16,13,4); ctx.fill(); }
+  else { ctx.fillRect(-8,-12,16,13); }
+  // mũ xanh
+  ctx.fillStyle='#4aa6e8'; ctx.fillRect(-8,-13,16,5);
+  // mắt
+  ctx.fillStyle='#1c1c28'; ctx.fillRect(-4,-5,3,3); ctx.fillRect(2,-5,3,3);
+  // súng
+  ctx.fillStyle='#bfc4d8'; ctx.fillRect(7,2,7,2);
+  ctx.restore();
+  // nhãn
+  ctx.fillStyle='#ffd23a';
+  ctx.font='900 11px Arial';
+  ctx.textAlign='center';
+  ctx.fillText(charId==='survivor'?'SURVIVOR':'?', W/2, 18);
+}
+
+function renderCharacterPanel(){
+  const body=document.getElementById('lobbyPanelBody');
+  if(!body) return;
+  body.innerHTML='';
+  const grid=document.createElement('div');
+  grid.className='weapon-grid';
+  grid.style.display='grid';
+  grid.style.gridTemplateColumns='repeat(2, minmax(0,1fr))';
+  grid.style.gap='10px';
+  const detailContainer=document.createElement('div');
+  detailContainer.id='characterDetailContainer';
+  detailContainer.style.marginTop='12px';
+  body.appendChild(grid);
+  body.appendChild(detailContainer);
+
+  LOBBY_CHARACTERS.forEach(ch=>{
+    const isEquipped = equippedCharacter===ch.id;
+    const isSelected = selectedCharacterId===ch.id;
+    const card=document.createElement('div');
+    card.className='weapon-card '+(isEquipped||isSelected?'equipped':'unequipped');
+    if(isEquipped){
+      card.style.borderColor='#22c55e';
+      card.style.boxShadow='0 0 14px #22c55e88';
+      card.style.background='linear-gradient(160deg,#1f3a2a,#182a1f)';
+    }
+    const tickHtml = isEquipped ? '<div class="tick" style="display:grid">✓</div>' : '<div class="tick" style="display:none">✓</div>';
+    card.innerHTML = tickHtml
+      + '<div class="w-ic" style="height:72px;display:grid;place-items:center"><canvas class="char-preview" width="72" height="72" style="width:72px;height:72px;border-radius:10px;background:#0e1528"></canvas></div>'
+      + '<div class="w-name">'+ch.name+(isEquipped?' ✓':'')+'</div>'
+      + '<div class="w-desc">'+ch.desc.substring(0,52)+'...</div>';
+    card.onclick=()=>{
+      if(selectedCharacterId===ch.id){ selectedCharacterId=null; renderCharacterPanel(); return; }
+      selectedCharacterId=ch.id; renderCharacterPanel();
+    };
+    grid.appendChild(card);
+    // vẽ model lên canvas trong card
+    const cv=card.querySelector('canvas.char-preview');
+    if(cv){
+      // mini preview
+      const dpr=Math.min(2,window.devicePixelRatio||1);
+      const s=72;
+      cv.width=s*dpr; cv.height=s*dpr;
+      const ctx=cv.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,s,s);
+      const bg=ctx.createRadialGradient(s/2,s/2,4,s/2,s/2,36);
+      bg.addColorStop(0,'#2a3a55'); bg.addColorStop(1,'#0e1528');
+      ctx.fillStyle=bg; ctx.fillRect(0,0,s,s);
+      ctx.save();
+      ctx.translate(s/2, s/2+10);
+      ctx.scale(2.4,2.4);
+      ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,10,9,3.5,0,0,7); ctx.fill();
+      ctx.fillStyle='#2c2f4a'; ctx.fillRect(-6,1,12,9);
+      ctx.fillStyle='#d8353a'; ctx.fillRect(-7,-1,14,4);
+      ctx.fillStyle='#f0c9a0';
+      if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(-8,-12,16,13,4); ctx.fill(); } else ctx.fillRect(-8,-12,16,13);
+      ctx.fillStyle='#4aa6e8'; ctx.fillRect(-8,-13,16,5);
+      ctx.fillStyle='#1c1c28'; ctx.fillRect(-4,-5,3,3); ctx.fillRect(2,-5,3,3);
+      ctx.fillStyle='#bfc4d8'; ctx.fillRect(7,2,7,2);
+      ctx.restore();
+    }
+  });
+
+  if(selectedCharacterId){
+    const ch = LOBBY_CHARACTERS.find(x=>x.id===selectedCharacterId);
+    if(ch){
+      const detail=document.createElement('div');
+      detail.className='weapon-detail';
+      const isEq = equippedCharacter===ch.id;
+      detail.innerHTML =
+        '<div style="display:flex;gap:12px;align-items:flex-start">'
+        + '<canvas id="charDetailPreview" style="width:120px;height:140px;border-radius:12px;border:2px solid '+(isEq?'#22c55e':'#52627d')+';background:#0e1528;flex:none"></canvas>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-weight:900;color:#ffd23a;margin-bottom:4px;font-size:15px">'+ch.name+' — '+(isEq?'<span style="color:#22c55e">Đang sử dụng</span>':'<span style="color:#9ca3af">Chưa trang bị</span>')+'</div>'
+        + '<div style="margin-bottom:8px;color:#c9d4e8;font-size:12px;line-height:1.4">'+ch.desc+'</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px">'
+        + '<span>❤️ Máu: <b style="color:#fff">'+ch.hp+'</b></span>'
+        + '<span>🏃 Tốc độ: <b style="color:#fff">'+ch.spd+'</b></span>'
+        + '<span>🛡️ Giáp: <b style="color:#fff">'+ch.armor+'</b></span>'
+        + '<span>💥 Chí mạng: <b style="color:#fff">'+ch.crit+'</b></span>'
+        + '<span>🎯 Vai trò: <b style="color:#fff">'+ch.role+'</b></span>'
+        + '</div>'
+        + '<div class="weapon-actions">'
+        + (isEq
+          ? '<button class="btn-unequip" data-act="unequip">Gỡ trang bị</button>'
+          : '<button class="btn-equip" data-act="equip">Trang bị</button>')
+        + '</div>'
+        + '</div></div>';
+      detailContainer.appendChild(detail);
+      const cv=document.getElementById('charDetailPreview');
+      if(cv) drawCharacterPreview(cv, ch.id);
+      detail.querySelectorAll('button').forEach(btn=>{
+        btn.onclick=(e)=>{
+          e.stopPropagation();
+          const act=btn.dataset.act;
+          if(act==='equip'){
+            equippedCharacter=ch.id; saveEquippedCharacter();
+            renderCharacterPanel();
+            if(typeof toastMsg==='function') toastMsg('Đã trang bị '+ch.name, '#22c55e');
+          }else if(act==='unequip'){
+            // luôn giữ 1 nhân vật — về survivor
+            equippedCharacter='survivor'; saveEquippedCharacter();
+            selectedCharacterId=null;
+            renderCharacterPanel();
+            if(typeof toastMsg==='function') toastMsg('Đã về nhân vật mặc định', '#3b82f6');
+          }
+        };
+      });
+    }
+  } else {
+    // tự chọn nhân vật đang trang bị để hiện sẵn
+    const eq = LOBBY_CHARACTERS.find(x=>x.id===equippedCharacter) || LOBBY_CHARACTERS[0];
+    if(eq){
+      selectedCharacterId = eq.id;
+      // tránh đệ quy vô hạn: chỉ auto-select lần đầu khi mở panel
+      // render lại 1 lần
+      const detail=document.createElement('div');
+      detail.className='weapon-detail';
+      detail.style.border='2px solid #22c55e';
+      detail.style.boxShadow='0 0 12px #22c55e55';
+      detail.innerHTML =
+        '<div style="display:flex;gap:12px;align-items:flex-start">'
+        + '<canvas id="charDetailPreview" style="width:120px;height:140px;border-radius:12px;border:2px solid #22c55e;background:#0e1528;flex:none"></canvas>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-weight:900;color:#ffd23a;margin-bottom:4px;font-size:15px">'+eq.name+' — <span style="color:#22c55e">Đang sử dụng</span></div>'
+        + '<div style="margin-bottom:8px;color:#c9d4e8;font-size:12px;line-height:1.4">'+eq.desc+'</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px">'
+        + '<span>❤️ Máu: <b style="color:#fff">'+eq.hp+'</b></span>'
+        + '<span>🏃 Tốc độ: <b style="color:#fff">'+eq.spd+'</b></span>'
+        + '<span>🛡️ Giáp: <b style="color:#fff">'+eq.armor+'</b></span>'
+        + '<span>💥 Chí mạng: <b style="color:#fff">'+eq.crit+'</b></span>'
+        + '<span>🎯 Vai trò: <b style="color:#fff">'+eq.role+'</b></span>'
+        + '</div>'
+        + '<div class="weapon-actions"><button class="btn-equip" data-act="equip" style="opacity:.85">✓ Đã trang bị</button></div>'
+        + '</div></div>';
+      detailContainer.appendChild(detail);
+      const cv=document.getElementById('charDetailPreview');
+      if(cv) drawCharacterPreview(cv, eq.id);
+    }
+  }
+}
 
 // === WEAPON LOBBY SYSTEM ===
 // duplicate removed
