@@ -668,7 +668,7 @@ const SK={
 const MAXLV=5;
 // Giảm 55% + 75% sát thương SKILL của boss ở giai đoạn đầu game (2 phút đầu). Muốn đổi: sửa 2 số dưới.
 const EARLY_BOSS_T=90, EARLY_BOSS_SKILL_MUL=0.65*0.45; // giảm ít hơn trước: còn ~29% dame trong 90s đầu, sau đó full dame (buff late)
-const bossSkillMul=()=>(T<EARLY_BOSS_T?EARLY_BOSS_SKILL_MUL:1);
+const bossSkillMul=()=>(T<EARLY_BOSS_T?EARLY_BOSS_SKILL_MUL:0.90); // giảm thêm 10% sát thương kỹ năng boss
 const LS=[0,.01,.02,.03],LS_TXT=[1,2,3];
 const EVO={
   kunai:{n:'Vòng Kunai Bất Tận',ic:'🌪️',d:'TIẾN HÓA: liên tục phóng vòng 32 kunai ra ngoài rồi thu về ngay lập tức, sát thương x4.'},
@@ -798,14 +798,17 @@ addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
 const joy={active:false,id:null,bx:0,by:0,kx:0,ky:0,dx:0,dy:0,R:52};
 function joyDefault(){joy.bx=W/2;joy.by=H-110-(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sab'))||0);}
 function joyPos(e){return [e.clientX,e.clientY];}
+cv.style.touchAction='none';
 cv.addEventListener('pointerdown',e=>{
   if(state!=='play'||joy.active)return;
+  if(e.cancelable)e.preventDefault();
   joy.active=true;joy.id=e.pointerId;
   [joy.bx,joy.by]=joyPos(e);joy.kx=joy.bx;joy.ky=joy.by;joy.dx=joy.dy=0;
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener('pointermove',e=>{
   if(!joy.active||e.pointerId!==joy.id)return;
+  if(e.cancelable)e.preventDefault();
   let [x,y]=joyPos(e);let dx=x-joy.bx,dy=y-joy.by;const d=Math.hypot(dx,dy);
   if(d>joy.R){dx=dx/d*joy.R;dy=dy/d*joy.R;}
   joy.kx=joy.bx+dx;joy.ky=joy.by+dy;
@@ -814,10 +817,14 @@ cv.addEventListener('pointermove',e=>{
 function joyEnd(e){
   if(!joy.active||e.pointerId!==joy.id)return;
   joy.active=false;joy.id=null;joy.dx=joy.dy=0;
-  cv.releasePointerCapture(e.pointerId);
+  try{cv.releasePointerCapture(e.pointerId);}catch(_){}
 }
+addEventListener('blur',()=>{joy.active=false;joy.id=null;joy.dx=joy.dy=0;});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){joy.active=false;joy.id=null;joy.dx=joy.dy=0;}});
 cv.addEventListener('pointerup',joyEnd);
 cv.addEventListener('pointercancel',joyEnd);
+addEventListener('pointerup',joyEnd,{passive:true});
+addEventListener('pointercancel',joyEnd,{passive:true});
 function updateHud(){
   const xpP=P.xp/need(P.lvl)*100;
   $('xpBar').style.width=Math.min(100,xpP)+'%';
@@ -1115,7 +1122,7 @@ function spawnEnemy(forceType,px,py){
       e.dmg=lastBossDmg*1.35 * lateFactor * 0.35 + 45*lateFactor;
     }
     // Giảm ít hơn trước: chỉ giảm 10% thay vì 25%
-    e.dmg*=0.90;
+    e.dmg*=0.81; // giảm thêm 10% dame boss so với bản trước
     // thêm máu theo thời gian sống sót
     e.hp*= Math.min(2.2, 1.35 + T/420); // giới hạn tăng máu boss để không phình vô hạn
     lastBossHp=e.hp;lastBossDmg=e.dmg;
@@ -1162,8 +1169,8 @@ function bossAI(e,dt){
   if(e.pctCd<=0){
     // buff: ra chiêu Phán Quyết nhanh hơn về sau
     e.pctCd=Math.max(4.5,10-T/90);
-    const pct=Math.min(0.65,0.18+T/500); // trước max 40% -> giờ 65%, base 18%
-    warns.push({x:P.x,y:P.y,r:95,t:1.5,T:1.5,dmg:1e9,cap:pct,isMeteor:false,sm});
+    const pct=Math.min(0.28,0.10+T/700); // Phán Quyết không còn đủ mạnh để kết liễu đột ngột
+    if(!warns.some(w=>w.isJudgment)){ warns.push({x:P.x,y:P.y,r:95,t:1.5,T:1.5,dmg:1e9,cap:pct,isMeteor:false,isJudgment:true,sm}); }
     pushText({x:e.x,y:e.y-70,v:'PHÁN QUYẾT! -'+Math.round(pct*100*sm)+'% HP',t:1.3,c:true,big:true});
     if(typeof sfx==='function') sfx('boss_meteor_warn');
   }
@@ -2296,6 +2303,7 @@ function update(dt){
     }
   }
   warns=warns.filter(w=>!w.dead);
+  if(warns.length>36) warns.splice(0,warns.length-36);
   for(const a of arcs)a.t-=dt;
   arcs=arcs.filter(a=>a.t>0);
   const grid=new Map();
@@ -2390,7 +2398,13 @@ function update(dt){
     if(b.life<=0)b.dead=true;
   }
   eprojs=eprojs.filter(b=>!b.dead);
+  if(eprojs.length>120) eprojs.splice(0,eprojs.length-120);
   enemies=enemies.filter(e=>!e.dead);
+  // Dọn quái thường ở xa khi máy yếu, luôn giữ boss.
+  if(enemies.length>210){
+    const keep=enemies.filter(e=>e.t==='b'||Math.hypot(e.x-P.x,e.y-P.y)<Math.max(W,H)/zoom*0.9);
+    enemies=keep.length>170?keep:enemies.slice(-170);
+  }
   const mag=60+40*ps.mag;
   // render poison puddles
   if(window.poisonPuddles){
@@ -2518,6 +2532,9 @@ function update(dt){
   chests=chests.filter(ch=>!ch.dead);
   for(const f of fx){f.t-=dt;if(f.vx!==undefined){f.x+=f.vx*dt;f.y+=f.vy*dt;}}
   fx=fx.filter(f=>f.t>0);
+  // Giới hạn hiệu ứng chữ/particule để Android không bị nghẽn render.
+  if(fx.length>260) fx.splice(0,fx.length-260);
+  if(texts.length>90) texts.splice(0,texts.length-90);
   for(const t of texts){t.t-=dt;t.y-=30*dt;}
   texts=texts.filter(t=>t.t>0);
   for(const b of bolts)b.t-=dt;
