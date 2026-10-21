@@ -1056,10 +1056,10 @@ if(_lobbyStartBtn){ _lobbyStartBtn.onclick = (e)=>{ e.preventDefault(); startGam
 const _startBtn = $('startBtn');
 if(_startBtn){ _startBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
 const lobbyPanelData={
- character:['Nhân vật','<div class="inventory-item"><b>🧍 Survivor</b><small>Nhân vật mặc định hiện tại. Sử dụng nhân vật này để bắt đầu trận đấu.</small></div>'],
+ character:['Nhân vật','<div class="inventory-item"><b>🧍 Survival</b><small>Nhân vật mặc định hiện tại. Sử dụng nhân vật này để bắt đầu trận đấu.</small></div>'],
  weapon:['Vũ khí','<div class="inventory-item"><b>🗡️ Dao găm Kunai</b><small>Vũ khí khởi đầu hiện tại. Tự động phóng kunai vào kẻ địch gần nhất.</small></div>'],
  skill:['Skill','<h3 style="margin:8px 0;color:#8fd7ff">⚡ Kĩ năng</h3><div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='w'&&k!=='kunai').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div><h3 style="margin:18px 0 8px;color:#ff9da8">❤️ Chức năng</h3><div class="inventory-list">'+Object.entries(SK).filter(([k,v])=>v.type==='p'||v.type==='h').map(([k,v])=>'<div class="inventory-item"><b>'+v.ic+' '+v.n+'</b><small>'+v.d+'</small></div>').join('')+'</div>'],
- costume:['Trang phục','<div class="inventory-item"><b>👕 Trang phục mặc định</b><small>Đang sử dụng trang phục mặc định của Survivor.</small></div>']
+ costume:['Trang phục','<div class="inventory-item"><b>👕 Trang phục mặc định</b><small>Đang sử dụng trang phục mặc định của Survival.</small></div>']
 };
 function openLobbyPanel(title,html){$('lobbyPanelTitle').textContent=title;$('lobbyPanelBody').innerHTML=html;$('lobbyPanel').style.display='block';$('lobbyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});}
 $('profileOpen').addEventListener('click',()=>{
@@ -3069,7 +3069,7 @@ function saveEquippedCharacter(){ try{ localStorage.setItem('equippedCharacter',
 const LOBBY_CHARACTERS = [
   {
     id:'survivor',
-    name:'Survivor',
+    name:'Survival',
     ic:'🧍',
     desc:'Chiến binh sinh tồn mặc định. Cân bằng máu, tốc độ và khả năng thích nghi với mọi vũ khí.',
     hp:'400',
@@ -3077,10 +3077,184 @@ const LOBBY_CHARACTERS = [
     armor:'0%',
     crit:'5%',
     role:'Cân bằng'
+  },
+  {
+    id:'gojo',
+    name:'Gojo',
+    ic:'⚪',
+    desc:'Pháp sư tóc trắng, áo đen ôm body, quần xám ống rộng. Model anime, tay chân liền mạch (chỉ số cập nhật sau).',
+    hp:'—',
+    spd:'—',
+    armor:'—',
+    crit:'—',
+    role:'Sắp ra mắt chỉ số'
   }
 ];
 
-// Sprite HTML của Survivor (giống model trong trận) — luôn hiện ổn định trên mobile
+// Vẽ chi liền mạch (capsule từ khớp A → khớp B)
+function drawLimb(ctx, x0,y0,x1,y1, thick, color){
+  const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy)||0.001;
+  const nx=-dy/len, ny=dx/len;
+  const hx=nx*thick*0.5, hy=ny*thick*0.5;
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x0+hx,y0+hy);
+  ctx.lineTo(x1+hx,y1+hy);
+  ctx.lineTo(x1-hx,y1-hy);
+  ctx.lineTo(x0-hx,y0-hy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath(); ctx.arc(x0,y0,thick*0.52,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x1,y1,thick*0.48,0,7); ctx.fill();
+}
+
+// Model Gojo — tay chân nối khớp, walk cycle mượt
+function drawGojoModel(ctx, anim, moving, face, scale){
+  const s = scale||1;
+  ctx.save();
+  ctx.scale(face||1, 1);
+  ctx.scale(s, s);
+  const walk = moving ? anim : anim*0.25;
+  // Biên độ mượt, không giật
+  const legSwing = Math.sin(walk) * (moving ? 0.55 : 0.08);
+  const armSwing = Math.sin(walk + Math.PI) * (moving ? 0.5 : 0.12);
+  const kneeBend = moving ? (0.35 + Math.max(0, Math.sin(walk))*0.45) : 0.12;
+  const bob = Math.sin(walk*2) * (moving ? 1.2 : 0.3);
+
+  // Bóng
+  ctx.fillStyle='rgba(0,0,0,.22)';
+  ctx.beginPath(); ctx.ellipse(0, 22+bob*0.2, 11, 3.2, 0,0,7); ctx.fill();
+
+  const hipY = 6 + bob;
+  const shoulderY = -6 + bob;
+  const skin = '#f0c4a0';
+  const shirt = '#1a1a1e';
+  const pants = '#b8b8c0';
+  const pantsDark = '#9a9aa4';
+  const shoe = '#1c1c24';
+  const hair = '#f2f2f8';
+
+  // --- CHÂN (sau → trước) nối hông-gối-bàn chân ---
+  function drawLeg(side, swing){
+    const hipX = side * 4.5;
+    const thighLen = 9, shinLen = 8.5;
+    const thighAng = Math.PI/2 + swing * side * 0.15 + swing;
+    const kneeX = hipX + Math.cos(thighAng) * thighLen;
+    const kneeY = hipY + Math.sin(thighAng) * thighLen;
+    const shinAng = thighAng + (side>0 ? 1 : -1) * kneeBend * (swing>0?1:0.4);
+    // chỉnh shin để chân xuống đất tự nhiên
+    const shinAng2 = Math.PI/2 + swing * 0.35 + (side * 0.05);
+    const footX = kneeX + Math.cos(shinAng2) * shinLen;
+    const footY = kneeY + Math.sin(shinAng2) * shinLen;
+    // đùi (nối hông)
+    drawLimb(ctx, hipX, hipY, kneeX, kneeY, 5.2, pants);
+    // ống chân
+    drawLimb(ctx, kneeX, kneeY, footX, Math.min(footY, 21), 4.4, pantsDark);
+    // giày liền cổ chân
+    const fy = Math.min(footY, 21);
+    ctx.fillStyle=shoe;
+    ctx.beginPath();
+    ctx.ellipse(footX + side*1.5, fy+1.5, 5.5, 2.4, 0,0,7);
+    ctx.fill();
+    ctx.fillStyle='#eee';
+    ctx.fillRect(footX+side*2, fy+1.8, 3.5, 1.2);
+  }
+  drawLeg(-1, legSwing);
+  drawLeg(1, -legSwing);
+
+  // --- THÂN áo đen ôm ---
+  ctx.fillStyle=shirt;
+  ctx.beginPath();
+  // thân liền vai-hông
+  ctx.moveTo(-9, shoulderY-1);
+  ctx.quadraticCurveTo(-11, (shoulderY+hipY)/2, -8, hipY+1);
+  ctx.lineTo(8, hipY+1);
+  ctx.quadraticCurveTo(11, (shoulderY+hipY)/2, 9, shoulderY-1);
+  ctx.quadraticCurveTo(0, shoulderY-4, -9, shoulderY-1);
+  ctx.fill();
+  // cơ ngực nhẹ
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.fillRect(-6, shoulderY+2, 5, 4);
+  ctx.fillRect(1, shoulderY+2, 5, 4);
+
+  // thắt lưng + nơ quần
+  ctx.fillStyle='#2a2a32';
+  ctx.fillRect(-8, hipY-1, 16, 3.5);
+  ctx.fillStyle='#1a1a22';
+  ctx.beginPath();
+  ctx.moveTo(-2, hipY-1); ctx.lineTo(2, hipY-1); ctx.lineTo(3, hipY+5); ctx.lineTo(0, hipY+3); ctx.lineTo(-3, hipY+5);
+  ctx.closePath(); ctx.fill();
+
+  // quần ống rộng (phần hông)
+  ctx.fillStyle=pants;
+  ctx.beginPath();
+  ctx.moveTo(-8, hipY); ctx.lineTo(-11, hipY+10); ctx.lineTo(-3, hipY+10); ctx.lineTo(-4, hipY);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(8, hipY); ctx.lineTo(11, hipY+10); ctx.lineTo(3, hipY+10); ctx.lineTo(4, hipY);
+  ctx.closePath(); ctx.fill();
+
+  // --- TAY nối vai-khuỷu-cổ tay ---
+  function drawArm(side, swing){
+    const sx = side * 9;
+    const sy = shoulderY + 1;
+    const upperLen = 7.5, lowerLen = 7;
+    const upperAng = Math.PI/2 + side*0.15 + swing;
+    const ex = sx + Math.cos(upperAng) * upperLen;
+    const ey = sy + Math.sin(upperAng) * upperLen;
+    const lowerAng = upperAng + swing * 0.25 + 0.15;
+    const hx = ex + Math.cos(lowerAng) * lowerLen;
+    const hy = ey + Math.sin(lowerAng) * lowerLen;
+    // cánh tay (da) nối vai
+    drawLimb(ctx, sx, sy, ex, ey, 4.2, skin);
+    // cẳng tay
+    drawLimb(ctx, ex, ey, hx, hy, 3.6, skin);
+    // bàn tay
+    ctx.fillStyle=skin;
+    ctx.beginPath(); ctx.arc(hx, hy, 2.4, 0,7); ctx.fill();
+  }
+  drawArm(-1, armSwing);
+  drawArm(1, -armSwing * 0.85);
+
+  // --- ĐẦU + tóc trắng ---
+  const headY = shoulderY - 11;
+  ctx.fillStyle=skin;
+  ctx.beginPath();
+  if(ctx.roundRect){ ctx.roundRect(-7.5, headY-7, 15, 14, 5); ctx.fill(); }
+  else { ctx.fillRect(-7.5, headY-7, 15, 14); }
+
+  // tóc trắng bù xù
+  ctx.fillStyle=hair;
+  ctx.beginPath();
+  ctx.ellipse(0, headY-6, 9, 6, 0,0,7); ctx.fill();
+  // lọn tóc
+  for(let i=-3;i<=3;i++){
+    const ax = i*2.2, ay = headY - 10 - Math.abs(i)*0.3;
+    ctx.beginPath();
+    ctx.moveTo(ax, headY-5);
+    ctx.quadraticCurveTo(ax + i*0.4, ay-3, ax + Math.sin(i)*1.5, ay-1);
+    ctx.quadraticCurveTo(ax+1, headY-7, ax, headY-5);
+    ctx.fill();
+  }
+  ctx.beginPath(); ctx.ellipse(-5, headY-4, 4, 5, -0.3,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5, headY-4, 4, 5, 0.3,0,7); ctx.fill();
+
+  // mắt xanh dương nhạt
+  ctx.fillStyle='#2a6aaa';
+  ctx.fillRect(-4.5, headY-1, 3.2, 2.2);
+  ctx.fillRect(1.5, headY-1, 3.2, 2.2);
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-3.5, headY-0.8, 1.2, 1);
+  ctx.fillRect(2.5, headY-0.8, 1.2, 1);
+
+  // miệng mỉm cười
+  ctx.strokeStyle='#c48a70'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.arc(0, headY+4, 2.5, 0.15, Math.PI-0.15); ctx.stroke();
+
+  ctx.restore();
+}
+
+// Sprite HTML/canvas preview cho lobby
 function survivorSpriteHTML(scale){
   const s = scale||1;
   const w = Math.round(56*s), h = Math.round(64*s);
@@ -3094,6 +3268,33 @@ function survivorSpriteHTML(scale){
     + '<div style="position:absolute;left:calc(50% + '+Math.round(3*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(6*s)+'px;height:'+Math.round(6*s)+'px;background:#1c1c28;border-radius:1px"></div>'
     + '<div style="position:absolute;left:calc(50% + '+Math.round(12*s)+'px);top:'+Math.round(32*s)+'px;width:'+Math.round(14*s)+'px;height:'+Math.round(5*s)+'px;background:#bfc4d8;border-radius:2px"></div>'
     + '</div>';
+}
+function characterPreviewHTML(chId, scale){
+  if(chId==='gojo'){
+    const s = scale||1.15;
+    const w = Math.round(72*s), h = Math.round(90*s);
+    return '<canvas class="char-preview-cv" data-char="gojo" width="'+w+'" height="'+h+'" style="width:'+w+'px;height:'+h+'px;display:block;margin:0 auto;border-radius:10px;background:radial-gradient(#2a3a55,#0e1528)"></canvas>';
+  }
+  return survivorSpriteHTML(scale);
+}
+function paintCharacterPreviews(root){
+  const scope = root||document;
+  scope.querySelectorAll('canvas.char-preview-cv[data-char="gojo"]').forEach(cv=>{
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    const w = cv.width, h = cv.height;
+    // width already set in CSS pixels via attributes
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,w,h);
+    const g=ctx.createRadialGradient(w/2,h/2,8,w/2,h/2,w*0.55);
+    g.addColorStop(0,'#2a3a55'); g.addColorStop(1,'#0e1528');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    ctx.save();
+    ctx.translate(w/2, h*0.55);
+    const sc = Math.min(w,h) / 52;
+    drawGojoModel(ctx, 1.2, false, 1, sc);
+    ctx.restore();
+  });
 }
 
 function renderCharacterPanel(){
@@ -3123,8 +3324,8 @@ function renderCharacterPanel(){
     }
     const tickHtml = isEquipped ? '<div class="tick" style="display:grid">✓</div>' : '<div class="tick" style="display:none">✓</div>';
     card.innerHTML = tickHtml
-      + '<div class="w-ic" style="height:78px!important;min-height:78px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">'
-      + survivorSpriteHTML(1.15)
+      + '<div class="w-ic" style="height:90px!important;min-height:90px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">'
+      + characterPreviewHTML(ch.id, 1.1)
       + '</div>'
       + '<div class="w-name">'+ch.name+(isEquipped?' ✓':'')+'</div>'
       + '<div class="w-desc">'+ch.desc.substring(0,52)+'...</div>';
@@ -3134,6 +3335,7 @@ function renderCharacterPanel(){
     };
     grid.appendChild(card);
   });
+  paintCharacterPreviews(grid);
 
   function buildDetail(ch, isEq){
     const detail=document.createElement('div');
@@ -3144,8 +3346,8 @@ function renderCharacterPanel(){
     }
     detail.innerHTML =
       '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
-      + '<div style="width:110px;height:130px;border-radius:12px;border:2px solid '+(isEq?'#22c55e':'#52627d')+';background:radial-gradient(ellipse at 50% 40%,#2a3a55,#0e1528);display:flex;align-items:center;justify-content:center;flex:none">'
-      + survivorSpriteHTML(1.7)
+      + '<div style="width:110px;height:140px;border-radius:12px;border:2px solid '+(isEq?'#22c55e':'#52627d')+';background:radial-gradient(ellipse at 50% 40%,#2a3a55,#0e1528);display:flex;align-items:center;justify-content:center;flex:none">'
+      + characterPreviewHTML(ch.id, 1.55)
       + '</div>'
       + '<div style="flex:1;min-width:140px">'
       + '<div style="font-weight:900;color:#ffd23a;margin-bottom:4px;font-size:15px">'+ch.name+' — '+(isEq?'<span style="color:#22c55e">Đang sử dụng</span>':'<span style="color:#9ca3af">Chưa trang bị</span>')+'</div>'
@@ -3164,6 +3366,7 @@ function renderCharacterPanel(){
       + '</div>'
       + '</div></div>';
     detailContainer.appendChild(detail);
+    paintCharacterPreviews(detail);
     detail.querySelectorAll('button').forEach(btn=>{
       btn.onclick=(e)=>{
         e.stopPropagation();
@@ -3543,21 +3746,31 @@ function drawZombie(e){
 }
 
 function drawPlayer(){
-  const b=Math.sin(P.anim)*(P.moving?1.5:.6);
-  ctx.save();ctx.translate(P.x,P.y+b);
-  ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(0,10,9,3.5,0,0,7);ctx.fill();
-  if(P.hurt>0&&Math.floor(T*30)%2)ctx.globalAlpha=.55;
-  ctx.scale(P.face,1);
-  ctx.fillStyle='#2c2f4a';ctx.fillRect(-6,1,12,9);
-  ctx.fillStyle='#d8353a';ctx.fillRect(-7,-1,14,4);
-  ctx.fillStyle='#f0c9a0';ctx.beginPath();ctx.roundRect(-8,-12,16,13,4);ctx.fill();
-  ctx.fillStyle='#4aa6e8';ctx.fillRect(-8,-13,16,5);
-  ctx.fillStyle='#1c1c28';ctx.fillRect(-4,-5,3,3);ctx.fillRect(2,-5,3,3);
-  ctx.fillStyle='#bfc4d8';ctx.fillRect(7,2,7,2);
+  const charId = (typeof equippedCharacter!=='undefined' && equippedCharacter) ? equippedCharacter : 'survivor';
+  ctx.save();
+  ctx.translate(P.x, P.y);
+  if(P.hurt>0&&Math.floor(T*30)%2) ctx.globalAlpha=.55;
+  if(charId==='gojo'){
+    // Model Gojo anime: tay chân liền khớp, walk cycle mượt
+    drawGojoModel(ctx, P.anim||0, !!P.moving, P.face||1, 1.05);
+  }else{
+    const b=Math.sin(P.anim)*(P.moving?1.5:.6);
+    ctx.translate(0, b);
+    ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(0,10,9,3.5,0,0,7);ctx.fill();
+    ctx.scale(P.face,1);
+    ctx.fillStyle='#2c2f4a';ctx.fillRect(-6,1,12,9);
+    ctx.fillStyle='#d8353a';ctx.fillRect(-7,-1,14,4);
+    ctx.fillStyle='#f0c9a0';ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(-8,-12,16,13,4); ctx.fill(); } else ctx.fillRect(-8,-12,16,13);
+    ctx.fillStyle='#4aa6e8';ctx.fillRect(-8,-13,16,5);
+    ctx.fillStyle='#1c1c28';ctx.fillRect(-4,-5,3,3);ctx.fillRect(2,-5,3,3);
+    ctx.fillStyle='#bfc4d8';ctx.fillRect(7,2,7,2);
+  }
   ctx.restore();
   const w=22;
-  ctx.fillStyle='#000a';ctx.fillRect(P.x-w/2-1,P.y-22, w+2,5);
-  ctx.fillStyle='#2aff5a';ctx.fillRect(P.x-w/2,P.y-22, w*Math.max(0,P.hp)/P.maxhp,3);
+  const barY = charId==='gojo' ? P.y-28 : P.y-22;
+  ctx.fillStyle='#000a';ctx.fillRect(P.x-w/2-1, barY, w+2,5);
+  ctx.fillStyle='#2aff5a';ctx.fillRect(P.x-w/2, barY, w*Math.max(0,P.hp)/P.maxhp,3);
 }
 function drawProj(p){
   ctx.save();ctx.translate(p.x,p.y);
