@@ -3428,7 +3428,7 @@ function joinCoopRoom(code){
       guestShortId: myShortId,
       guestName: currentUser.displayName||'Guest',
       status: 'ready',
-      ['players.'+currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1 }
+      players: { [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1 } }
     }, { merge:true });
   }).catch(e=>{
     if(st) st.textContent = 'Lỗi vào phòng (Rules?): '+(e.message||e);
@@ -3444,7 +3444,9 @@ function listenRoom(code){
     partnerUid = otherUid || null;
     if(otherUid && d.players && d.players[otherUid]){
       const op = d.players[otherUid];
+      const _old = partner;
       partner = {
+        dx: _old ? _old.dx : (op.x||0), dy: _old ? _old.dy : (op.y||0), lv: op.lv||{},
         x: op.x||0, y: op.y||0, hp: op.hp||400, maxhp: op.maxhp||400,
         face: op.face||1, alive: op.alive!==false, name: op.name||'Bạn',
         avatar: op.avatar||'🧑', anim: op.anim||0, moving: !!op.moving,
@@ -3474,11 +3476,12 @@ function syncCoopSelf(force){
     hp: Math.round(P.hp), maxhp: Math.round(P.maxhp),
     face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
     moving: !!P.moving, charId: equippedCharacter||'survivor',
-    name: (currentUser.displayName||'P'), shortId: myShortId
+    name: (currentUser.displayName||'P'), shortId: myShortId,
+    lv: Object.assign({}, lv)
   };
   // Fire-and-forget — không await, không làm lag trận
   db.collection('rooms').doc(currentRoomId).set({
-    ['players.'+currentUser.uid]: payload,
+    players: { [currentUser.uid]: payload },
     status: 'playing',
     t: Math.floor(T)
   }, { merge:true }).catch(()=>{});
@@ -3495,16 +3498,89 @@ async function reportCoopDeath(){
     }, { merge:true });
   }catch(_){}
 }
+const PICON={kunai:'🗡️',acid:'🧪',rocket:'🚀',lightning:'⚡',boomerang:'🪃',ringz:'⭕',drone:'🛸',golem:'🌳',tuocdoat:'☠️',hoden:'🕳️',ice:'❄️',firestorm:'🔥'};
+let _pfx=[], _pcd={}, _pLast=0;
+function _pNear(px,py,range){ let b=null,bd=range; for(const e of enemies){ if(e.dead) continue; const d=Math.hypot(e.x-px,e.y-py); if(d<bd){bd=d;b=e;} } return b; }
+// Hiệu ứng skill của đồng đội (chỉ hiển thị; quái mỗi máy tự sinh riêng nên không trừ máu quái)
+function drawPartnerSkills(px,py){
+  const L=partner.lv; if(!L) return;
+  const now=performance.now(); let dt=(now-_pLast)/1000; _pLast=now; if(!(dt>0)||dt>0.1) dt=0.016;
+  const t=now/1000;
+  const every=(k,sec,fn)=>{ if(!L[k]) return; if(_pcd[k]===undefined) _pcd[k]=Math.random()*sec; _pcd[k]-=dt; if(_pcd[k]<=0){ _pcd[k]=sec; fn(L[k], L[k]>=6?1.6:1); } };
+  every('kunai', Math.max(.3,.85-.08*(L.kunai||1)), (l,B)=>{ const e=_pNear(px,py,420); const a=e?Math.atan2(e.y-py,e.x-px):Math.random()*6.28; _pfx.push({k:'shot',x:px,y:py,vx:Math.cos(a)*460,vy:Math.sin(a)*460,t:.7,c:'#dfe8ff',r:3*B}); });
+  every('acid', Math.max(.4,.9-.07*(L.acid||1)), (l,B)=>{ const e=_pNear(px,py,420); const a=e?Math.atan2(e.y-py,e.x-px):Math.random()*6.28; _pfx.push({k:'shot',x:px,y:py,vx:Math.cos(a)*360,vy:Math.sin(a)*360,t:.8,c:'#7dff3a',r:4*B}); });
+  every('rocket', 2.2, (l,B)=>{ const e=_pNear(px,py,480); if(!e) return; const a=Math.atan2(e.y-py,e.x-px); _pfx.push({k:'rocket',x:px,y:py,vx:Math.cos(a)*300,vy:Math.sin(a)*300,t:Math.min(1.2,Math.hypot(e.x-px,e.y-py)/300),B}); });
+  every('lightning', 2, (l,B)=>{ const e=_pNear(px,py,480); if(!e) return; _pfx.push({k:'bolt',x:e.x,y:e.y,t:.25,T:.25,B}); });
+  every('boomerang', 2.4, (l,B)=>{ const e=_pNear(px,py,450); const a=e?Math.atan2(e.y-py,e.x-px):Math.random()*6.28; _pfx.push({k:'boom',x:px,y:py,a,t:1.1,T:1.1,B}); });
+  every('ringz', Math.max(1.2,3.4-.25*(L.ringz||1)), (l,B)=>{ _pfx.push({k:'ring',x:px,y:py,t:.6,T:.6,R:(110+12*l)*B/1.3,c:'#b86bff',follow:true}); });
+  every('ice', 4, (l,B)=>{ _pfx.push({k:'ring',x:px,y:py,t:.8,T:.8,R:(130+15*l)*B,c:'#7fd8ff',fill:true,follow:true}); });
+  every('golem', 3, (l,B)=>{ _pfx.push({k:'ring',x:px-34,y:py,t:.5,T:.5,R:70*B,c:'#5ec06a',fill:true,follow:false}); });
+  every('hoden', 7, (l,B)=>{ const a=Math.random()*6.28; _pfx.push({k:'hole',x:px+Math.cos(a)*110,y:py+Math.sin(a)*110,t:3,T:3,R:55*B}); });
+  every('firestorm', 6, (l,B)=>{ const a=Math.random()*6.28; _pfx.push({k:'fire',x:px+Math.cos(a)*100,y:py+Math.sin(a)*100,t:3,T:3,R:45*B}); });
+  if(L.drone){ // drone bay quanh người + tia bắn
+    const B=L.drone>=6?1.4:1, a=t*2.2, dxp=px+Math.cos(a)*38, dyp=py+Math.sin(a)*38;
+    ctx.font=(14*B)+'px serif'; ctx.textAlign='center'; ctx.fillText('🛸',dxp,dyp);
+    _pcd._drone=(_pcd._drone===undefined?0:_pcd._drone)-dt;
+    if(_pcd._drone<=0){ _pcd._drone=Math.max(.25,.7-.08*L.drone); const e=_pNear(dxp,dyp,380); if(e) _pfx.push({k:'line',x:dxp,y:dyp,x2:e.x,y2:e.y,t:.12,T:.12,c:L.drone>=6?'#ff5a5a':'#ffe45a'}); }
+  }
+  if(L.golem){ ctx.font=(18*(L.golem>=6?1.5:1))+'px serif'; ctx.textAlign='center'; ctx.fillText('🌳',px-34,py+4+Math.sin(t*3)*2); }
+  // vẽ + cập nhật
+  ctx.save();
+  for(let i=_pfx.length-1;i>=0;i--){
+    const f=_pfx[i]; f.t-=dt; if(f.t<=0){ _pfx.splice(i,1); continue; }
+    if(f.k==='shot'||f.k==='rocket'){
+      f.x+=f.vx*dt; f.y+=f.vy*dt;
+      if(f.k==='shot'){ ctx.fillStyle=f.c; ctx.shadowColor=f.c; ctx.shadowBlur=6; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.fill(); }
+      else{ ctx.shadowColor='#ff8a30'; ctx.shadowBlur=10; ctx.fillStyle='#ff7a2a'; ctx.beginPath(); ctx.arc(f.x,f.y,5*f.B,0,7); ctx.fill(); if(f.t<=dt*2) _pfx.push({k:'ring',x:f.x,y:f.y,t:.35,T:.35,R:60*f.B,c:'#ffb040',fill:true,follow:false}); }
+    }else if(f.k==='bolt'){
+      ctx.shadowColor='#bde6ff'; ctx.shadowBlur=12; ctx.strokeStyle='#e8f6ff'; ctx.lineWidth=2.5*f.B; ctx.globalAlpha=Math.max(0,f.t/f.T);
+      ctx.beginPath(); let bx=f.x+(Math.random()-.5)*20, by=f.y-220; ctx.moveTo(bx,by);
+      for(let j=1;j<=6;j++){ bx=f.x+(Math.random()-.5)*26*(1-j/6); by=f.y-220+j*(220/6); ctx.lineTo(bx,by); } ctx.stroke(); ctx.globalAlpha=1;
+    }else if(f.k==='boom'){
+      const u=1-f.t/f.T, d=Math.sin(u*Math.PI)*190*f.B/1.3;
+      const bx=px+Math.cos(f.a)*d, by=py+Math.sin(f.a)*d;
+      ctx.font=(16*f.B)+'px serif'; ctx.textAlign='center'; ctx.save(); ctx.translate(bx,by); ctx.rotate(u*18); ctx.fillText('🪃',0,0); ctx.restore();
+    }else if(f.k==='ring'){
+      if(f.follow){ f.x=px; f.y=py; }
+      const u=1-f.t/f.T, r=f.R*Math.min(1,u*1.6);
+      ctx.globalAlpha=Math.max(0,f.t/f.T)*.9; ctx.strokeStyle=f.c; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,7); ctx.stroke();
+      if(f.fill){ ctx.globalAlpha*=.25; ctx.fillStyle=f.c; ctx.fill(); } ctx.globalAlpha=1;
+    }else if(f.k==='hole'){
+      const pulse=1+Math.sin(t*10)*.06; ctx.globalAlpha=Math.min(1,f.t/.4)*.9;
+      const g=ctx.createRadialGradient(f.x,f.y,2,f.x,f.y,f.R*pulse); g.addColorStop(0,'#000'); g.addColorStop(.6,'#2a0a55'); g.addColorStop(1,'rgba(90,40,200,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(f.x,f.y,f.R*pulse,0,7); ctx.fill(); ctx.globalAlpha=1;
+    }else if(f.k==='fire'){
+      ctx.globalAlpha=Math.min(1,f.t/.4)*.85;
+      for(let j=0;j<5;j++){ const a=t*7+j*1.26, rr=f.R*(.35+.13*j); ctx.fillStyle=j%2?'#ff7a1a':'#ffd23a'; ctx.beginPath(); ctx.arc(f.x+Math.cos(a)*rr*.6,f.y-j*6+Math.sin(a)*rr*.3,6+j*2.2,0,7); ctx.fill(); }
+      ctx.globalAlpha=1;
+    }else if(f.k==='line'){
+      ctx.globalAlpha=Math.max(0,f.t/f.T); ctx.strokeStyle=f.c; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x2,f.y2); ctx.stroke(); ctx.globalAlpha=1;
+    }
+  }
+  ctx.restore();
+  if(_pfx.length>60) _pfx.splice(0,_pfx.length-60);
+}
 function drawPartner(){
   if(!partner || !partner.alive) return;
+  // làm mượt vị trí (mạng ~5Hz)
+  if(partner.dx===undefined){ partner.dx=partner.x; partner.dy=partner.y; }
+  partner.dx += (partner.x-partner.dx)*0.25; partner.dy += (partner.y-partner.dy)*0.25;
+  const px=partner.dx, py=partner.dy;
+  try{ drawPartnerSkills(px,py); }catch(e){ console.warn('partner skills', e); }
   ctx.save();
-  ctx.globalAlpha = 0.92;
-  ctx.translate(partner.x, partner.y);
-  // tên
+  ctx.globalAlpha = 0.95;
+  ctx.translate(px, py);
+  // tên + hàng icon skill
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#8fd7ff';
   ctx.font = '900 10px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(partner.name||'Bạn', 0, -30);
+  ctx.fillText(partner.name||'Bạn', 0, -34);
+  const ks=Object.keys(partner.lv||{}).filter(k=>PICON[k]);
+  if(ks.length){
+    ctx.font = '10px serif';
+    const gap=13, x0=-(ks.length-1)*gap/2;
+    ks.forEach((k,i)=>{ ctx.fillText(PICON[k], x0+i*gap, -45); });
+  }
   // model đơn giản / theo char
   if(partner.charId==='gojo' && typeof drawGojoModel==='function'){
     drawGojoModel(ctx, partner.anim||0, !!partner.moving, partner.face||1, 0.95);
@@ -3523,8 +3599,8 @@ function drawPartner(){
   ctx.restore();
   // thanh máu partner
   const w=22;
-  ctx.fillStyle='#000a'; ctx.fillRect(partner.x-w/2-1, partner.y-28, w+2,4);
-  ctx.fillStyle='#3b82f6'; ctx.fillRect(partner.x-w/2, partner.y-28, w*Math.max(0,partner.hp)/Math.max(1,partner.maxhp),3);
+  ctx.fillStyle='#000a'; ctx.fillRect(px-w/2-1, py-28, w+2,4);
+  ctx.fillStyle='#3b82f6'; ctx.fillRect(px-w/2, py-28, w*Math.max(0,partner.hp)/Math.max(1,partner.maxhp),3);
 }
 function nearestPlayerPos(ex, ey){
   // quái nhắm người gần nhất (bạn hoặc partner) — không gây dame lẫn nhau
