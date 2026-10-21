@@ -73,8 +73,9 @@
 <style>
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:"Segoe UI",Roboto,Arial,sans-serif;touch-action:manipulation}
-  canvas{display:block;position:fixed;inset:0;width:100%;height:100%}
-  #hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 0;pointer-events:none;display:none}
+  canvas{display:block;position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+  canvas.game-active{pointer-events:auto}
+  #hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 0;pointer-events:none;display:none;z-index:8}
   #hud .row{display:flex;align-items:flex-start;justify-content:space-between}
   #pauseBtn{pointer-events:auto;width:34px;height:34px;border-radius:8px;background:#2b2b3c;border:2px solid #555;display:flex;gap:5px;align-items:center;justify-content:center;cursor:pointer}
   #pauseBtn i{display:block;width:5px;height:15px;background:#fff;border-radius:2px}
@@ -119,7 +120,8 @@
   .res{color:#fff;font-size:16px;margin:2px 0;font-weight:700}
 
   /* ===== AUTH UI ===== */
-  #authOv{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(8,8,16,.92);padding:16px}
+  #authOv{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(8,8,16,.92);padding:16px;pointer-events:auto}
+  #authOv[style*="display: none"],#authOv[style*="display:none"]{pointer-events:none!important}
   #authBox{width:100%;max-width:360px;background:linear-gradient(#2a2a3e,#1a1a28);border:3px solid #555a7a;border-radius:14px;padding:22px 18px;box-shadow:0 12px 40px #000a}
   #authBox h2{color:#ffd23a;font-size:26px;margin:0 0 4px;text-align:center;text-shadow:0 3px 0 #8a4b00}
   #authBox .sub{color:#aab0d0;font-size:13px;text-align:center;margin:0 0 16px}
@@ -139,7 +141,11 @@
 
 
   /* ===== LOBBY ===== */
-  #lobby{position:fixed;inset:0;z-index:12;display:none;pointer-events:auto;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
+  #lobby{position:fixed;inset:0;z-index:30;display:none;pointer-events:auto!important;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;-webkit-overflow-scrolling:touch;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
+  #lobby button,#lobby .btn,#lobby .profile-chip,#lobby .mode-btn,#lobby .lobby-nav button,#lobby input{pointer-events:auto!important;touch-action:manipulation;cursor:pointer;position:relative;z-index:2}
+  #modeSelect{position:relative;z-index:5;pointer-events:auto!important}
+  #coopPanel{position:relative;z-index:5;pointer-events:auto!important}
+  #lobbyPanel{position:relative;z-index:40;pointer-events:auto!important}
   .lobby-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
   .profile-chip{cursor:pointer;text-align:left;color:inherit;font:inherit;flex:1;max-width:70%;}
   .profile-chip:focus-visible{outline:2px solid #ffd45a;outline-offset:3px}
@@ -540,7 +546,8 @@ if(!guestBtn && authSubmit){
     const ov=document.getElementById('authOv');
     if(ov){ ov.style.display='none'; ov.style.pointerEvents='none'; }
     const lobbyEl=document.getElementById('lobby');
-    if(lobbyEl) lobbyEl.style.display='flex';
+    if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
+    try{ const _cv=document.getElementById('c'); if(_cv){ _cv.classList.remove('game-active'); _cv.style.pointerEvents='none'; } }catch(_){}
     const hudEl=document.getElementById('hud');
     if(hudEl) hudEl.style.display='none';
     try{ state='lobby'; }catch(_){}
@@ -572,7 +579,8 @@ auth.onAuthStateChanged(async (user) => {
     try{ setTimeout(()=>fetchLeaderboard(), 500); }catch(_){}
     if(document.getElementById('userAv')) document.getElementById('userAv').textContent = (nm[0]||'?').toUpperCase();
     try{ refreshLobbyProfile(nm); }catch(_){}
-    if(lobbyEl) lobbyEl.style.display = 'flex';
+    if(lobbyEl){ lobbyEl.style.display = 'flex'; lobbyEl.style.pointerEvents='auto'; }
+    try{ const _cv=document.getElementById('c'); if(_cv){ _cv.classList.remove('game-active'); _cv.style.pointerEvents='none'; } }catch(_){}
     if(menuEl) menuEl.style.display = 'none';
     if(hudEl) hudEl.style.display = 'none';
     try{ state='lobby'; }catch(_){}
@@ -620,7 +628,8 @@ auth.onAuthStateChanged(async (user) => {
     authOv.style.pointerEvents='auto';
     userBar.style.display = 'none';
     const lobbyEl=document.getElementById('lobby');
-    if(lobbyEl) lobbyEl.style.display='flex';
+    if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
+    try{ const _cv=document.getElementById('c'); if(_cv){ _cv.classList.remove('game-active'); _cv.style.pointerEvents='none'; } }catch(_){}
     const menuEl2=document.getElementById('menu');
     if(menuEl2) menuEl2.style.display='none';
     const hudEl=document.getElementById('hud');
@@ -702,6 +711,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+try{ cv.style.pointerEvents='none'; cv.classList.remove('game-active'); }catch(_){}
 const $=id=>document.getElementById(id);
 // Giới hạn chữ nổi / particle để giảm lag
 const _txLast=Object.create(null);
@@ -1002,8 +1012,9 @@ function startGame(){
     show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
     const hud=$('hud'); if(hud) hud.style.display='block';
     if(typeof joyDefault==='function') joyDefault();
-    // Force canvas focus
-    const cv=document.getElementById('c'); if(cv) cv.focus();
+    // Force canvas focus + nhận touch trong trận
+    const cv=document.getElementById('c');
+    if(cv){ cv.classList.add('game-active'); cv.style.pointerEvents='auto'; cv.focus(); }
   }catch(e){
     console.error('startGame error', e);
     alert('Lỗi bắt đầu trận: '+e.message);
@@ -1089,23 +1100,38 @@ if(_lobbyStartBtn){ _lobbyStartBtn.onclick = (e)=>{ e.preventDefault();
   startGame();
 }; }
 // Mode + friends UI
-document.getElementById('modeSolo')?.addEventListener('click',()=>setGameMode('solo'));
-document.getElementById('modeCoop')?.addEventListener('click',()=>setGameMode('coop'));
-document.getElementById('addFriendBtn')?.addEventListener('click',()=>{
-  const v=document.getElementById('friendIdInput')?.value||'';
-  addFriendById(v);
-});
-document.getElementById('createRoomBtn')?.addEventListener('click',()=>createCoopRoom());
-document.getElementById('joinRoomBtn')?.addEventListener('click',()=>{
-  joinCoopRoom(document.getElementById('roomCodeInput')?.value||'');
-});
-document.getElementById('copyShortId')?.addEventListener('click',()=>{
-  ensureShortId().then(id=>{
-    if(navigator.clipboard) navigator.clipboard.writeText(id);
-    const b=document.getElementById('copyShortId'); if(b) b.textContent='Đã chép ✓';
-  });
-});
-ensureShortId();
+function bindLobbyUI(){
+  const solo=document.getElementById('modeSolo');
+  const coop=document.getElementById('modeCoop');
+  if(solo) solo.onclick=()=>setGameMode('solo');
+  if(coop) coop.onclick=()=>setGameMode('coop');
+  const addF=document.getElementById('addFriendBtn');
+  if(addF) addF.onclick=()=>{ addFriendById(document.getElementById('friendIdInput')?.value||''); };
+  const cr=document.getElementById('createRoomBtn');
+  if(cr) cr.onclick=()=>createCoopRoom();
+  const jr=document.getElementById('joinRoomBtn');
+  if(jr) jr.onclick=()=>joinCoopRoom(document.getElementById('roomCodeInput')?.value||'');
+  const cp=document.getElementById('copyShortId');
+  if(cp) cp.onclick=()=>{
+    const id=ensureShortId();
+    Promise.resolve(id).then(sid=>{
+      if(navigator.clipboard) navigator.clipboard.writeText(sid);
+      cp.textContent='Đã chép ✓';
+    });
+  };
+  ensureShortId();
+}
+bindLobbyUI();
+// Event delegation dự phòng (mobile)
+document.addEventListener('click',function(e){
+  const t=e.target;
+  if(!t||!t.closest) return;
+  if(t.closest('#modeSolo')) setGameMode('solo');
+  else if(t.closest('#modeCoop')) setGameMode('coop');
+  else if(t.closest('#addFriendBtn')) addFriendById(document.getElementById('friendIdInput')?.value||'');
+  else if(t.closest('#createRoomBtn')) createCoopRoom();
+  else if(t.closest('#joinRoomBtn')) joinCoopRoom(document.getElementById('roomCodeInput')?.value||'');
+}, false);
 const _startBtn = $('startBtn');
 if(_startBtn){ _startBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
 const lobbyPanelData={
@@ -3085,8 +3111,11 @@ function returnToLobby(){
   try{ show('menu',false);show('pause',false);show('levelup',false);show('over',false); }catch(_){}
   try{
     const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
-    const lobbyEl=document.getElementById('lobby'); if(lobbyEl) lobbyEl.style.display='flex';
+    const lobbyEl=document.getElementById('lobby'); if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
     const overEl=document.getElementById('over'); if(overEl) overEl.style.display='none';
+    // Tắt touch canvas để không chặn nút lobby
+    const cv=document.getElementById('c');
+    if(cv){ cv.classList.remove('game-active'); cv.style.pointerEvents='none'; }
   }catch(_){}
   try{
     const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||document.getElementById('lobbyName')?.textContent||'Người chơi';
