@@ -372,6 +372,7 @@ function setLobbyUI(on){
   if(on){
     if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; lobbyEl.style.zIndex='9990'; }
     if(hudEl) hudEl.style.display='none';
+    try{ const _b=document.getElementById('coopBadge'); if(_b) _b.style.display='none'; }catch(_){}
     if(cvEl){ cvEl.classList.remove('game-active'); cvEl.style.display='none'; cvEl.style.pointerEvents='none'; }
     setAuthVisible(false);
     ['menu','pause','levelup','over'].forEach(id=>{
@@ -1018,6 +1019,7 @@ function pauseBackgroundMusic(){
   try{ music.pause(); }catch(_){}
 }
 function startGame(){ window.startGame=startGame;
+  try{ _sentPlaying=false; }catch(_){}
 
   try{
     if(equippedWeapon && typeof isWeaponUnlocked==='function' && !isWeaponUnlocked(equippedWeapon)){
@@ -1156,6 +1158,10 @@ let partnerUid = null;
 let lastPartnerSync = 0;
 let lastSelfSync = 0;
 let coopEnded = false;
+let _coopErr = '';
+let _sentPlaying = false;
+let _createdCode = null;
+let _badgeT = 0;
 // Mode + friends UI
 function bindLobbyUI(){
   const solo=document.getElementById('modeSolo');
@@ -3176,6 +3182,7 @@ function returnToLobby(){
     }
   }catch(_){}
   try{ runRewardSaved=false; }catch(_){}
+  try{ if(typeof roomUnsub!=='undefined' && roomUnsub){ roomUnsub(); roomUnsub=null; } coopActive=false; currentRoomId=null; partner=null; partnerUid=null; _createdCode=null; _coopErr=''; const _rs=document.getElementById('roomStatus'); if(_rs) _rs.textContent=''; }catch(_){}
   state='lobby';
   try{ show('menu',false);show('pause',false);show('levelup',false);show('over',false); }catch(_){}
   try{
@@ -3377,6 +3384,7 @@ function createCoopRoom(){
   ensureShortId();
   const code = genShortId().slice(0,6);
   currentRoomId = code;
+  _createdCode = code;
   isRoomHost = true;
   partnerUid = null;
   partner = null;
@@ -3418,6 +3426,12 @@ function joinCoopRoom(code){
     if(data.guestUid && data.guestUid!==currentUser.uid && data.hostUid!==currentUser.uid){
       if(st) st.textContent='Phòng đã đủ 2 người'; return;
     }
+    if(data.hostUid === currentUser.uid && _createdCode !== code){
+      currentRoomId = null;
+      if(st) st.textContent = '⚠ Bạn đang dùng CÙNG 1 tài khoản với chủ phòng. Mỗi máy phải đăng nhập tài khoản khác nhau.';
+      alert('Cần 2 tài khoản khác nhau để chơi Co-op (hiện cả 2 máy đang dùng chung 1 tài khoản).');
+      return;
+    }
     isRoomHost = data.hostUid === currentUser.uid;
     partnerUid = isRoomHost ? data.guestUid : data.hostUid;
     // Hiện sẵn sàng ngay
@@ -3431,7 +3445,7 @@ function joinCoopRoom(code){
       players: { [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1 } }
     }, { merge:true });
   }).catch(e=>{
-    if(st) st.textContent = 'Lỗi vào phòng (Rules?): '+(e.message||e);
+    _coopErr = (e&&e.code)||'loi'; if(st) st.textContent = 'Lỗi vào phòng (Rules?) ['+((e&&e.code)||'')+']: '+(e.message||e);
   });
 }
 function listenRoom(code){
@@ -3440,7 +3454,9 @@ function listenRoom(code){
     if(!snap.exists) return;
     const d = snap.data();
     if(!currentUser) return;
-    const otherUid = d.hostUid===currentUser.uid ? d.guestUid : d.hostUid;
+    const _pl = d.players||{};
+    let otherUid = Object.keys(_pl).find(k=>k!==currentUser.uid) || null;
+    if(!otherUid){ const _c = d.hostUid===currentUser.uid ? d.guestUid : d.hostUid; if(_c && _c!==currentUser.uid) otherUid=_c; }
     partnerUid = otherUid || null;
     if(otherUid && d.players && d.players[otherUid]){
       const op = d.players[otherUid];
@@ -3464,7 +3480,7 @@ function listenRoom(code){
       const win = d.winnerUid === currentUser.uid;
       pushText && pushText({x:P.x,y:P.y-40,v: win?'BẠN THẮNG!':'ĐỒNG ĐỘI ĐÃ NGÃ — BẠN THUA',t:3,c:true,big:true});
     }
-  }, err=>console.warn('room listen', err));
+  }, err=>{ console.warn('room listen', err); _coopErr='đọc phòng: '+((err&&err.code)||'lỗi'); const st=document.getElementById('roomStatus'); if(st) st.textContent='Lỗi đọc phòng (Rules?) ['+((err&&err.code)||'')+']'; });
 }
 function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
@@ -3480,11 +3496,23 @@ function syncCoopSelf(force){
     lv: Object.assign({}, lv)
   };
   // Fire-and-forget — không await, không làm lag trận
-  db.collection('rooms').doc(currentRoomId).set({
-    players: { [currentUser.uid]: payload },
-    status: 'playing',
-    t: Math.floor(T)
-  }, { merge:true }).catch(()=>{});
+  const data = { players: { [currentUser.uid]: payload } };
+  if(!_sentPlaying || force){ data.status='playing'; data.t=Math.floor(T); _sentPlaying=true; }
+  db.collection('rooms').doc(currentRoomId).set(data, { merge:true }).then(()=>{ _coopErr=''; }).catch(e=>{ _coopErr='ghi: '+((e&&e.code)||'lỗi'); _sentPlaying=false; console.warn('coop sync', e); });
+  updateCoopBadge();
+}
+function updateCoopBadge(){
+  const nowT = performance.now(); if(nowT-_badgeT<500) return; _badgeT=nowT;
+  let el=document.getElementById('coopBadge');
+  if(!el){
+    el=document.createElement('div'); el.id='coopBadge';
+    el.style.cssText='position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);left:50%;transform:translateX(-50%);z-index:9;pointer-events:none;font:800 11px Arial,sans-serif;padding:3px 10px;border-radius:12px;background:rgba(0,0,0,.55);color:#fff;white-space:nowrap';
+    document.body.appendChild(el);
+  }
+  el.style.display='block';
+  if(_coopErr){ el.textContent='⚠ Co-op lỗi '+_coopErr; el.style.color='#ff8a8a'; }
+  else if(!partner){ el.textContent='⏳ Chờ đồng đội...'; el.style.color='#ffd23a'; }
+  else{ el.textContent='👥 '+(partner.name||'Đồng đội')+' ✓'; el.style.color='#86efac'; }
 }
 async function reportCoopDeath(){
   if(!coopActive || !currentRoomId || !currentUser || coopEnded) return;
