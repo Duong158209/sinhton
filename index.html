@@ -73,8 +73,8 @@
 <style>
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:"Segoe UI",Roboto,Arial,sans-serif;touch-action:manipulation}
-  canvas{display:block;position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
-  canvas.game-active{pointer-events:auto}
+  canvas{display:none;position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;touch-action:none}
+  canvas.game-active{display:block!important;pointer-events:auto!important}
   #hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 0;pointer-events:none;display:none;z-index:8}
   #hud .row{display:flex;align-items:flex-start;justify-content:space-between}
   #pauseBtn{pointer-events:auto;width:34px;height:34px;border-radius:8px;background:#2b2b3c;border:2px solid #555;display:flex;gap:5px;align-items:center;justify-content:center;cursor:pointer}
@@ -120,8 +120,8 @@
   .res{color:#fff;font-size:16px;margin:2px 0;font-weight:700}
 
   /* ===== AUTH UI ===== */
-  #authOv{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(8,8,16,.92);padding:16px;pointer-events:auto}
-  #authOv[style*="display: none"],#authOv[style*="display:none"]{pointer-events:none!important}
+  #authOv{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(8,8,16,.92);padding:16px;pointer-events:auto}
+  #authOv.hidden-auth{display:none!important;pointer-events:none!important;visibility:hidden!important;z-index:-1!important}
   #authBox{width:100%;max-width:360px;background:linear-gradient(#2a2a3e,#1a1a28);border:3px solid #555a7a;border-radius:14px;padding:22px 18px;box-shadow:0 12px 40px #000a}
   #authBox h2{color:#ffd23a;font-size:26px;margin:0 0 4px;text-align:center;text-shadow:0 3px 0 #8a4b00}
   #authBox .sub{color:#aab0d0;font-size:13px;text-align:center;margin:0 0 16px}
@@ -141,11 +141,12 @@
 
 
   /* ===== LOBBY ===== */
-  #lobby{position:fixed;inset:0;z-index:30;display:none;pointer-events:auto!important;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;-webkit-overflow-scrolling:touch;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%)}
-  #lobby button,#lobby .btn,#lobby .profile-chip,#lobby .mode-btn,#lobby .lobby-nav button,#lobby input{pointer-events:auto!important;touch-action:manipulation;cursor:pointer;position:relative;z-index:2}
+  #lobby{position:fixed;inset:0;z-index:9990;display:none;pointer-events:auto!important;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;-webkit-overflow-scrolling:touch;color:#fff;background:radial-gradient(ellipse at 50% 25%,#293c58 0%,#151a2c 55%,#090d18 100%);touch-action:manipulation}
+  #lobby *{pointer-events:auto!important}
+  #lobby button,#lobby .btn,#lobby .profile-chip,#lobby .mode-btn,#lobby .lobby-nav button,#lobby input{pointer-events:auto!important;touch-action:manipulation;cursor:pointer;position:relative;z-index:2;-webkit-user-select:none;user-select:none}
   #modeSelect{position:relative;z-index:5;pointer-events:auto!important}
   #coopPanel{position:relative;z-index:5;pointer-events:auto!important}
-  #lobbyPanel{position:relative;z-index:40;pointer-events:auto!important}
+  #lobbyPanel{position:relative;z-index:9995;pointer-events:auto!important}
   .lobby-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
   .profile-chip{cursor:pointer;text-align:left;color:inherit;font:inherit;flex:1;max-width:70%;}
   .profile-chip:focus-visible{outline:2px solid #ffd45a;outline-offset:3px}
@@ -243,8 +244,8 @@
   <div class="lobby-brand"><h1>SURVIVAL</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
   <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
   <div id="modeSelect" style="display:flex;gap:8px;max-width:440px;align-self:center;width:100%">
-    <button type="button" class="mode-btn active" data-mode="solo" id="modeSolo" style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid #ffc04a;background:linear-gradient(160deg,#3a2f12,#202c40);color:#ffd23a;font-weight:900;cursor:pointer">🧍 Solo</button>
-    <button type="button" class="mode-btn" data-mode="coop" id="modeCoop" style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid #43536e;background:#202c40;color:#c9d4e8;font-weight:900;cursor:pointer">👥 Co-op (2 người)</button>
+    <button type="button" class="mode-btn active" data-mode="solo" id="modeSolo" type="button" onclick="try{setGameMode&&setGameMode('solo')}catch(e){}" style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid #ffc04a;background:linear-gradient(160deg,#3a2f12,#202c40);color:#ffd23a;font-weight:900;cursor:pointer">🧍 Solo</button>
+    <button type="button" class="mode-btn" data-mode="coop" id="modeCoop" type="button" onclick="try{setGameMode&&setGameMode('coop')}catch(e){}" style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid #43536e;background:#202c40;color:#c9d4e8;font-weight:900;cursor:pointer">👥 Co-op (2 người)</button>
   </div>
   <div id="coopPanel" style="display:none;max-width:440px;align-self:center;width:100%;background:#101827f5;border:1px solid #52627d;border-radius:14px;padding:12px;margin-top:4px">
     <div style="font-weight:900;color:#8fd7ff;margin-bottom:8px">Co-op · Mời bạn</div>
@@ -263,7 +264,7 @@
     </div>
     <div id="roomStatus" style="margin-top:8px;font-size:12px;color:#9eacc9;min-height:18px"></div>
   </div>
-  <button class="btn" id="lobbyStart" onclick="">▶ BẮT ĐẦU</button>
+  <button class="btn" id="lobbyStart" type="button" onclick="try{if(window.startGame)startGame();}catch(e){alert(e)}">▶ BẮT ĐẦU</button>
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
   <div id="leaderboardBox" style="background:linear-gradient(160deg,#1a2744,#121c32);border:1px solid #4a5a7a;border-radius:14px;padding:10px 10px 6px;box-shadow:0 4px 0 #0b1220;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -275,10 +276,10 @@
   </div>
   <div class="lobby-section-title">KHO ĐỒ & TÙY CHỈNH</div>
   <div class="lobby-nav">
-    <button data-lobby-panel="character"><span>🧍</span>Nhân vật</button>
-    <button data-lobby-panel="weapon"><span>⚔️</span>Vũ khí</button>
-    <button data-lobby-panel="skill"><span>⚡</span>Skill</button>
-    <button data-lobby-panel="costume"><span>👕</span>Trang phục</button>
+    <button type="button" data-lobby-panel="character"><span>🧍</span>Nhân vật</button>
+    <button type="button" data-lobby-panel="weapon"><span>⚔️</span>Vũ khí</button>
+    <button type="button" data-lobby-panel="skill"><span>⚡</span>Skill</button>
+    <button type="button" data-lobby-panel="costume"><span>👕</span>Trang phục</button>
   </div>
   
   <div id="lobbyPanel"><div class="lobby-panel-head"><span id="lobbyPanelTitle">Nhân vật</span><button class="lobby-close" id="lobbyPanelClose">Đóng ✕</button></div><div id="lobbyPanelBody"></div></div>
@@ -343,9 +344,49 @@ const firebaseConfig = {
 };
 if(typeof firebase==='undefined'){
   console.warn('Firebase SDK không tải được');
-  window.firebase={initializeApp(){},auth:Object.assign(()=>({onAuthStateChanged(cb){setTimeout(()=>cb(null),0)},setPersistence:async()=>{},signOut(){},signInWithEmailAndPassword:async()=>{const e=new Error('Không tải được Firebase, kiểm tra mạng rồi tải lại trang');throw e},createUserWithEmailAndPassword:async()=>{const e=new Error('Không tải được Firebase, kiểm tra mạng rồi tải lại trang');throw e}}),{Auth:{Persistence:{LOCAL:'local'}}}),firestore:Object.assign(()=>({collection:()=>({doc:()=>({get:async()=>({exists:false,data:()=>({})}),set:async()=>{}}),orderBy(){return this},limit(){return this},get:async()=>({forEach(){},docs:[]})}),runTransaction:async()=>{}}),{FieldValue:{serverTimestamp:()=>Date.now()}})};
+  window.firebase={initializeApp(){},auth:()=>({}),firestore:()=>({})};
 }
 firebase.initializeApp(firebaseConfig);
+
+function setAuthVisible(on){
+  const ov=document.getElementById('authOv');
+  if(!ov) return;
+  if(on){
+    ov.classList.remove('hidden-auth');
+    ov.style.display='flex';
+    ov.style.pointerEvents='auto';
+    ov.style.visibility='visible';
+    ov.style.zIndex='10000';
+  }else{
+    ov.classList.add('hidden-auth');
+    ov.style.display='none';
+    ov.style.pointerEvents='none';
+    ov.style.visibility='hidden';
+    ov.style.zIndex='-1';
+  }
+}
+function setLobbyUI(on){
+  const lobbyEl=document.getElementById('lobby');
+  const hudEl=document.getElementById('hud');
+  const cvEl=document.getElementById('c');
+  if(on){
+    if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; lobbyEl.style.zIndex='9990'; }
+    if(hudEl) hudEl.style.display='none';
+    if(cvEl){ cvEl.classList.remove('game-active'); cvEl.style.display='none'; cvEl.style.pointerEvents='none'; }
+    setAuthVisible(false);
+    ['menu','pause','levelup','over'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){ el.style.display='none'; el.style.pointerEvents='none'; }
+    });
+  }else{
+    if(lobbyEl){ lobbyEl.style.display='none'; }
+    if(cvEl){ cvEl.classList.add('game-active'); cvEl.style.display='block'; cvEl.style.pointerEvents='auto'; }
+  }
+}
+window.setAuthVisible = setAuthVisible;
+window.setLobbyUI = setLobbyUI;
+
+
 const auth = firebase.auth();
 const db = firebase.firestore();
 
@@ -454,6 +495,8 @@ const tabLogin = document.getElementById('tabLogin');
 const tabReg = document.getElementById('tabReg');
 const regFields = document.getElementById('regFields');
 const authOv = document.getElementById('authOv');
+
+
 const userBar = document.getElementById('userBar');
 
 function showAuthError(msg){
@@ -544,7 +587,7 @@ if(!guestBtn && authSubmit){
   guestBtn.onclick = ()=>{
     window.isGuestMode=true;
     const ov=document.getElementById('authOv');
-    if(ov){ ov.style.display='none'; ov.style.pointerEvents='none'; }
+    setAuthVisible(false);
     const lobbyEl=document.getElementById('lobby');
     if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
     try{ const _cv=document.getElementById('c'); if(_cv){ _cv.classList.remove('game-active'); _cv.style.pointerEvents='none'; } }catch(_){}
@@ -568,8 +611,7 @@ auth.onAuthStateChanged(async (user) => {
   currentUser = user;
   try{ restartLeaderboardLive(); }catch(_){}
   if(user){
-    authOv.style.display = 'none';
-    authOv.style.pointerEvents='none';
+    setAuthVisible(false);
     userBar.style.display = 'none';
     const nm = user.displayName || user.email.split('@')[0];
     const lobbyEl=document.getElementById('lobby');
@@ -617,15 +659,14 @@ auth.onAuthStateChanged(async (user) => {
     }catch(_){}
   } else {
     if(window.isGuestMode){
-      authOv.style.display = 'none';
+      setAuthVisible(false);
       authOv.style.pointerEvents='none';
       const lobbyEl2=document.getElementById('lobby');
       if(lobbyEl2) lobbyEl2.style.display='flex';
       try{ state='lobby'; const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none'; refreshLobbyProfile(); }catch(_){}
       return;
     }
-    authOv.style.display = 'flex';
-    authOv.style.pointerEvents='auto';
+    setAuthVisible(true);
     userBar.style.display = 'none';
     const lobbyEl=document.getElementById('lobby');
     if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
@@ -690,8 +731,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
       guestBtn.addEventListener('click', (e)=>{
         e.preventDefault(); e.stopPropagation();
         window.isGuestMode=true;
-        authOvEl.style.display='none';
-        lobbyEl.style.display='flex';
+        if(typeof setLobbyUI==='function') setLobbyUI(true);
+        else { authOvEl.style.display='none'; lobbyEl.style.display='flex'; }
         const menu=document.getElementById('menu');
         if(menu) menu.style.display='none';
         console.log('Guest mode ON');
@@ -711,7 +752,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
-try{ cv.style.pointerEvents='none'; cv.classList.remove('game-active'); }catch(_){}
 const $=id=>document.getElementById(id);
 // Giới hạn chữ nổi / particle để giảm lag
 const _txLast=Object.create(null);
@@ -977,7 +1017,8 @@ function pauseBackgroundMusic(){
   if(!music) return;
   try{ music.pause(); }catch(_){}
 }
-function startGame(){
+function startGame(){ window.startGame=startGame;
+
   try{
     if(equippedWeapon && typeof isWeaponUnlocked==='function' && !isWeaponUnlocked(equippedWeapon)){
       equippedWeapon='kunai';
@@ -1001,8 +1042,7 @@ function startGame(){
     }
     console.log('startGame called with weapon', equippedWeapon);
     if(!currentUser) window.isGuestMode=true;
-    const authOvEl=document.getElementById('authOv');
-    if(authOvEl) authOvEl.style.display='none';
+    if(typeof setAuthVisible==='function') setAuthVisible(false);
     startBackgroundMusic();
     initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
     try{ if(lobbyReturnTimer){clearTimeout(lobbyReturnTimer);lobbyReturnTimer=null;} }catch(_){}
@@ -1013,8 +1053,11 @@ function startGame(){
     const hud=$('hud'); if(hud) hud.style.display='block';
     if(typeof joyDefault==='function') joyDefault();
     // Force canvas focus + nhận touch trong trận
-    const cv=document.getElementById('c');
-    if(cv){ cv.classList.add('game-active'); cv.style.pointerEvents='auto'; cv.focus(); }
+    if(typeof setLobbyUI==='function') setLobbyUI(false);
+    else {
+      const _cv=document.getElementById('c');
+      if(_cv){ _cv.classList.add('game-active'); _cv.style.display='block'; _cv.style.pointerEvents='auto'; _cv.focus(); }
+    }
   }catch(e){
     console.error('startGame error', e);
     alert('Lỗi bắt đầu trận: '+e.message);
@@ -1122,6 +1165,20 @@ function bindLobbyUI(){
   ensureShortId();
 }
 bindLobbyUI();
+try{
+  window.setGameMode = setGameMode;
+  window.startGame = startGame;
+  window.createCoopRoom = createCoopRoom;
+  window.joinCoopRoom = joinCoopRoom;
+  window.addFriendById = addFriendById;
+}catch(_){}
+// Re-bind after short delay (đảm bảo DOM sẵn sàng trên iOS)
+setTimeout(function(){
+  try{ bindLobbyUI(); bindStartButtons(); setLobbyUI(true); }catch(_){}
+}, 100);
+setTimeout(function(){
+  try{ bindLobbyUI(); }catch(_){}
+}, 500);
 // Event delegation dự phòng (mobile)
 document.addEventListener('click',function(e){
   const t=e.target;
@@ -3110,12 +3167,14 @@ function returnToLobby(){
   state='lobby';
   try{ show('menu',false);show('pause',false);show('levelup',false);show('over',false); }catch(_){}
   try{
-    const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
-    const lobbyEl=document.getElementById('lobby'); if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
-    const overEl=document.getElementById('over'); if(overEl) overEl.style.display='none';
-    // Tắt touch canvas để không chặn nút lobby
-    const cv=document.getElementById('c');
-    if(cv){ cv.classList.remove('game-active'); cv.style.pointerEvents='none'; }
+    if(typeof setLobbyUI==='function') setLobbyUI(true);
+    else {
+      const hudEl=document.getElementById('hud'); if(hudEl) hudEl.style.display='none';
+      const lobbyEl=document.getElementById('lobby'); if(lobbyEl){ lobbyEl.style.display='flex'; lobbyEl.style.pointerEvents='auto'; }
+      const overEl=document.getElementById('over'); if(overEl) overEl.style.display='none';
+      const _cv=document.getElementById('c');
+      if(_cv){ _cv.classList.remove('game-active'); _cv.style.display='none'; _cv.style.pointerEvents='none'; }
+    }
   }catch(_){}
   try{
     const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||document.getElementById('lobbyName')?.textContent||'Người chơi';
@@ -3302,7 +3361,8 @@ function addFriendById(sid){
     }).catch(()=>{});
   }
 }
-function setGameMode(mode){
+function setGameMode(mode){ window.setGameMode=setGameMode;
+
   gameMode = mode==='coop' ? 'coop' : 'solo';
   const solo = document.getElementById('modeSolo');
   const coop = document.getElementById('modeCoop');
