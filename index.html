@@ -3174,42 +3174,45 @@ function genShortId(){
   for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
   return s;
 }
-async function ensureShortId(){
-  if(myShortId && myShortId.length>=4){
-    const el = document.getElementById('myShortIdDisp');
-    if(el) el.textContent = myShortId;
-    return myShortId;
-  }
-  myShortId = genShortId();
-  try{ localStorage.setItem('myShortId', myShortId); }catch(_){}
-  if(typeof currentUser!=='undefined' && currentUser && typeof db!=='undefined'){
-    try{
-      // kiểm tra trùng nhẹ
-      const q = await db.collection('users').where('shortId','==',myShortId).limit(1).get();
-      if(!q.empty && q.docs[0].id !== currentUser.uid){
-        myShortId = genShortId();
-        try{ localStorage.setItem('myShortId', myShortId); }catch(_){}
-      }
-      await db.collection('users').doc(currentUser.uid).set({ shortId: myShortId }, { merge:true });
-    }catch(e){ console.warn('shortId save', e); }
+// ID ngắn: tạo ngay trên máy, không chờ server
+function ensureShortId(){
+  if(!(myShortId && myShortId.length>=4)){
+    myShortId = genShortId();
+    try{ localStorage.setItem('myShortId', myShortId); }catch(_){}
   }
   const el = document.getElementById('myShortIdDisp');
   if(el) el.textContent = myShortId;
-  return myShortId;
+  // Đồng bộ nền (không chặn UI)
+  if(typeof currentUser!=='undefined' && currentUser && typeof db!=='undefined'){
+    Promise.resolve().then(async()=>{
+      try{
+        await db.collection('users').doc(currentUser.uid).set({ shortId: myShortId }, { merge:true });
+      }catch(e){ console.warn('shortId bg', e); }
+    });
+  }
+  return Promise.resolve(myShortId);
 }
 function saveFriendsLocal(){
   try{ localStorage.setItem('friendsList', JSON.stringify(friendsList.slice(0,30))); }catch(_){}
+}
+function syncFriendsBg(){
+  // Gửi lên server nền — không await, không chặn
+  if(typeof currentUser==='undefined' || !currentUser || typeof db==='undefined') return;
+  const payload = friendsList.slice(0,30).map(f=>({
+    shortId: f.shortId, name: f.name||'', avatar: (typeof f.avatar==='string'&&f.avatar.length<8)?f.avatar:'🧑', uid: f.uid||''
+  }));
+  db.collection('users').doc(currentUser.uid).set({ friends: payload }, { merge:true }).catch(()=>{});
 }
 function renderFriendsList(){
   const box = document.getElementById('friendsList');
   if(!box) return;
   if(!friendsList.length){
-    box.innerHTML = '<div style="opacity:.7">Chưa có bạn. Nhập ID 6 ký tự để kết bạn.</div>';
+    box.innerHTML = '<div style="opacity:.7">Chưa có bạn. Nhập ID 6 ký tự → hiện ngay (không chờ server).</div>';
     return;
   }
   box.innerHTML = friendsList.map((f,i)=>
     '<div style="display:flex;align-items:center;gap:8px;background:#1a2438;border-radius:8px;padding:6px 8px">'
-    + '<span style="font-size:18px">'+(f.avatar&&f.avatar.length<4?f.avatar:'👤')+'</span>'
+    + '<span style="font-size:18px">'+(f.avatar&&String(f.avatar).length<4?f.avatar:'👤')+'</span>'
     + '<div style="flex:1;min-width:0"><b style="color:#fff">'+escapeHtml(f.name||'Bạn')+'</b>'
     + ' <span style="color:#ffd23a">'+escapeHtml(f.shortId)+'</span></div>'
     + '<button type="button" data-invite="'+i+'" style="background:#22c55e;border:0;color:#fff;border-radius:6px;padding:4px 8px;font-weight:800;font-size:11px;cursor:pointer">Mời</button>'
@@ -3221,6 +3224,7 @@ function renderFriendsList(){
       friendsList.splice(+btn.dataset.unfriend, 1);
       saveFriendsLocal();
       renderFriendsList();
+      syncFriendsBg();
     };
   });
   box.querySelectorAll('[data-invite]').forEach(btn=>{
@@ -3233,31 +3237,40 @@ function renderFriendsList(){
     };
   });
 }
-async function addFriendById(sid){
+// Kết bạn INSTANT — lưu máy ngay, lookup tên/avatar chạy nền
+function addFriendById(sid){
   sid = (sid||'').trim().toUpperCase();
   if(sid.length < 4){ alert('ID không hợp lệ'); return; }
-  if(sid === myShortId){ alert('Không thể tự kết bạn'); return; }
+  if(myShortId && sid === myShortId){ alert('Không thể tự kết bạn'); return; }
   if(friendsList.some(f=>f.shortId===sid)){ alert('Đã có trong danh sách'); return; }
-  let found = null;
-  try{
-    if(typeof db!=='undefined'){
-      const snap = await db.collection('users').where('shortId','==',sid).limit(1).get();
-      if(!snap.empty){
-        const d = snap.docs[0].data();
-        found = { uid: snap.docs[0].id, shortId: sid, name: d.name||d.displayName||'Bạn', avatar: d.avatar||'🧑' };
-      }
-    }
-  }catch(e){ console.warn(e); }
-  if(!found){
-    // vẫn cho thêm offline
-    found = { uid:'', shortId:sid, name:'Bạn '+sid, avatar:'🧑' };
-  }
+  // Hiện ngay lập tức
+  const found = { uid:'', shortId:sid, name:'Bạn '+sid, avatar:'🧑' };
   friendsList.unshift(found);
   friendsList = friendsList.slice(0,30);
   saveFriendsLocal();
   renderFriendsList();
-  if(typeof currentUser!=='undefined' && currentUser && found.uid){
-    try{ await db.collection('users').doc(currentUser.uid).set({ friends: friendsList }, { merge:true }); }catch(_){}
+  const input = document.getElementById('friendIdInput');
+  if(input) input.value = '';
+  const st = document.getElementById('roomStatus');
+  if(st) st.textContent = 'Đã thêm '+sid+' ✓';
+  syncFriendsBg();
+  // Nền: tìm tên/avatar thật nếu có mạng
+  if(typeof db!=='undefined'){
+    db.collection('users').where('shortId','==',sid).limit(1).get().then(snap=>{
+      if(snap.empty) return;
+      const d = snap.docs[0].data();
+      const idx = friendsList.findIndex(f=>f.shortId===sid);
+      if(idx<0) return;
+      friendsList[idx] = {
+        uid: snap.docs[0].id,
+        shortId: sid,
+        name: d.name||d.displayName||('Bạn '+sid),
+        avatar: (typeof d.avatar==='string'&&d.avatar.length<8)?d.avatar:'🧑'
+      };
+      saveFriendsLocal();
+      renderFriendsList();
+      syncFriendsBg();
+    }).catch(()=>{});
   }
 }
 function setGameMode(mode){
@@ -3270,60 +3283,67 @@ function setGameMode(mode){
   if(panel) panel.style.display = gameMode==='coop' ? 'block' : 'none';
   if(gameMode==='coop'){ ensureShortId(); renderFriendsList(); }
 }
-async function createCoopRoom(){
+function createCoopRoom(){
   if(!currentUser){ alert('Cần đăng nhập để chơi Co-op'); return; }
-  await ensureShortId();
+  ensureShortId();
   const code = genShortId().slice(0,6);
   currentRoomId = code;
   isRoomHost = true;
   partnerUid = null;
   partner = null;
+  coopEnded = false;
   const st = document.getElementById('roomStatus');
-  if(st) st.textContent = 'Phòng '+code+' — chờ bạn vào...';
-  try{
-    await db.collection('rooms').doc(code).set({
-      code, hostUid: currentUser.uid, hostShortId: myShortId,
-      hostName: (currentUser.displayName||'Host'),
-      guestUid: null, status: 'waiting', mode: 'coop',
-      createdAt: Date.now(),
-      players: {
-        [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Host', x:0, y:0, hp:400, maxhp:400, alive:true, face:1 }
-      }
-    });
+  // Hiện mã NGAY — không chờ server
+  if(st) st.innerHTML = 'Mã phòng: <b style="color:#ffd23a;font-size:18px">'+code+'</b> — gửi cho bạn (đang mở phòng…)';
+  const roomData = {
+    code, hostUid: currentUser.uid, hostShortId: myShortId,
+    hostName: (currentUser.displayName||'Host'),
+    guestUid: null, status: 'waiting', mode: 'coop',
+    createdAt: Date.now(),
+    players: {
+      [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Host', x:0, y:0, hp:400, maxhp:400, alive:true, face:1 }
+    }
+  };
+  // Ghi server nền + listen
+  db.collection('rooms').doc(code).set(roomData).then(()=>{
     listenRoom(code);
-    if(st) st.innerHTML = 'Mã phòng: <b style="color:#ffd23a;font-size:16px">'+code+'</b> — gửi cho bạn';
-  }catch(e){
-    if(st) st.textContent = 'Lỗi tạo phòng: '+(e.message||e);
-  }
+    if(st) st.innerHTML = 'Mã phòng: <b style="color:#ffd23a;font-size:18px">'+code+'</b> — chờ bạn vào';
+  }).catch(e=>{
+    if(st) st.textContent = 'Lỗi tạo phòng (kiểm tra Rules): '+(e.message||e);
+  });
 }
-async function joinCoopRoom(code){
+function joinCoopRoom(code){
   if(!currentUser){ alert('Cần đăng nhập để chơi Co-op'); return; }
   code = (code||'').trim().toUpperCase();
   if(code.length<4){ alert('Mã phòng không hợp lệ'); return; }
-  await ensureShortId();
+  ensureShortId();
   const st = document.getElementById('roomStatus');
-  try{
-    const ref = db.collection('rooms').doc(code);
-    const snap = await ref.get();
-    if(!snap.exists){ if(st) st.textContent='Không tìm thấy phòng'; return; }
+  currentRoomId = code;
+  coopEnded = false;
+  if(st) st.textContent = 'Đang vào phòng '+code+'…';
+  const ref = db.collection('rooms').doc(code);
+  ref.get().then(snap=>{
+    if(!snap.exists){ if(st) st.textContent='Không tìm thấy phòng '+code; return; }
     const data = snap.data();
     if(data.status==='ended'){ if(st) st.textContent='Phòng đã kết thúc'; return; }
-    if(data.guestUid && data.guestUid!==currentUser.uid){ if(st) st.textContent='Phòng đã đủ 2 người'; return; }
+    if(data.guestUid && data.guestUid!==currentUser.uid && data.hostUid!==currentUser.uid){
+      if(st) st.textContent='Phòng đã đủ 2 người'; return;
+    }
     isRoomHost = data.hostUid === currentUser.uid;
-    currentRoomId = code;
     partnerUid = isRoomHost ? data.guestUid : data.hostUid;
-    await ref.set({
+    // Hiện sẵn sàng ngay
+    if(st) st.textContent = 'Đã vào phòng '+code+' — cả 2 bấm Bắt đầu';
+    listenRoom(code);
+    return ref.set({
       guestUid: currentUser.uid,
       guestShortId: myShortId,
       guestName: currentUser.displayName||'Guest',
       status: 'ready',
       ['players.'+currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1 }
     }, { merge:true });
-    listenRoom(code);
-    if(st) st.textContent = 'Đã vào phòng '+code+' — cả 2 bấm Bắt đầu khi sẵn sàng';
-  }catch(e){
-    if(st) st.textContent = 'Lỗi vào phòng: '+(e.message||e);
-  }
+  }).catch(e=>{
+    if(st) st.textContent = 'Lỗi vào phòng (Rules?): '+(e.message||e);
+  });
 }
 function listenRoom(code){
   if(roomUnsub){ try{ roomUnsub(); }catch(_){} roomUnsub=null; }
@@ -3355,25 +3375,24 @@ function listenRoom(code){
     }
   }, err=>console.warn('room listen', err));
 }
-async function syncCoopSelf(force){
+function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
   const now = performance.now();
-  if(!force && now - lastSelfSync < 180) return; // ~5-6 Hz tối ưu lag
+  if(!force && now - lastSelfSync < 200) return; // ~5 Hz, không chặn frame
   lastSelfSync = now;
-  try{
-    const payload = {
-      x: Math.round(P.x), y: Math.round(P.y),
-      hp: Math.round(P.hp), maxhp: Math.round(P.maxhp),
-      face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
-      moving: !!P.moving, charId: equippedCharacter||'survivor',
-      name: (currentUser.displayName||'P'), shortId: myShortId
-    };
-    await db.collection('rooms').doc(currentRoomId).set({
-      ['players.'+currentUser.uid]: payload,
-      status: 'playing',
-      t: Math.floor(T)
-    }, { merge:true });
-  }catch(_){}
+  const payload = {
+    x: Math.round(P.x), y: Math.round(P.y),
+    hp: Math.round(P.hp), maxhp: Math.round(P.maxhp),
+    face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
+    moving: !!P.moving, charId: equippedCharacter||'survivor',
+    name: (currentUser.displayName||'P'), shortId: myShortId
+  };
+  // Fire-and-forget — không await, không làm lag trận
+  db.collection('rooms').doc(currentRoomId).set({
+    ['players.'+currentUser.uid]: payload,
+    status: 'playing',
+    t: Math.floor(T)
+  }, { merge:true }).catch(()=>{});
 }
 async function reportCoopDeath(){
   if(!coopActive || !currentRoomId || !currentUser || coopEnded) return;
