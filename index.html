@@ -3314,6 +3314,7 @@ function ensureShortId(){
     Promise.resolve().then(async()=>{
       try{
         await db.collection('users').doc(currentUser.uid).set({ shortId: myShortId }, { merge:true });
+        await db.collection('playerIds').doc(myShortId).set({uid:currentUser.uid,shortId:myShortId,name:currentUser.displayName||'Người chơi',avatar:accountAvatar||'🧑',updatedAt:Date.now()},{merge:true});
       }catch(e){ console.warn('shortId bg', e); }
     });
   }
@@ -3381,9 +3382,9 @@ async function searchFriendById(){
   if(!currentUser){if(box)box.textContent='Đăng nhập để tìm và kết bạn.';return;}
   if(box)box.textContent='Đang tìm tài khoản…';
   try{
-    const snap=await db.collection('users').where('shortId','==',sid).limit(1).get();
-    if(snap.empty){if(box)box.textContent='Không tìm thấy người chơi có ID '+sid+'.';return;}
-    const d=snap.docs[0].data(), uid=snap.docs[0].id;
+    const snap=await db.collection('playerIds').doc(sid).get();
+    if(!snap.exists){if(box)box.textContent='Không tìm thấy người chơi có ID '+sid+'. Hãy bảo người đó đăng nhập game ít nhất một lần để đăng ký ID.';return;}
+    const d=snap.data(), uid=d.uid;
     if(uid===currentUser.uid){if(box)box.textContent='Đây là ID của bạn.';return;}
     const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:8px;background:#1a2438;border-radius:8px;padding:8px';
     const info=document.createElement('div'); info.style.flex='1'; info.textContent=(d.name||d.displayName||'Người chơi')+' · '+sid;
@@ -3396,10 +3397,10 @@ async function searchFriendById(){
           fromAvatar:accountAvatar||'🧑',status:'pending',createdAt:Date.now()
         });
         if(box)box.textContent='Đã gửi lời mời kết bạn tới '+(d.name||sid)+'.';
-      }catch(e){send.disabled=false;send.textContent='Gửi lời mời';if(box)box.textContent='Không gửi được lời mời. Kiểm tra quyền Firestore.';}
+      }catch(e){send.disabled=false;send.textContent='Gửi lời mời';if(box)box.textContent='Không gửi được lời mời ('+(e.code||'lỗi')+'). Kiểm tra Firestore Rules và đăng nhập.';}
     };
     row.append(info,send); if(box){box.textContent='';box.appendChild(row);}
-  }catch(e){if(box)box.textContent='Lỗi tìm bạn. Kiểm tra kết nối và quyền Firestore.';}
+  }catch(e){console.warn('search friend',e);if(box)box.textContent='Lỗi tìm bạn ('+(e.code||e.message||'lỗi')+'). Kiểm tra Firestore Rules.';}
 }
 function listenTeamInvites(){
   if(!currentUser || typeof db==='undefined') return;
