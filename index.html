@@ -1142,6 +1142,20 @@ if(_lobbyStartBtn){ _lobbyStartBtn.onclick = (e)=>{ e.preventDefault();
   }else{ coopActive=false; partner=null; }
   startGame();
 }; }
+// ===== CO-OP STATE (hoisted) =====
+let gameMode = 'solo'; // 'solo' | 'coop'
+let coopActive = false;
+let myShortId = localStorage.getItem('myShortId') || '';
+let friendsList = [];
+try{ friendsList = JSON.parse(localStorage.getItem('friendsList')||'[]'); }catch(_){ friendsList=[]; }
+let currentRoomId = null;
+let roomUnsub = null;
+let isRoomHost = false;
+let partner = null; // {x,y,hp,maxhp,face,alive,name,avatar,anim,moving,charId}
+let partnerUid = null;
+let lastPartnerSync = 0;
+let lastSelfSync = 0;
+let coopEnded = false;
 // Mode + friends UI
 function bindLobbyUI(){
   const solo=document.getElementById('modeSolo');
@@ -3242,19 +3256,7 @@ let equippedCharacter = (function(){ try{ const v=localStorage.getItem('equipped
 function saveEquippedCharacter(){ try{ localStorage.setItem('equippedCharacter', equippedCharacter||'survivor'); }catch(_){} }
 
 // ===== CO-OP / BẠN BÈ / ID NGẮN =====
-let gameMode = 'solo'; // 'solo' | 'coop'
-let coopActive = false;
-let myShortId = localStorage.getItem('myShortId') || '';
-let friendsList = [];
-try{ friendsList = JSON.parse(localStorage.getItem('friendsList')||'[]'); }catch(_){ friendsList=[]; }
-let currentRoomId = null;
-let roomUnsub = null;
-let isRoomHost = false;
-let partner = null; // {x,y,hp,maxhp,face,alive,name,avatar,anim,moving,charId}
-let partnerUid = null;
-let lastPartnerSync = 0;
-let lastSelfSync = 0;
-let coopEnded = false;
+// (co-op state được khai báo sớm phía trên để tránh lỗi TDZ)
 
 function genShortId(){
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
