@@ -599,22 +599,26 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
-// Giới hạn số chữ nổi trên màn hình để đỡ lag: số sát thương/-2% HP/TƯỚC ĐOẠT tối đa 10 cái, chữ cùng nội dung không lặp trong 0.4s
+// Giới hạn chữ nổi / particle để giảm lag
 const _txLast=Object.create(null);
 function pushText(o){
   const v=o.v, sv=(typeof v==='string')?v:'';
-  const spam=(typeof v==='number')||sv==='-2% HP'||sv==='-2%'||sv==='TƯỚC ĐOẠT!'||/^\+\d+$/.test(sv);
+  const spam=(typeof v==='number')||sv==='-2% HP'||sv==='-2%'||sv==='TƯỚC ĐOẠT!'||/^\+\d+$/.test(sv)||sv==='MIỄN NHIỄM!';
   if(spam){
     const lim=Math.max(W,H)/zoom/2*1.05;
     if(Math.abs(o.x-P.x)>lim||Math.abs(o.y-P.y)>lim) return;
     let n=0; for(let i=0;i<texts.length;i++) if(texts[i]._s) n++;
-    if(n>=10) return;
+    if(n>=8) return;
     o._s=1;
   }else{
-    if(sv){ const last=_txLast[sv]; if(last!==undefined&&T>=last&&T-last<0.4) return; _txLast[sv]=T; }
-    if(texts.length>40) return;
+    if(sv){ const last=_txLast[sv]; if(last!==undefined&&T>=last&&T-last<0.5) return; _txLast[sv]=T; }
+    if(texts.length>28) return;
   }
   texts.push(o);
+}
+function pushFx(o){
+  if(fx.length>=100) return;
+  fx.push(o);
 }
 // Khai báo global để tránh lỗi strict mode Can't find variable
 let enemies=[], gems=[], coinsArr=[], projs=[], fx=[], texts=[], bolts=[], rings=[], clouds=[], arcs=[], warns=[], eprojs=[], blackholes=[], chests=[], iceRings=[], fireTornados=[], magnets=[], drBs=[], poisonPuddles=[]; window.poisonPuddles=poisonPuddles; window._acidShotCount=0; window._acidUltCd=0;
@@ -732,7 +736,7 @@ function sfx(name){
   if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
   const now=audioCtx.currentTime;
   // Giới hạn âm thanh lặp quá nhanh khi nhiều quái bị trúng cùng lúc.
-  const minGap=({hit:.075,crit:.12,kunai:.10,drone:.09,enemy_attack:.18,player_hurt:.22})[name]??.045;
+  const minGap=({hit:.06,crit:.1,kunai:.09,acid:.08,acid_fog:.12,acid_bottle:.2,drone:.08,enemy_attack:.16,player_hurt:.2,boss_hit:.08})[name]??.04;
   if(sfxLast[name]!==undefined && now-sfxLast[name]<minGap) return;
   sfxLast[name]=now;
   const tone=(f,type,d,v,to)=>playTone(f,type,d,v,to);
@@ -748,45 +752,48 @@ function sfx(name){
     }catch(e){}
   };
   switch(name){
-    // Vũ khí người chơi
-    case 'kunai': tone(1050,'triangle',.075,.085,520); noise(.045,.035,4200,'highpass'); break;
-    case 'rocket': tone(170,'sawtooth',.32,.12,55); noise(.22,.09,700); break;
-    case 'rocket_explode': noise(.42,.23,950); tone(90,'sine',.42,.24,35); tone(180,'triangle',.22,.09,65); break;
-    case 'lightning': noise(.20,.17,5200,'highpass'); tone(115,'sawtooth',.22,.15,42); tone(780,'square',.08,.06,180); break;
-    case 'boomerang': tone(620,'sine',.16,.08,1150); tone(980,'triangle',.12,.045,520); break;
-    case 'ringz': tone(280,'sine',.3,.10,760); tone(560,'triangle',.22,.06,1120); break;
-    case 'drone': tone(740,'square',.055,.045,420); break;
-    case 'drone_laser': tone(1500,'sawtooth',.11,.07,240); noise(.08,.04,3000,'highpass'); break;
-    case 'golem_summon': tone(75,'sawtooth',.55,.18,125); tone(155,'triangle',.42,.11,65); noise(.24,.08,500); break;
-    case 'golem_attack': tone(105,'triangle',.22,.16,48); noise(.16,.10,850); break;
-    case 'golem_root': tone(190,'sine',.34,.11,420); tone(95,'triangle',.25,.07,150); break;
-    case 'tuocdoat': tone(210,'sawtooth',.38,.16,42); tone(880,'sine',.28,.12,110); noise(.28,.12,1200); break;
-    case 'hoden': tone(100,'sine',.55,.16,35); tone(320,'triangle',.5,.08,65); noise(.32,.07,550); break;
-    case 'hoden_tick': tone(180,'sine',.09,.035,90); break;
-    case 'hoden_explo': tone(65,'sawtooth',.55,.22,25); noise(.4,.18,700); break;
-    // Trúng đòn, quái thường và boss
-    case 'hit': tone(240,'triangle',.065,.045,115); break;
-    case 'crit': tone(460,'square',.10,.09,1050); tone(920,'sine',.12,.06,430); break;
-    case 'enemy_attack': tone(145,'sawtooth',.13,.065,65); noise(.09,.045,900); break;
-    case 'enemy_death': tone(300,'triangle',.14,.055,100); noise(.10,.045,1100); break;
-    case 'bomber_tick': tone(650+Math.random()*180,'square',.11,.08,260); break;
-    case 'bomber_explode': noise(.52,.25,850); tone(85,'sawtooth',.55,.28,28); tone(145,'triangle',.38,.12,40); break;
-    case 'boss_spawn': tone(55,'sawtooth',.85,.22,35); tone(110,'triangle',.75,.15,55); tone(220,'sine',.45,.08,75); break;
-    case 'boss_hit': tone(95,'triangle',.11,.07,55); break;
-    case 'boss_death': tone(180,'sawtooth',.8,.20,40); tone(90,'sine',1.0,.22,25); noise(.55,.18,500); break;
-    case 'boss_slash': noise(.24,.13,1800,'highpass'); tone(180,'sawtooth',.22,.11,55); break;
-    case 'boss_meteor_warn': tone(240,'sine',.32,.12,420); tone(120,'triangle',.42,.10,65); break;
-    case 'boss_meteor_hit': noise(.38,.20,750); tone(75,'sawtooth',.34,.18,28); break;
-    case 'boss_archer_basic': tone(980,'sine',.075,.08,650); noise(.045,.035,3600,'highpass'); break;
-    case 'boss_archer_skill1': tone(500,'sine',.10,.11,1200); tone(680,'sine',.10,.09,1400); tone(860,'sine',.13,.08,1550); break;
-    case 'boss_archer_skill2': tone(310,'sawtooth',.55,.13,85); noise(.28,.08,2400,'highpass'); break;
-    case 'boss_archer_skill3': tone(125,'triangle',.65,.16,330); tone(260,'sine',.5,.10,520); break;
-    case 'arrow_shoot': tone(1250,'sine',.06,.07,760); break;
-    case 'arrow_hit': tone(260,'triangle',.10,.09,85); noise(.06,.045,1400); break;
-    case 'archer_summon': tone(190,'sawtooth',.34,.12,480); tone(390,'sine',.28,.08,760); break;
-    case 'player_hurt': tone(190,'sawtooth',.16,.10,75); break;
-    case 'levelup': tone(420,'sine',.13,.11,660); tone(660,'sine',.18,.10,990); tone(990,'triangle',.25,.08,1320); break;
-    case 'frenzy': tone(110,'sawtooth',.48,.13,440); tone(220,'triangle',.4,.10,880); break;
+    // Vũ khí người chơi — âm sắc rõ, tách biệt từng skill
+    case 'kunai': tone(1180,'triangle',.06,.09,480); noise(.04,.04,4800,'highpass'); break;
+    case 'acid': tone(380,'sawtooth',.09,.07,160); noise(.07,.05,2200,'bandpass'); tone(720,'sine',.05,.04,400); break;
+    case 'acid_fog': noise(.28,.11,900,'lowpass'); tone(220,'sawtooth',.22,.08,90); tone(480,'sine',.18,.05,180); noise(.12,.06,2800,'highpass'); break;
+    case 'acid_bottle': tone(160,'triangle',.18,.12,70); noise(.14,.08,600); tone(520,'sine',.12,.06,220); break;
+    case 'rocket': tone(150,'sawtooth',.28,.13,48); noise(.2,.1,650); tone(90,'sine',.15,.06,40); break;
+    case 'rocket_explode': noise(.38,.22,900); tone(80,'sine',.4,.22,30); tone(160,'triangle',.2,.1,55); noise(.15,.08,2000,'highpass'); break;
+    case 'lightning': noise(.18,.18,5500,'highpass'); tone(100,'sawtooth',.2,.14,38); tone(900,'square',.07,.07,200); tone(1400,'sine',.05,.04,600); break;
+    case 'boomerang': tone(580,'sine',.14,.09,1080); tone(920,'triangle',.1,.05,480); noise(.06,.03,3000,'highpass'); break;
+    case 'ringz': tone(260,'sine',.28,.11,720); tone(520,'triangle',.2,.07,1050); tone(780,'sine',.12,.04,1400); break;
+    case 'drone': tone(820,'square',.05,.05,380); tone(1200,'sine',.04,.03,600); break;
+    case 'drone_laser': tone(1600,'sawtooth',.1,.08,220); noise(.07,.045,3200,'highpass'); tone(900,'sine',.06,.04,400); break;
+    case 'golem_summon': tone(70,'sawtooth',.5,.19,110); tone(140,'triangle',.4,.12,55); noise(.22,.09,480); tone(40,'sine',.35,.08,30); break;
+    case 'golem_attack': tone(95,'triangle',.2,.17,42); noise(.14,.11,800); tone(55,'sine',.15,.08,30); break;
+    case 'golem_root': tone(170,'sine',.32,.12,380); tone(85,'triangle',.24,.08,130); noise(.12,.05,400); break;
+    case 'tuocdoat': tone(190,'sawtooth',.35,.17,38); tone(820,'sine',.25,.13,95); noise(.25,.13,1100); tone(60,'sine',.2,.08,25); break;
+    case 'hoden': tone(90,'sine',.5,.17,30); tone(280,'triangle',.45,.09,55); noise(.28,.08,500); tone(45,'sine',.3,.06,20); break;
+    case 'hoden_tick': tone(160,'sine',.08,.04,80); break;
+    case 'hoden_explo': tone(55,'sawtooth',.5,.24,22); noise(.38,.2,650); tone(110,'triangle',.25,.1,40); break;
+    // Trúng đòn, quái & boss
+    case 'hit': tone(280,'triangle',.055,.05,100); noise(.03,.025,2500,'highpass'); break;
+    case 'crit': tone(520,'square',.09,.1,1100); tone(980,'sine',.11,.07,400); noise(.05,.04,4000,'highpass'); break;
+    case 'enemy_attack': tone(130,'sawtooth',.12,.07,55); noise(.08,.05,850); break;
+    case 'enemy_death': tone(280,'triangle',.12,.06,90); noise(.09,.05,1000); tone(150,'sine',.08,.03,60); break;
+    case 'bomber_tick': tone(600+Math.random()*200,'square',.1,.09,240); break;
+    case 'bomber_explode': noise(.48,.26,800); tone(75,'sawtooth',.5,.28,25); tone(130,'triangle',.35,.13,35); noise(.12,.08,2500,'highpass'); break;
+    case 'boss_spawn': tone(48,'sawtooth',.8,.24,30); tone(95,'triangle',.7,.16,48); tone(190,'sine',.4,.09,65); noise(.3,.1,400); break;
+    case 'boss_hit': tone(85,'triangle',.1,.08,48); noise(.05,.04,600); break;
+    case 'boss_death': tone(160,'sawtooth',.75,.22,35); tone(80,'sine',.95,.24,22); noise(.5,.2,450); tone(40,'sine',.6,.1,18); break;
+    case 'boss_slash': noise(.22,.14,1700,'highpass'); tone(160,'sawtooth',.2,.12,48); tone(90,'triangle',.15,.07,40); break;
+    case 'boss_meteor_warn': tone(220,'sine',.3,.13,400); tone(110,'triangle',.4,.11,55); tone(55,'sine',.25,.06,30); break;
+    case 'boss_meteor_hit': noise(.35,.22,700); tone(65,'sawtooth',.32,.2,25); tone(120,'triangle',.2,.1,40); break;
+    case 'boss_archer_basic': tone(1050,'sine',.065,.09,600); noise(.04,.04,3800,'highpass'); break;
+    case 'boss_archer_skill1': tone(480,'sine',.09,.12,1150); tone(650,'sine',.09,.1,1350); tone(820,'sine',.12,.09,1500); break;
+    case 'boss_archer_skill2': tone(280,'sawtooth',.5,.14,75); noise(.25,.09,2200,'highpass'); tone(90,'sine',.3,.07,40); break;
+    case 'boss_archer_skill3': tone(110,'triangle',.6,.17,300); tone(240,'sine',.45,.11,480); noise(.2,.07,800); break;
+    case 'arrow_shoot': tone(1300,'sine',.055,.08,700); noise(.03,.03,4000,'highpass'); break;
+    case 'arrow_hit': tone(240,'triangle',.09,.1,75); noise(.05,.05,1300); break;
+    case 'archer_summon': tone(175,'sawtooth',.3,.13,450); tone(360,'sine',.25,.09,720); noise(.12,.05,900); break;
+    case 'player_hurt': tone(170,'sawtooth',.14,.11,65); noise(.08,.06,700); break;
+    case 'levelup': tone(400,'sine',.12,.12,640); tone(640,'sine',.16,.11,960); tone(960,'triangle',.22,.09,1280); noise(.08,.04,2000,'highpass'); break;
+    case 'frenzy': tone(100,'sawtooth',.45,.14,420); tone(200,'triangle',.38,.11,840); tone(50,'sine',.3,.07,30); break;
     default: tone(400,'sine',.08,.08,520);
   }
 }
@@ -1441,41 +1448,37 @@ function fireWeapons(dt){
     }
 
     if(k==='acid'){
-      // Acid gun logic per spec
-      const acidDotByLv = [0,5,15,25,35,50,100]; // index = level, lv6 DOT = 50*2 =100
-      const acidDurByLv = [0,3,3.5,4,4.5,5,5]; // lv6 same as lv5 duration
+      // Acid gun: lv1-5 đạn axit; lv6 phun sương độc
+      const acidDotByLv = [0,5,15,25,35,50,100]; // lv5=50, lv6 DOT = 2x =100
+      const acidDurByLv = [0,3,3.5,4,4.5,5,5];
       const isUlt = l>=6;
       const baseKunaiDmg = (12+4*Math.min(l,5))*(1+0.10*(Math.min(l,5)-1));
-      const acidDmg = baseKunaiDmg*1.10 * (isUlt?2.5:1); // lv6 2.5x lv5 bullet
+      const acidDmg = baseKunaiDmg*1.10 * (isUlt?2.5:1); // lv6 dame 2.5x đạn lv5
       const baseCd = (.85-.06*Math.min(l,5));
-      const acidCd = baseCd*1.05; // slower 5%
+      const acidCd = baseCd*1.05;
       if(isUlt){
-        // Ultimate: phun sương độc (smoke) - tạo cone 5 tia + hiệu ứng khói
-        sfx('kunai');
+        // Ultimate: phun nón sương độc + khói xanh lá
+        sfx('acid_fog');
         const tg=nearest(1,520);
         if(!tg.length){cd[k]=.15;continue;}
         const baseAng = Math.atan2(tg[0].y-P.y, tg[0].x-P.x);
-        // phun 7 tia sương tạo hình nón 45 độ
         for(let i=0;i<7;i++){
           const spread = (i-3)*0.18;
-          const a = baseAng + spread + rnd(-0.08,0.08);
+          const a = baseAng + spread + rnd(-0.06,0.06);
           const dmg = acidDmg + rnd(-2,2);
-          const dot = acidDotByLv[5]*2; // 100
+          const dot = acidDotByLv[5]*2; // 100 = 2x DOT lv5
           const dur = acidDurByLv[5];
-          // sương bay chậm, rộng
-          projs.push({k:'acid',x:P.x,y:P.y,vx:Math.cos(a)*320,vy:Math.sin(a)*320,a,dmg,hit:new Set(),life:1.5,r:18,acid:true,fog:true,dot:dot,dur:dur,slow:isUlt?0.05:0});
+          projs.push({k:'acid',x:P.x,y:P.y,vx:Math.cos(a)*300,vy:Math.sin(a)*300,a,dmg,hit:new Set(),life:1.6,r:20,acid:true,fog:true,dot:dot,dur:dur,slow:0.05,pierce:3});
         }
-        // thêm fx khói xanh lá
-        for(let i=0;i<6;i++){
-          fx.push({x:P.x+Math.cos(baseAng+rnd(-0.4,0.4))*rnd(10,30), y:P.y+Math.sin(baseAng+rnd(-0.4,0.4))*rnd(10,30), vx:Math.cos(baseAng)*rnd(40,90)+rnd(-20,20), vy:Math.sin(baseAng)*rnd(40,90)+rnd(-20,20), t:0.8, c:'#22c55e', r:rnd(4,8), fog:true});
+        // khói xanh lá (giới hạn số particle)
+        if(fx.length<80){
+          for(let i=0;i<5;i++){
+            fx.push({x:P.x+Math.cos(baseAng+rnd(-0.5,0.5))*rnd(8,28), y:P.y+Math.sin(baseAng+rnd(-0.5,0.5))*rnd(8,28), vx:Math.cos(baseAng)*rnd(35,80)+rnd(-25,25), vy:Math.sin(baseAng)*rnd(35,80)+rnd(-25,25), t:0.7, c:'#22c55e', r:rnd(5,10), fog:true});
+          }
         }
-        cd[k]=acidCd * (isUlt?0.65:1) * getCdrMul(); // ultimate bắn nhanh hơn chút do phun sương
-        // Special: mỗi 5s phóng 5 bình độc to
-        if(!window._acidUltTimer) window._acidUltTimer=0;
-        window._acidUltTimer+=0.016; // approx will be updated via dt? We'll use separate timer
+        cd[k]=acidCd * 0.7 * getCdrMul();
       }else{
-        // Normal mode
-        sfx('kunai');
+        sfx('acid');
         const tg=nearest(1,480);
         if(!tg.length){cd[k]=.1;continue;}
         const base=Math.atan2(tg[0].y-P.y,tg[0].x-P.x),n=at([1,2,2,3,4],l);
@@ -1485,15 +1488,13 @@ function fireWeapons(dt){
           const a=base+(i-(n-1)/2)*.12;
           const dot = acidDotByLv[Math.min(l,5)];
           const dur = acidDurByLv[Math.min(l,5)];
-          const slow = 0; // dưới lv6 không làm chậm theo yêu cầu
-          projs.push({k:'acid',x:P.x,y:P.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg:acidDmg,hit:new Set(),life:1.8,r:12,acid:true,dot:dot,dur:dur,slow:slow,shotIdx:window._acidShotCount});
-          // mỗi đòn thứ 4: bắn ra bãi độc nhỏ phía trước
-          if(window._acidShotCount%4===0){
+          projs.push({k:'acid',x:P.x,y:P.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg:acidDmg,hit:new Set(),life:1.8,r:12,acid:true,dot:dot,dur:dur,slow:0,pierce:1});
+          if(window._acidShotCount%4===0 && (window.poisonPuddles||[]).length<12){
             const px = P.x + Math.cos(a)*70;
             const py = P.y + Math.sin(a)*70;
             if(!window.poisonPuddles) window.poisonPuddles=[];
             window.poisonPuddles.push({x:px,y:py,r:38,life:3.5,T:3.5,dmg:dot*0.6,dot:dot*0.5,dur:2,small:true,ph:rnd(0,6.28)});
-            fx.push({x:px,y:py,ring:38,t:.5,T:.5,c:'#22c55e'});
+            if(fx.length<80) fx.push({x:px,y:py,ring:38,t:.4,T:.4,c:'#22c55e'});
           }
         }
         cd[k]=acidCd * getCdrMul();
@@ -1690,24 +1691,26 @@ function fireWeapons(dt){
     }
   }
 
-  // Acid ultimate: mỗi 5s phóng 5 bình độc to
+  // Acid ultimate: mỗi 5s phóng 5 bình độc to → bãi độc 7.5s, dame 3x lv5, chậm 5%
   if(lv.acid>=6){
     if(!window._acidUltCd) window._acidUltCd=0;
     window._acidUltCd-=dt;
     if(window._acidUltCd<=0){
       window._acidUltCd=5;
       const tgList = nearest(5, 600);
-      const acidDotByLv = [0,5,15,25,35,50,100];
+      // dame bình = 3x dame đạn lv5
+      const baseLv5 = (12+4*5)*(1+0.10*4)*1.10;
+      const bottleDmg = baseLv5 * 3;
+      const bottleDot = 50 * 2; // 2x DOT lv5
       for(let i=0;i<5;i++){
-        const tgt = tgList[i%tgList.length];
+        const tgt = tgList[i] || tgList[i%Math.max(1,tgList.length)];
         let tx,ty;
-        if(tgt){ tx=tgt.x; ty=tgt.y; } else { tx=P.x+rnd(-180,180); ty=P.y+rnd(-180,180); }
-        // bình độc to bay tới
+        if(tgt){ tx=tgt.x+rnd(-20,20); ty=tgt.y+rnd(-20,20); } else { tx=P.x+rnd(-180,180); ty=P.y+rnd(-180,180); }
         const a=Math.atan2(ty-P.y, tx-P.x);
-        projs.push({k:'acidBottle',x:P.x,y:P.y,vx:Math.cos(a)*340,vy:Math.sin(a)*340,a,dmg:(22+6*5)*1.1*2.5*3,hit:new Set(),life:2.2,r:14,acid:true,bottle:true,big:true,dot:acidDotByLv[5]*2*1.2, dur:5, slow:0.05, tx,ty});
+        projs.push({k:'acidBottle',x:P.x,y:P.y,vx:Math.cos(a)*340,vy:Math.sin(a)*340,a,dmg:bottleDmg,hit:new Set(),life:2.2,r:14,acid:true,bottle:true,big:true,dot:bottleDot,dur:5,slow:0.05,tx,ty});
       }
       pushText({x:P.x,y:P.y-50,v:'MƯA BÌNH ĐỘC!',t:1,c:true,big:true});
-      sfx('rocket');
+      sfx('acid_bottle');
     }
   }
   // apply cdr to other weapons cd set earlier - we patch generic by multiplying at assignment? We'll handle per weapon above, generic fallback:
@@ -1766,35 +1769,50 @@ function updateProjs(dt){
       p.x+=p.vx*dt;p.y+=p.vy*dt;
       if(p.a!==undefined&&p.k!=='boomerang')p.a=Math.atan2(p.vy,p.vx);
     }
-    if(p.life<=0){if(p.k==='rocket')explode(p);p.dead=true;continue;}
     if(p.k==='acidBottle'){
-      p.life-=dt;
-      p.x+=p.vx*dt; p.y+=p.vy*dt;
-      if(p.life<=0 || Math.hypot(p.tx-p.x,p.ty-p.y)<20){
-        // nổ tạo bãi độc to 7.5s
+      if(p.life<=0 || (p.tx!==undefined && Math.hypot(p.tx-p.x,p.ty-p.y)<24)){
         if(!window.poisonPuddles) window.poisonPuddles=[];
-        window.poisonPuddles.push({x:p.x,y:p.y,r:92,life:7.5,T:7.5,dmg:p.dmg*0.4,dot:p.dot, dur:p.dur||5, slow:p.slow||0.05, big:true, ph:rnd(0,6.28)});
-        fx.push({x:p.x,y:p.y,ring:92,t:.7,T:.7,c:'#22c55e'});
-        fx.push({x:p.x,y:p.y,ring:52,t:.5,T:.5,c:'#4ade80'});
-        for(let i=0;i<8;i++) fx.push({x:p.x,y:p.y,vx:rnd(-80,80),vy:rnd(-80,80),t:.6,c:'#22c55e',r:rnd(2,5)});
-        // dame xung quanh
-        for(const e of enemies){ if(Math.hypot(e.x-p.x,e.y-p.y)<92+e.r){ hitEnemy(e,p.dmg,e.x-p.x,e.y-p.y); e.acidDot=p.dot; e.acidTime=p.dur; e.slowT=1.2; } }
+        if(window.poisonPuddles.length<16){
+          window.poisonPuddles.push({x:p.x,y:p.y,r:92,life:7.5,T:7.5,dmg:p.dmg*0.35,dot:p.dot,dur:p.dur||5,slow:p.slow||0.05,big:true,ph:rnd(0,6.28)});
+        }
+        if(fx.length<90){
+          fx.push({x:p.x,y:p.y,ring:92,t:.55,T:.55,c:'#22c55e'});
+          fx.push({x:p.x,y:p.y,ring:48,t:.4,T:.4,c:'#4ade80'});
+          for(let i=0;i<5;i++) fx.push({x:p.x,y:p.y,vx:rnd(-70,70),vy:rnd(-70,70),t:.5,c:'#22c55e',r:rnd(2,5)});
+        }
+        for(const e of enemies){
+          if(e.dead) continue;
+          if(Math.hypot(e.x-p.x,e.y-p.y)<92+e.r){
+            hitEnemy(e,p.dmg,e.x-p.x,e.y-p.y);
+            e.acidDot=Math.max(e.acidDot||0,p.dot||10);
+            e.acidTime=Math.max(e.acidTime||0,p.dur||5);
+            e.acidStacks=(e.acidStacks||0)+1;
+            if(p.slow>0){ e.slowT=Math.max(e.slowT||0,1.2); e.slowFactor=Math.max(e.slowFactor||0,p.slow); }
+          }
+        }
         p.dead=true;
       }
       continue;
     }
+    if(p.life<=0){if(p.k==='rocket')explode(p);p.dead=true;continue;}
     if(p.acid){
       for(const e of enemies){
         if(e.dead||p.hit.has(e))continue;
-        if(Math.hypot(e.x-p.x,e.y-p.y)<e.r+p.r+8){
+        if(Math.hypot(e.x-p.x,e.y-p.y)<e.r+p.r+(p.fog?12:8)){
           p.hit.add(e);
           hitEnemy(e,p.dmg, p.vx, p.vy);
-          e.acidDot = (p.dot||10);
-          e.acidTime = (p.dotT||2.5);
+          e.acidDot = Math.max(e.acidDot||0, p.dot||10);
+          e.acidTime = Math.max(e.acidTime||0, p.dur||2.5);
           e.acidTick = 0;
-          e.slowT = Math.max(e.slowT||0, 0.8);
-          p.pierce--; if(p.pierce<=0){p.dead=true; break;}
-          fx.push({x:e.x,y:e.y,ring:18,t:.3,T:.3,c:'#22d3ee'});
+          e.acidStacks = (e.acidStacks||0)+1;
+          // chỉ lv6 (slow>0) mới làm chậm
+          if(p.slow>0){
+            e.slowT = Math.max(e.slowT||0, 1.0);
+            e.slowFactor = Math.max(e.slowFactor||0, p.slow);
+          }
+          p.pierce = (p.pierce||1)-1;
+          if(p.pierce<=0){p.dead=true; break;}
+          if(fx.length<90) fx.push({x:e.x,y:e.y,ring:p.fog?22:16,t:.25,T:.25,c:'#22c55e'});
         }
       }
       continue;
@@ -1860,6 +1878,7 @@ function updateProjs(dt){
     }
   }
   projs=projs.filter(p=>!p.dead);
+  if(projs.length>140) projs.splice(0,projs.length-140);
 }
 function update(dt){
   T+=dt;
@@ -2322,18 +2341,25 @@ function update(dt){
     if(e.slowT>0){
       e.slowT-=dt;
       if(e.freeze) slowMul=0;
-      else slowMul=0.4; // chậm 60%
-      if(e.slowT<=0){ e.slowT=0; e.freeze=false; }
+      else if(e.slowFactor>0) slowMul = Math.max(0.3, 1 - e.slowFactor); // acid 5% → 0.95
+      else slowMul=0.4; // chậm mặc định 60%
+      if(e.slowT<=0){ e.slowT=0; e.freeze=false; e.slowFactor=0; }
     }
     if(e.acidTime>0){
       e.acidTime-=dt;
       e.acidTick=(e.acidTick||0)-dt;
       if(e.acidTick<=0){
         e.acidTick=0.35;
-        hitEnemy(e, e.acidDot||10, 0,0);
-        fx.push({x:e.x+rnd(-4,4),y:e.y+rnd(-4,4),t:.3,c:'#22d3ee',r:3});
+        let tickDmg = e.acidDot||10;
+        // mỗi stack độc trừ thêm 0.1% máu boss
+        if(e.t==='b'){
+          const stacks = Math.max(1, e.acidStacks||1);
+          tickDmg += e.max * 0.001 * stacks;
+        }
+        hitEnemy(e, tickDmg, 0,0);
+        if(fx.length<70) fx.push({x:e.x+rnd(-4,4),y:e.y+rnd(-4,4),t:.25,c:'#22c55e',r:3});
       }
-      if(e.acidTime<=0){ e.acidDot=0; }
+      if(e.acidTime<=0){ e.acidDot=0; e.acidStacks=0; }
     }
     if(e.inBH) e.inBH=Math.max(0,e.inBH-dt);
     let vx=(P.x-e.x)/d*e.sp*fsp*slowMul*chase+e.kx,vy=(P.y-e.y)/d*e.sp*fsp*slowMul*chase+e.ky;
@@ -2407,27 +2433,6 @@ function update(dt){
     enemies=keep.length>170?keep:enemies.slice(-170);
   }
   const mag=60+40*ps.mag;
-  // render poison puddles
-  if(window.poisonPuddles){
-    for(const pud of window.poisonPuddles){
-      ctx.save(); ctx.translate(pud.x,pud.y);
-      const prog = pud.life/pud.T;
-      ctx.globalAlpha = 0.35*prog + 0.15;
-      const grad=ctx.createRadialGradient(0,0,pud.r*0.1,0,0,pud.r);
-      if(pud.big){
-        grad.addColorStop(0,'rgba(34,197,94,0.9)'); grad.addColorStop(0.5,'rgba(22,101,52,0.5)'); grad.addColorStop(1,'rgba(22,101,52,0)');
-      }else{
-        grad.addColorStop(0,'rgba(74,222,128,0.7)'); grad.addColorStop(1,'rgba(34,197,94,0)');
-      }
-      ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(0,0,pud.r,0,7); ctx.fill();
-      // bubbles
-      for(let i=0;i<3;i++){
-        const ang=pud.ph+i*2.1; ctx.fillStyle='rgba(134,239,172,0.6)';
-        ctx.beginPath(); ctx.arc(Math.cos(ang)*pud.r*0.4, Math.sin(ang)*pud.r*0.3, 3,0,7); ctx.fill();
-      }
-      ctx.restore();
-    }
-  }
   for(const g of gems){
     const d=Math.hypot(P.x-g.x,P.y-g.y);
     if(d<mag)g.m=true;
@@ -2457,28 +2462,7 @@ function update(dt){
     if(d<22){
       m.dead=true;
       // hút tất cả exp trên map
-      // render poison puddles
-  if(window.poisonPuddles){
-    for(const pud of window.poisonPuddles){
-      ctx.save(); ctx.translate(pud.x,pud.y);
-      const prog = pud.life/pud.T;
-      ctx.globalAlpha = 0.35*prog + 0.15;
-      const grad=ctx.createRadialGradient(0,0,pud.r*0.1,0,0,pud.r);
-      if(pud.big){
-        grad.addColorStop(0,'rgba(34,197,94,0.9)'); grad.addColorStop(0.5,'rgba(22,101,52,0.5)'); grad.addColorStop(1,'rgba(22,101,52,0)');
-      }else{
-        grad.addColorStop(0,'rgba(74,222,128,0.7)'); grad.addColorStop(1,'rgba(34,197,94,0)');
-      }
-      ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(0,0,pud.r,0,7); ctx.fill();
-      // bubbles
-      for(let i=0;i<3;i++){
-        const ang=pud.ph+i*2.1; ctx.fillStyle='rgba(134,239,172,0.6)';
-        ctx.beginPath(); ctx.arc(Math.cos(ang)*pud.r*0.4, Math.sin(ang)*pud.r*0.3, 3,0,7); ctx.fill();
-      }
-      ctx.restore();
-    }
-  }
-  for(const g of gems){ g.m=true; g.t=0; }
+      for(const g of gems){ g.m=true; g.t=0; }
       for(const c of coinsArr){ c.m=true; }
       pushText({x:P.x,y:P.y-40,v:'HÚT HẾT EXP!',t:1.5,c:true,big:true});
       fx.push({x:P.x,y:P.y,ring:120,t:.5,T:.5,c:'#00e5ff'});
@@ -2494,8 +2478,7 @@ function update(dt){
   if(window.poisonPuddles){
     for(const pud of window.poisonPuddles){
       pud.life-=dt;
-      pud.ph+=dt;
-      // damage enemies inside
+      pud.ph+=dt*1.2;
       for(const e of enemies){
         if(e.dead) continue;
         if(Math.hypot(e.x-pud.x,e.y-pud.y)<pud.r+e.r){
@@ -2503,14 +2486,18 @@ function update(dt){
             hitEnemy(e, pud.dmg||5, 0,0);
             e.acidDot = Math.max(e.acidDot||0, pud.dot||5);
             e.acidTime = Math.max(e.acidTime||0, pud.dur||2);
-            e.slowT = Math.max(e.slowT||0, pud.slow||0);
-            e.pudHitCd=0.5;
-            if(pud.slow) e.slowFactor = pud.slow;
+            e.acidStacks = (e.acidStacks||0)+1;
+            e.pudHitCd=0.45;
+            if(pud.slow>0){
+              e.slowT = Math.max(e.slowT||0, 1.0);
+              e.slowFactor = Math.max(e.slowFactor||0, pud.slow);
+            }
           }
         }
       }
     }
     window.poisonPuddles=window.poisonPuddles.filter(p=>p.life>0);
+    if(window.poisonPuddles.length>16) window.poisonPuddles=window.poisonPuddles.slice(-16);
     poisonPuddles=window.poisonPuddles;
   }
   for(const e of enemies){ if(e.pudHitCd) e.pudHitCd-=dt; }
@@ -2533,6 +2520,7 @@ function update(dt){
   chests=chests.filter(ch=>!ch.dead);
   for(const f of fx){f.t-=dt;if(f.vx!==undefined){f.x+=f.vx*dt;f.y+=f.vy*dt;}}
   fx=fx.filter(f=>f.t>0);
+  if(fx.length>100) fx.splice(0,fx.length-100);
   // Giới hạn hiệu ứng chữ/particule để Android không bị nghẽn render.
   if(fx.length>260) fx.splice(0,fx.length-260);
   if(texts.length>90) texts.splice(0,texts.length-90);
