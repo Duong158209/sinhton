@@ -622,7 +622,7 @@ let bossIdx=0, lastBossHp=5000, lastBossDmg=250;
 let T=0, kills=0, coins=0, spawnAcc=0, burstT=30, shake=0, bossT=90;
 let P={}; let lv={}, ps={}, cd={};
 let droneSt={}, golemSt={};
-let kr={}, auraT=0, firstPick=true, bonusPicks=0, magnetT=25, monsterScale=1, monsterHpScale=1, monsterDmgScale=1, lastScaleT=120, frenzyNext=195, frenzyActive=false, frenzyT=0, frenzyDuration=18, frenzyCount=0, tuocdoatProcT=5;
+let kr={}, auraT=0, firstPick=true, bonusPicks=0, magnetT=25, monsterScale=1, monsterHpScale=1, monsterDmgScale=1, lastScaleT=120, frenzyNext=120, frenzyActive=false, frenzyT=0, frenzyDuration=18, frenzyCount=0, tuocdoatProcT=5;
 
 const golemImg=new Image(); golemImg.src=''; // removed large image to fix freeze - use procedural
 let golemAttackFx=0, golemRootFx=0;
@@ -672,6 +672,7 @@ const bossSkillMul=()=>(T<EARLY_BOSS_T?EARLY_BOSS_SKILL_MUL:0.90); // giảm th�
 const LS=[0,.01,.02,.03],LS_TXT=[1,2,3];
 const EVO={
   kunai:{n:'Vòng Kunai Bất Tận',ic:'🌪️',d:'TIẾN HÓA: liên tục phóng vòng 32 kunai ra ngoài rồi thu về ngay lập tức, sát thương x4.'},
+  acid:{n:'Sương Độc Ăn Mòn',ic:'☣️',d:'TIẾN HÓA: phun nón 7 tia sương độc, tạo khói xanh diện rộng, sát thương độc và làm chậm mạnh hơn.'},
   rocket:{n:'Mưa Tên Lửa',ic:'☄️',d:'TIẾN HÓA: mỗi 4s gọi mưa 5 tên lửa khổng lồ từ trên trời rơi xuống, nổ cực lớn.'},
   lightning:{n:'Mây Bão Khổng Lồ',ic:'🌩️',d:'TIẾN HÓA: triệu hồi 4 đám mây khổng lồ sống 10s, giật lan 10 mục tiêu.'},
   boomerang:{n:'Boomerang Bão Tố',ic:'💫',d:'TIẾN HÓA: 3 boomerang khổng lồ nảy liên tục giữa 15 mục tiêu.'},
@@ -693,7 +694,7 @@ let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true;
 function reset(){
   P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];iceRings=[];
-  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=195;frenzyActive=false;frenzyT=0;frenzyDuration=18;frenzyCount=0;tuocdoatProcT=5;
+  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=120;frenzyActive=false;frenzyT=0;frenzyDuration=18;frenzyCount=0;tuocdoatProcT=5;
   lv={}; lv[equippedWeapon||'kunai']=1;ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0,crit:0,cdr:0,armor:0};
   window.lastPlayerBuffT=120; window.playerBonusDmg=0;
   cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0,hoden:0,ice:0};
@@ -1888,7 +1889,7 @@ function update(dt){
     frenzyActive=true;
     frenzyT=frenzyDuration;
     frenzyCount++;
-    pushText({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +100% HP -65% Dame +30% Tốc chạy!',t:3,c:true,big:true});
+    pushText({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Đợt mới mỗi 60 giây - quái +30% tốc chạy!',t:3,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff0000'});
     shake=12;
     if(typeof sfx==='function') sfx('frenzy');
