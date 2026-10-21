@@ -236,6 +236,27 @@
   </div>
   <div class="lobby-brand"><h1>SURVIVAL</h1><p>CHỌN ĐIỂM ĐẾN · SỐNG SÓT</p></div>
   <div class="map-panel"><div class="map-badge">🗺️ MAP HIỆN TẠI · ĐÃ MỞ</div><div class="map-info"><h2>Thành phố đổ nát</h2><p>Đối mặt với từng đợt zombie và trụ vững lâu nhất có thể.</p></div></div>
+  <div id="modeSelect" style="display:flex;gap:8px;max-width:440px;align-self:center;width:100%">
+    <button type="button" class="mode-btn active" data-mode="solo" id="modeSolo" style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid #ffc04a;background:linear-gradient(160deg,#3a2f12,#202c40);color:#ffd23a;font-weight:900;cursor:pointer">🧍 Solo</button>
+    <button type="button" class="mode-btn" data-mode="coop" id="modeCoop" style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid #43536e;background:#202c40;color:#c9d4e8;font-weight:900;cursor:pointer">👥 Co-op (2 người)</button>
+  </div>
+  <div id="coopPanel" style="display:none;max-width:440px;align-self:center;width:100%;background:#101827f5;border:1px solid #52627d;border-radius:14px;padding:12px;margin-top:4px">
+    <div style="font-weight:900;color:#8fd7ff;margin-bottom:8px">Co-op · Mời bạn</div>
+    <div style="font-size:12px;color:#9eacc9;margin-bottom:8px">ID của bạn: <b id="myShortIdDisp" style="color:#ffd23a">----</b>
+      <button type="button" id="copyShortId" class="lobby-close" style="margin-left:6px;padding:3px 8px;font-size:11px">Sao chép</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input id="friendIdInput" placeholder="ID bạn bè (6 ký tự)" maxlength="8" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid #43536e;background:#0e1528;color:#fff;font-weight:700">
+      <button type="button" id="addFriendBtn" class="lobby-close" style="background:#3b82f6">+ Bạn</button>
+    </div>
+    <div id="friendsList" style="display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto;margin-bottom:8px;font-size:12px;color:#b9c7dc"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button type="button" id="createRoomBtn" class="btn" style="flex:1;min-width:120px;padding:10px;font-size:14px">Tạo phòng</button>
+      <input id="roomCodeInput" placeholder="Mã phòng" maxlength="6" style="width:90px;padding:8px;border-radius:8px;border:1px solid #43536e;background:#0e1528;color:#fff;font-weight:800;text-align:center">
+      <button type="button" id="joinRoomBtn" class="lobby-close" style="background:#22c55e">Vào</button>
+    </div>
+    <div id="roomStatus" style="margin-top:8px;font-size:12px;color:#9eacc9;min-height:18px"></div>
+  </div>
   <button class="btn" id="lobbyStart" onclick="">▶ BẮT ĐẦU</button>
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
   <div id="leaderboardBox" style="background:linear-gradient(160deg,#1a2744,#121c32);border:1px solid #4a5a7a;border-radius:14px;padding:10px 10px 6px;box-shadow:0 4px 0 #0b1220;margin-bottom:6px">
@@ -581,6 +602,9 @@ auth.onAuthStateChanged(async (user) => {
       const profileSnap = await ref.get();
       const profileData = profileSnap.exists ? profileSnap.data() : {};
       accountAvatar = profileData.avatar || '🧑';
+      if(profileData.shortId){ myShortId = profileData.shortId; try{ localStorage.setItem('myShortId', myShortId); }catch(_){} }
+      else { ensureShortId(); }
+      if(Array.isArray(profileData.friends)){ friendsList = profileData.friends; saveFriendsLocal(); }
       refreshLobbyProfile(nm);
     }catch(_){}
   } else {
@@ -1054,7 +1078,34 @@ function bindStartButtons(){
 }
 bindStartButtons();
 const _lobbyStartBtn = $('lobbyStart');
-if(_lobbyStartBtn){ _lobbyStartBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
+if(_lobbyStartBtn){ _lobbyStartBtn.onclick = (e)=>{ e.preventDefault();
+  if(gameMode==='coop'){
+    if(!currentUser){ alert('Co-op cần đăng nhập'); return; }
+    if(!currentRoomId){ alert('Tạo hoặc vào phòng Co-op trước'); return; }
+    coopActive = true; coopEnded = false;
+    // host báo playing
+    try{ db.collection('rooms').doc(currentRoomId).set({ status:'playing', startedAt:Date.now() }, {merge:true}); }catch(_){}
+  }else{ coopActive=false; partner=null; }
+  startGame();
+}; }
+// Mode + friends UI
+document.getElementById('modeSolo')?.addEventListener('click',()=>setGameMode('solo'));
+document.getElementById('modeCoop')?.addEventListener('click',()=>setGameMode('coop'));
+document.getElementById('addFriendBtn')?.addEventListener('click',()=>{
+  const v=document.getElementById('friendIdInput')?.value||'';
+  addFriendById(v);
+});
+document.getElementById('createRoomBtn')?.addEventListener('click',()=>createCoopRoom());
+document.getElementById('joinRoomBtn')?.addEventListener('click',()=>{
+  joinCoopRoom(document.getElementById('roomCodeInput')?.value||'');
+});
+document.getElementById('copyShortId')?.addEventListener('click',()=>{
+  ensureShortId().then(id=>{
+    if(navigator.clipboard) navigator.clipboard.writeText(id);
+    const b=document.getElementById('copyShortId'); if(b) b.textContent='Đã chép ✓';
+  });
+});
+ensureShortId();
 const _startBtn = $('startBtn');
 if(_startBtn){ _startBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
 const lobbyPanelData={
@@ -1351,6 +1402,11 @@ function spawnEnemy(forceType,px,py){
   if(e.t!=='b') e.dmg*=0.85;
   // Trong điên loạn: toàn bộ boss và quái bị giảm thêm 30% máu.
   if(frenzyActive) e.hp*=0.70;
+  // Co-op: quái/boss trâu x1.5, dame +5%
+  if(typeof coopActive!=='undefined' && coopActive){
+    e.hp*=1.5; e.max=e.hp;
+    e.dmg=(e.dmg||10)*1.05;
+  }
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
   if(px!==undefined){e.x=px;e.y=py;}
@@ -2146,22 +2202,23 @@ function update(dt){
   if(Math.abs(dx)>.1)P.face=dx>0?1:-1;
   P.anim+=dt*(P.moving?12:3);
   P.hurt=Math.max(0,P.hurt-dt);P.inv=Math.max(0,(P.inv||0)-dt);
-  const frenzySpawnMult = frenzyActive ? 1.35 : 1;
+  const frenzySpawnMult = (frenzyActive ? 1.35 : 1) * ((typeof coopActive!=='undefined' && coopActive && frenzyActive) ? 3 : 1);
   spawnAcc+=dt*((T<60?2.4:1.2+T/9)*frenzySpawnMult);
   while(spawnAcc>=1){spawnAcc--;spawnEnemy();}
   burstT-=dt;
   if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?1.35:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(frenzyActive?1.25:1)); for(let i=0;i<n;i++)spawnEnemy();}
   fireWeapons(dt);
   if(T>=bossT){
-    bossT+= Math.max(35, 70 - T/20); // boss ra nhanh hơn về sau, từ 60s giảm xuống 35s
-    spawnEnemy('b');
-    if(T>=210 && Math.random()<0.12){
+    bossT+= Math.max(35, 70 - T/20);
+    const bossN = (typeof coopActive!=='undefined' && coopActive) ? 4 : 1;
+    for(let bi=0;bi<bossN;bi++) spawnEnemy('b');
+    if(!(coopActive) && T>=210 && Math.random()<0.12){
       spawnEnemy('b');
       pushText({x:P.x,y:P.y-50,v:'⚠⚠ DOUBLE BOSS!!',t:2.5,c:true,big:true});
       fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff00ff'});
       shake=15;
     }
-    pushText({x:P.x,y:P.y-50,v:((bossIdx-1)%2?'⚠ BOSS PHÁP SƯ #':'⚠ BOSS #')+bossIdx+' XUẤT HIỆN!',t:2.2,c:true,big:true});}
+    pushText({x:P.x,y:P.y-50,v: coopActive ? ('⚠ CO-OP: 4 BOSS ĐỢT #'+bossIdx+'!') : (((bossIdx-1)%2?'⚠ BOSS PHÁP SƯ #':'⚠ BOSS #')+bossIdx+' XUẤT HIỆN!'),t:2.2,c:true,big:true});}
   updateProjs(dt);
   if(lv.kunai>=6){
     kr.t+=dt;
@@ -2560,15 +2617,20 @@ function update(dt){
   for(const e of enemies){
     if(e.dead)continue;
     if(e.rooted>0){ e.rooted-=dt; continue; }
-    const d=Math.hypot(P.x-e.x,P.y-e.y)||1;
+    // Co-op: nhắm người chơi gần nhất (không gây dame lẫn nhau)
+    let _tx=P.x,_ty=P.y;
+    if(typeof coopActive!=='undefined'&&coopActive&&partner&&partner.alive&&typeof nearestPlayerPos==='function'){
+      const np=nearestPlayerPos(e.x,e.y); _tx=np.x; _ty=np.y;
+    }
+    const d=Math.hypot(_tx-e.x,_ty-e.y)||1;
     const chase=e.t==='r'?(d>190?1:d<140?-.8:0):(e.t==='b'&&e.bt==='r')?(d>300?1:d<220?-.9:0):1;
-    const fsp=(frenzyActive&&e.t!=='b')?1.3:1; // điên loạn: quái thường +30% tốc chạy (boss không bị ảnh hưởng)
+    const fsp=(frenzyActive&&e.t!=='b')?1.3:1;
     let slowMul=1;
     if(e.slowT>0){
       e.slowT-=dt;
       if(e.freeze) slowMul=0;
-      else if(e.slowFactor>0) slowMul = Math.max(0.3, 1 - e.slowFactor); // acid 5% → 0.95
-      else slowMul=0.4; // chậm mặc định 60%
+      else if(e.slowFactor>0) slowMul = Math.max(0.3, 1 - e.slowFactor);
+      else slowMul=0.4;
       if(e.slowT<=0){ e.slowT=0; e.freeze=false; e.slowFactor=0; }
     }
     if(e.acidTime>0){
@@ -2577,7 +2639,6 @@ function update(dt){
       if(e.acidTick<=0){
         e.acidTick=0.35;
         let tickDmg = e.acidDot||10;
-        // mỗi stack độc trừ thêm 0.01% máu boss (nerf lv6)
         if(e.t==='b'){
           const stacks = Math.max(1, e.acidStacks||1);
           tickDmg += e.max * 0.0001 * stacks;
@@ -2588,8 +2649,8 @@ function update(dt){
       if(e.acidTime<=0){ e.acidDot=0; e.acidStacks=0; }
     }
     if(e.inBH) e.inBH=Math.max(0,e.inBH-dt);
-    let vx=(P.x-e.x)/d*e.sp*fsp*slowMul*chase+e.kx,vy=(P.y-e.y)/d*e.sp*fsp*slowMul*chase+e.ky;
-    if(e.t==='r'){e.sh-=dt;if(e.sh<=0&&d<340){e.sh=6.6+rnd(0,1.8);sfx('enemy_attack');eprojs.push({x:e.x,y:e.y,vx:(P.x-e.x)/d*190,vy:(P.y-e.y)/d*190,dmg:e.dmg,life:3,r:5,c:'acid'});}} // giảm tốc đánh 2 lần
+    let vx=(_tx-e.x)/d*e.sp*fsp*slowMul*chase+e.kx,vy=(_ty-e.y)/d*e.sp*fsp*slowMul*chase+e.ky;
+    if(e.t==='r'){e.sh-=dt;if(e.sh<=0&&d<340){e.sh=6.6+rnd(0,1.8);sfx('enemy_attack');eprojs.push({x:e.x,y:e.y,vx:(_tx-e.x)/d*190,vy:(_ty-e.y)/d*190,dmg:e.dmg,life:3,r:5,c:'acid'});}}
     e.kx*=Math.pow(.001,dt);e.ky*=Math.pow(.001,dt);
     const cx=Math.floor(e.x/22),cy=Math.floor(e.y/22);
     for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){
@@ -2747,6 +2808,13 @@ function update(dt){
   for(const f of fx){f.t-=dt;if(f.vx!==undefined){f.x+=f.vx*dt;f.y+=f.vy*dt;}}
   fx=fx.filter(f=>f.t>0);
   if(fx.length>100) fx.splice(0,fx.length-100);
+  // Co-op tối ưu: giới hạn entity tránh lag 2 người
+  if(typeof coopActive!=='undefined' && coopActive){
+    if(enemies.length>90) enemies = enemies.filter(e=>!e.dead).slice(-90);
+    if(projs.length>70) projs=projs.slice(-70);
+    if(texts.length>40) texts=texts.slice(-40);
+    if(fx.length>60) fx=fx.slice(-60);
+  }
   // Giới hạn hiệu ứng chữ/particule để Android không bị nghẽn render.
   if(fx.length>260) fx.splice(0,fx.length-260);
   if(texts.length>90) texts.splice(0,texts.length-90);
@@ -2756,7 +2824,7 @@ function update(dt){
   bolts=bolts.filter(b=>b.t>0);
   shake=Math.max(0,shake-dt*12);
   updateHud();
-  if(P.hp<=0){ if((ps.armor||0)>=6 && armorDeathReady && triggerArmorDeathSave()){ P.hp=Math.max(P.hp, P.maxhp*0.5); }else{ gameOver(); } }
+  if(P.hp<=0){ if((ps.armor||0)>=6 && armorDeathReady && triggerArmorDeathSave()){ P.hp=Math.max(P.hp, P.maxhp*0.5); }else{ if(typeof coopActive!=='undefined'&&coopActive&&typeof reportCoopDeath==='function') reportCoopDeath(); gameOver(); } }
 }
 
 
@@ -3082,7 +3150,284 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // === CHARACTER LOBBY SYSTEM ===
 let selectedCharacterId = null;
 let equippedCharacter = (function(){ try{ const v=localStorage.getItem('equippedCharacter'); return v||'survivor'; }catch(_){ return 'survivor'; } })();
+
 function saveEquippedCharacter(){ try{ localStorage.setItem('equippedCharacter', equippedCharacter||'survivor'); }catch(_){} }
+
+// ===== CO-OP / BẠN BÈ / ID NGẮN =====
+let gameMode = 'solo'; // 'solo' | 'coop'
+let coopActive = false;
+let myShortId = localStorage.getItem('myShortId') || '';
+let friendsList = [];
+try{ friendsList = JSON.parse(localStorage.getItem('friendsList')||'[]'); }catch(_){ friendsList=[]; }
+let currentRoomId = null;
+let roomUnsub = null;
+let isRoomHost = false;
+let partner = null; // {x,y,hp,maxhp,face,alive,name,avatar,anim,moving,charId}
+let partnerUid = null;
+let lastPartnerSync = 0;
+let lastSelfSync = 0;
+let coopEnded = false;
+
+function genShortId(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+async function ensureShortId(){
+  if(myShortId && myShortId.length>=4){
+    const el = document.getElementById('myShortIdDisp');
+    if(el) el.textContent = myShortId;
+    return myShortId;
+  }
+  myShortId = genShortId();
+  try{ localStorage.setItem('myShortId', myShortId); }catch(_){}
+  if(typeof currentUser!=='undefined' && currentUser && typeof db!=='undefined'){
+    try{
+      // kiểm tra trùng nhẹ
+      const q = await db.collection('users').where('shortId','==',myShortId).limit(1).get();
+      if(!q.empty && q.docs[0].id !== currentUser.uid){
+        myShortId = genShortId();
+        try{ localStorage.setItem('myShortId', myShortId); }catch(_){}
+      }
+      await db.collection('users').doc(currentUser.uid).set({ shortId: myShortId }, { merge:true });
+    }catch(e){ console.warn('shortId save', e); }
+  }
+  const el = document.getElementById('myShortIdDisp');
+  if(el) el.textContent = myShortId;
+  return myShortId;
+}
+function saveFriendsLocal(){
+  try{ localStorage.setItem('friendsList', JSON.stringify(friendsList.slice(0,30))); }catch(_){}
+}
+function renderFriendsList(){
+  const box = document.getElementById('friendsList');
+  if(!box) return;
+  if(!friendsList.length){
+    box.innerHTML = '<div style="opacity:.7">Chưa có bạn. Nhập ID 6 ký tự để kết bạn.</div>';
+    return;
+  }
+  box.innerHTML = friendsList.map((f,i)=>
+    '<div style="display:flex;align-items:center;gap:8px;background:#1a2438;border-radius:8px;padding:6px 8px">'
+    + '<span style="font-size:18px">'+(f.avatar&&f.avatar.length<4?f.avatar:'👤')+'</span>'
+    + '<div style="flex:1;min-width:0"><b style="color:#fff">'+escapeHtml(f.name||'Bạn')+'</b>'
+    + ' <span style="color:#ffd23a">'+escapeHtml(f.shortId)+'</span></div>'
+    + '<button type="button" data-invite="'+i+'" style="background:#22c55e;border:0;color:#fff;border-radius:6px;padding:4px 8px;font-weight:800;font-size:11px;cursor:pointer">Mời</button>'
+    + '<button type="button" data-unfriend="'+i+'" style="background:#384660;border:0;color:#fff;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">×</button>'
+    + '</div>'
+  ).join('');
+  box.querySelectorAll('[data-unfriend]').forEach(btn=>{
+    btn.onclick = ()=>{
+      friendsList.splice(+btn.dataset.unfriend, 1);
+      saveFriendsLocal();
+      renderFriendsList();
+    };
+  });
+  box.querySelectorAll('[data-invite]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const f = friendsList[+btn.dataset.invite];
+      if(!f) return;
+      const st = document.getElementById('roomStatus');
+      if(st) st.textContent = 'Tạo phòng rồi gửi mã cho '+f.name+' (ID '+f.shortId+')';
+      createCoopRoom();
+    };
+  });
+}
+async function addFriendById(sid){
+  sid = (sid||'').trim().toUpperCase();
+  if(sid.length < 4){ alert('ID không hợp lệ'); return; }
+  if(sid === myShortId){ alert('Không thể tự kết bạn'); return; }
+  if(friendsList.some(f=>f.shortId===sid)){ alert('Đã có trong danh sách'); return; }
+  let found = null;
+  try{
+    if(typeof db!=='undefined'){
+      const snap = await db.collection('users').where('shortId','==',sid).limit(1).get();
+      if(!snap.empty){
+        const d = snap.docs[0].data();
+        found = { uid: snap.docs[0].id, shortId: sid, name: d.name||d.displayName||'Bạn', avatar: d.avatar||'🧑' };
+      }
+    }
+  }catch(e){ console.warn(e); }
+  if(!found){
+    // vẫn cho thêm offline
+    found = { uid:'', shortId:sid, name:'Bạn '+sid, avatar:'🧑' };
+  }
+  friendsList.unshift(found);
+  friendsList = friendsList.slice(0,30);
+  saveFriendsLocal();
+  renderFriendsList();
+  if(typeof currentUser!=='undefined' && currentUser && found.uid){
+    try{ await db.collection('users').doc(currentUser.uid).set({ friends: friendsList }, { merge:true }); }catch(_){}
+  }
+}
+function setGameMode(mode){
+  gameMode = mode==='coop' ? 'coop' : 'solo';
+  const solo = document.getElementById('modeSolo');
+  const coop = document.getElementById('modeCoop');
+  const panel = document.getElementById('coopPanel');
+  if(solo){ solo.style.borderColor = gameMode==='solo'?'#ffc04a':'#43536e'; solo.style.background = gameMode==='solo'?'linear-gradient(160deg,#3a2f12,#202c40)':'#202c40'; solo.style.color = gameMode==='solo'?'#ffd23a':'#c9d4e8'; }
+  if(coop){ coop.style.borderColor = gameMode==='coop'?'#22c55e':'#43536e'; coop.style.background = gameMode==='coop'?'linear-gradient(160deg,#1f3a2a,#182a1f)':'#202c40'; coop.style.color = gameMode==='coop'?'#86efac':'#c9d4e8'; }
+  if(panel) panel.style.display = gameMode==='coop' ? 'block' : 'none';
+  if(gameMode==='coop'){ ensureShortId(); renderFriendsList(); }
+}
+async function createCoopRoom(){
+  if(!currentUser){ alert('Cần đăng nhập để chơi Co-op'); return; }
+  await ensureShortId();
+  const code = genShortId().slice(0,6);
+  currentRoomId = code;
+  isRoomHost = true;
+  partnerUid = null;
+  partner = null;
+  const st = document.getElementById('roomStatus');
+  if(st) st.textContent = 'Phòng '+code+' — chờ bạn vào...';
+  try{
+    await db.collection('rooms').doc(code).set({
+      code, hostUid: currentUser.uid, hostShortId: myShortId,
+      hostName: (currentUser.displayName||'Host'),
+      guestUid: null, status: 'waiting', mode: 'coop',
+      createdAt: Date.now(),
+      players: {
+        [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Host', x:0, y:0, hp:400, maxhp:400, alive:true, face:1 }
+      }
+    });
+    listenRoom(code);
+    if(st) st.innerHTML = 'Mã phòng: <b style="color:#ffd23a;font-size:16px">'+code+'</b> — gửi cho bạn';
+  }catch(e){
+    if(st) st.textContent = 'Lỗi tạo phòng: '+(e.message||e);
+  }
+}
+async function joinCoopRoom(code){
+  if(!currentUser){ alert('Cần đăng nhập để chơi Co-op'); return; }
+  code = (code||'').trim().toUpperCase();
+  if(code.length<4){ alert('Mã phòng không hợp lệ'); return; }
+  await ensureShortId();
+  const st = document.getElementById('roomStatus');
+  try{
+    const ref = db.collection('rooms').doc(code);
+    const snap = await ref.get();
+    if(!snap.exists){ if(st) st.textContent='Không tìm thấy phòng'; return; }
+    const data = snap.data();
+    if(data.status==='ended'){ if(st) st.textContent='Phòng đã kết thúc'; return; }
+    if(data.guestUid && data.guestUid!==currentUser.uid){ if(st) st.textContent='Phòng đã đủ 2 người'; return; }
+    isRoomHost = data.hostUid === currentUser.uid;
+    currentRoomId = code;
+    partnerUid = isRoomHost ? data.guestUid : data.hostUid;
+    await ref.set({
+      guestUid: currentUser.uid,
+      guestShortId: myShortId,
+      guestName: currentUser.displayName||'Guest',
+      status: 'ready',
+      ['players.'+currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1 }
+    }, { merge:true });
+    listenRoom(code);
+    if(st) st.textContent = 'Đã vào phòng '+code+' — cả 2 bấm Bắt đầu khi sẵn sàng';
+  }catch(e){
+    if(st) st.textContent = 'Lỗi vào phòng: '+(e.message||e);
+  }
+}
+function listenRoom(code){
+  if(roomUnsub){ try{ roomUnsub(); }catch(_){} roomUnsub=null; }
+  roomUnsub = db.collection('rooms').doc(code).onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const d = snap.data();
+    if(!currentUser) return;
+    const otherUid = d.hostUid===currentUser.uid ? d.guestUid : d.hostUid;
+    partnerUid = otherUid || null;
+    if(otherUid && d.players && d.players[otherUid]){
+      const op = d.players[otherUid];
+      partner = {
+        x: op.x||0, y: op.y||0, hp: op.hp||400, maxhp: op.maxhp||400,
+        face: op.face||1, alive: op.alive!==false, name: op.name||'Bạn',
+        avatar: op.avatar||'🧑', anim: op.anim||0, moving: !!op.moving,
+        charId: op.charId||'survivor'
+      };
+      const st = document.getElementById('roomStatus');
+      if(st && d.status!=='playing') st.textContent = 'Bạn cùng chơi: '+(op.name||'...')+' — sẵn sàng!';
+    }
+    if(d.status==='playing' && state==='lobby'){
+      coopActive = true;
+      startGame();
+    }
+    if(d.status==='ended' && !coopEnded){
+      coopEnded = true;
+      const win = d.winnerUid === currentUser.uid;
+      pushText && pushText({x:P.x,y:P.y-40,v: win?'BẠN THẮNG!':'ĐỒNG ĐỘI ĐÃ NGÃ — BẠN THUA',t:3,c:true,big:true});
+    }
+  }, err=>console.warn('room listen', err));
+}
+async function syncCoopSelf(force){
+  if(!coopActive || !currentRoomId || !currentUser) return;
+  const now = performance.now();
+  if(!force && now - lastSelfSync < 180) return; // ~5-6 Hz tối ưu lag
+  lastSelfSync = now;
+  try{
+    const payload = {
+      x: Math.round(P.x), y: Math.round(P.y),
+      hp: Math.round(P.hp), maxhp: Math.round(P.maxhp),
+      face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
+      moving: !!P.moving, charId: equippedCharacter||'survivor',
+      name: (currentUser.displayName||'P'), shortId: myShortId
+    };
+    await db.collection('rooms').doc(currentRoomId).set({
+      ['players.'+currentUser.uid]: payload,
+      status: 'playing',
+      t: Math.floor(T)
+    }, { merge:true });
+  }catch(_){}
+}
+async function reportCoopDeath(){
+  if(!coopActive || !currentRoomId || !currentUser || coopEnded) return;
+  coopEnded = true;
+  try{
+    await db.collection('rooms').doc(currentRoomId).set({
+      status: 'ended',
+      loserUid: currentUser.uid,
+      winnerUid: partnerUid || null,
+      endedAt: Date.now()
+    }, { merge:true });
+  }catch(_){}
+}
+function drawPartner(){
+  if(!partner || !partner.alive) return;
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  ctx.translate(partner.x, partner.y);
+  // tên
+  ctx.fillStyle = '#8fd7ff';
+  ctx.font = '900 10px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(partner.name||'Bạn', 0, -30);
+  // model đơn giản / theo char
+  if(partner.charId==='gojo' && typeof drawGojoModel==='function'){
+    drawGojoModel(ctx, partner.anim||0, !!partner.moving, partner.face||1, 0.95);
+  }else{
+    const b = Math.sin(partner.anim||0)*(partner.moving?1.2:.4);
+    ctx.translate(0,b);
+    ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(0,10,9,3,0,0,7); ctx.fill();
+    ctx.scale(partner.face||1,1);
+    ctx.fillStyle='#2c2f4a'; ctx.fillRect(-6,1,12,9);
+    ctx.fillStyle='#3b82f6'; ctx.fillRect(-7,-1,14,4); // áo xanh phân biệt
+    ctx.fillStyle='#f0c9a0'; ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(-8,-12,16,13,4); ctx.fill(); } else ctx.fillRect(-8,-12,16,13);
+    ctx.fillStyle='#4aa6e8'; ctx.fillRect(-8,-13,16,5);
+    ctx.fillStyle='#1c1c28'; ctx.fillRect(-4,-5,3,3); ctx.fillRect(2,-5,3,3);
+  }
+  ctx.restore();
+  // thanh máu partner
+  const w=22;
+  ctx.fillStyle='#000a'; ctx.fillRect(partner.x-w/2-1, partner.y-28, w+2,4);
+  ctx.fillStyle='#3b82f6'; ctx.fillRect(partner.x-w/2, partner.y-28, w*Math.max(0,partner.hp)/Math.max(1,partner.maxhp),3);
+}
+function nearestPlayerPos(ex, ey){
+  // quái nhắm người gần nhất (bạn hoặc partner) — không gây dame lẫn nhau
+  let tx=P.x, ty=P.y, best=Math.hypot(ex-P.x, ey-P.y);
+  if(coopActive && partner && partner.alive){
+    const d = Math.hypot(ex-partner.x, ey-partner.y);
+    if(d < best){ best=d; tx=partner.x; ty=partner.y; }
+  }
+  return {x:tx,y:ty,d:best};
+}
+
 const LOBBY_CHARACTERS = [
   {
     id:'survivor',
@@ -4078,6 +4423,8 @@ function render(){
     ctx.fillStyle='#fff9';ctx.beginPath();ctx.arc(b.x-b.r*.25,b.y-b.r*.25,b.r*.35,0,7);ctx.fill();ctx.restore();
   }
   drawPlayer();
+  if(typeof drawPartner==='function') drawPartner();
+  if(typeof syncCoopSelf==='function'&&coopActive) syncCoopSelf();
   if(lv.drone){
     const droneX = P.x + Math.cos(droneSt.ang)*droneSt.orbit;
     const droneY = P.y + Math.sin(droneSt.ang)*droneSt.orbit + Math.sin(T*6)*2;
