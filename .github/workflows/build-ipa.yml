@@ -1,0 +1,57 @@
+name: Build IPA
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Create Xcode Project
+        run: |
+          mkdir -p App/App
+          cp index.html App/App/ || cp index_9_fixed_v2.html App/App/index.html || echo "<h1>Game</h1>" > App/App/index.html
+          cat > App/App/ViewController.swift << 'EOF'
+          import UIKit; import WebKit
+          class ViewController: UIViewController {
+            var webView: WKWebView!
+            override func viewDidLoad() {
+              super.viewDidLoad()
+              let cfg = WKWebViewConfiguration()
+              cfg.allowsInlineMediaPlayback = true
+              webView = WKWebView(frame: view.bounds, configuration: cfg)
+              view.addSubview(webView)
+              if let u = Bundle.main.url(forResource: "index", withExtension: "html") {
+                webView.loadFileURL(u, allowingReadAccessTo: u.deletingLastPathComponent())
+              }
+            }
+          }
+          EOF
+          cat > App/App/AppDelegate.swift << 'EOF'
+          import UIKit; @main class AppDelegate: UIResponder, UIApplicationDelegate { var window: UIWindow?; func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool { return true } }
+          EOF
+          cat > App/App/Info.plist << 'EOF'
+          <?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.duong.survival</string><key>CFBundleName</key><string>Survival</string><key>CFBundleDisplayName</key><string>Survival</string><key>CFBundleVersion</key><string>1</string><key>CFBundleShortVersionString</key><string>1.0</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleExecutable</key><string>App</string><key>LSRequiresIPhoneOS</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict></dict></plist>
+          EOF
+          cat > App/project.yml << 'EOF'
+          name: App
+          targets:
+            App:
+              type: application
+              platform: iOS
+              deploymentTarget: "13.0"
+              sources: [App]
+              info:
+                path: App/Info.plist
+                properties: {}
+              settings:
+                base:
+                  PRODUCT_BUNDLE_IDENTIFIER: com.duong.survival
+          EOF
+          cd App && xcodegen generate
+          xcodebuild -project App.xcodeproj -scheme App -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+          mkdir -p Payload && cp -r build/Build/Products/Release-iphoneos/App.app Payload/ && zip -r Survival.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Survival-IPA
+          path: App/Survival.ipa
