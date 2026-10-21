@@ -622,7 +622,7 @@ let bossIdx=0, lastBossHp=5000, lastBossDmg=250;
 let T=0, kills=0, coins=0, spawnAcc=0, burstT=30, shake=0, bossT=90;
 let P={}; let lv={}, ps={}, cd={};
 let droneSt={}, golemSt={};
-let kr={}, auraT=0, firstPick=true, bonusPicks=0, magnetT=25, monsterScale=1, monsterHpScale=1, monsterDmgScale=1, lastScaleT=120, frenzyNext=150, frenzyActive=false, frenzyT=0, frenzyDuration=25, frenzyCount=0, tuocdoatProcT=5;
+let kr={}, auraT=0, firstPick=true, bonusPicks=0, magnetT=25, monsterScale=1, monsterHpScale=1, monsterDmgScale=1, lastScaleT=120, frenzyNext=195, frenzyActive=false, frenzyT=0, frenzyDuration=18, frenzyCount=0, tuocdoatProcT=5;
 
 const golemImg=new Image(); golemImg.src=''; // removed large image to fix freeze - use procedural
 let golemAttackFx=0, golemRootFx=0;
@@ -693,7 +693,7 @@ let armorImmortalT=0, armorBuffCd=0, armorDeathSaveCd=0, armorDeathReady=true;
 function reset(){
   P={x:0,y:0,hp:400,maxhp:400,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
   enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];iceRings=[];
-  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=150;frenzyActive=false;frenzyT=0;frenzyDuration=25;frenzyCount=0;tuocdoatProcT=5;
+  T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=195;frenzyActive=false;frenzyT=0;frenzyDuration=18;frenzyCount=0;tuocdoatProcT=5;
   lv={}; lv[equippedWeapon||'kunai']=1;ps={hp:0,spd:0,mag:0,dmg:0,ls:0,xp:0,crit:0,cdr:0,armor:0};
   window.lastPlayerBuffT=120; window.playerBonusDmg=0;
   cd={kunai:0,rocket:0,lightning:0,boomerang:0,ringz:0,drone:0,golem:0,tuocdoat:0,hoden:0,ice:0};
@@ -1074,7 +1074,7 @@ function levelCheck(){
   }
 }
 function gainXp(v){P.xp+=v*(1+.2*ps.xp);levelCheck();updateHud();}
-const maxEnemies=()=>Math.min(520,260+Math.floor(T/20)*10);
+const maxEnemies=()=>Math.min(260,180+Math.floor(T/45)*6);
 function spawnEnemy(forceType,px,py){
   if(enemies.length>=maxEnemies()&&forceType!=='b')return;
   const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;
@@ -1094,32 +1094,33 @@ function spawnEnemy(forceType,px,py){
   const earlyHpBonus = T<=90 ? 1.3 : 1.0;
   
   let e={x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
-  if(type==='n'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
-  if(type==='f'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
-  if(type==='r'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
-  if(type==='t'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
-  if(type==='sk'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
-  if(type==='bom'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
-  if(type==='arc'){const fH=frenzyActive?4:1, fD=frenzyActive?0.15:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
+  if(type==='n'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
+  if(type==='f'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
+  if(type==='r'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
+  if(type==='t'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
+  if(type==='sk'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
+  if(type==='bom'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
+  if(type==='arc'){const fH=frenzyActive?2:1, fD=frenzyActive?0.35:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
   if(type==='b'){
     const rollTanker = Math.random();
     if(rollTanker < 0.30){ e.bt='tanker'; } else if(bossIdx%3===2 || (T>120 && Math.random()<0.35)){ e.bt='a'; } else { e.bt=bossIdx%2?'r':'m'; }
     // --- BUFF BOSS LATE GAME ---
     // T càng lớn boss càng mạnh, hệ số tăng dần
-    const lateFactor = 1 + Math.max(0, (T-90)/90)*0.65; // sau 90s mỗi 90s +65%
-    const bossCountFactor = 1 + bossIdx*0.22; // mỗi boss sau mạnh hơn 22%
+    const lateFactor = Math.min(2.4, 1 + Math.max(0, (T-90)/90)*0.35); // sau 90s mỗi 90s +65%
+    const bossCountFactor = Math.min(2.5, 1 + bossIdx*0.12); // mỗi boss sau mạnh hơn 22%
     if(bossIdx===0){e.hp=6500;e.dmg=320;}
     else{
       // trước: x3 hp, x1.5 dmg -> giờ x4.2 hp, x2.1 dmg + lateFactor
-      e.hp=lastBossHp*4.2 * lateFactor * bossCountFactor;
-      e.dmg=lastBossDmg*2.1 * lateFactor * 0.5 + 80*lateFactor;
+      e.hp=lastBossHp*2.0 * lateFactor * bossCountFactor;
+      e.dmg=lastBossDmg*1.35 * lateFactor * 0.35 + 45*lateFactor;
     }
     // Giảm ít hơn trước: chỉ giảm 10% thay vì 25%
     e.dmg*=0.90;
     // thêm máu theo thời gian sống sót
-    e.hp*= (1.5 + T/300); // sau 5 phút x2.5 lần máu so với ban đầu
+    e.hp*= Math.min(2.2, 1.35 + T/420); // giới hạn tăng máu boss để không phình vô hạn
     lastBossHp=e.hp;lastBossDmg=e.dmg;
-    e.hp*=1.3;
+    e.hp=Math.min(e.hp*1.1, 50000);
+    e.dmg=Math.min(e.dmg, 650);
     if(e.bt==='a'){ e.sp=55; e.r=24; e.s=2.3; } else if(e.bt==='tanker'){ e.sp=34; e.r=32; e.s=3.2; } else { e.sp=e.bt==='r'?68:72;e.r=e.bt==='r'?26:28;e.s=e.bt==='r'?2.5:2.7; }
     // 50% boss có khả năng miễn nhiễm sát thương 10s
     if(Math.random()<0.5){
@@ -1135,6 +1136,8 @@ function spawnEnemy(forceType,px,py){
   // Quái thường trước 1:30 được cộng 25%, sau đó giảm 15% sát thương ở mọi thời điểm.
   if(e.t!=='b' && T<90) e.dmg*=1.25*1.5;
   if(e.t!=='b') e.dmg*=0.85;
+  // Trong điên loạn: toàn bộ boss và quái bị giảm thêm 30% máu.
+  if(frenzyActive) e.hp*=0.70;
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
   if(px!==undefined){e.x=px;e.y=py;}
@@ -1855,8 +1858,9 @@ function update(dt){
   // buff từ phút 2
   if(T>=120 && T>=lastScaleT){
     lastScaleT+=30;
-    monsterHpScale*=1.13;
-    monsterDmgScale*=1.3;
+    // Tăng chậm và có trần, tránh đúng mốc 03:00 bị phình sát thương.
+    monsterHpScale=Math.min(monsterHpScale*1.08, 2.2);
+    monsterDmgScale=Math.min(monsterDmgScale*1.12, 1.9);
     monsterScale=monsterHpScale;
     pushText({x:P.x,y:P.y-60,v:'Quái mạnh lên +13% HP +30% Dame!',t:1.8,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:80,t:.6,T:.6,c:'#ff2222'});
@@ -1873,11 +1877,11 @@ function update(dt){
     }
   }
   if(T>=frenzyNext){
-    frenzyNext+=45;
+    frenzyNext+=60;
     frenzyActive=true;
     frenzyT=frenzyDuration;
     frenzyCount++;
-    pushText({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +300% HP -70% Dame +30% Tốc chạy!',t:3,c:true,big:true});
+    pushText({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +100% HP -65% Dame +30% Tốc chạy!',t:3,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff0000'});
     shake=12;
     if(typeof sfx==='function') sfx('frenzy');
@@ -1902,16 +1906,16 @@ function update(dt){
   if(Math.abs(dx)>.1)P.face=dx>0?1:-1;
   P.anim+=dt*(P.moving?12:3);
   P.hurt=Math.max(0,P.hurt-dt);P.inv=Math.max(0,(P.inv||0)-dt);
-  const frenzySpawnMult = frenzyActive ? 3.5*0.8 : 1;
+  const frenzySpawnMult = frenzyActive ? 1.35 : 1;
   spawnAcc+=dt*((T<60?2.4:1.2+T/9)*frenzySpawnMult);
   while(spawnAcc>=1){spawnAcc--;spawnEnemy();}
   burstT-=dt;
-  if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?3.5:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(frenzyActive?3.5*0.8:1)); for(let i=0;i<n;i++)spawnEnemy();}
+  if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?1.35:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(frenzyActive?1.25:1)); for(let i=0;i<n;i++)spawnEnemy();}
   fireWeapons(dt);
   if(T>=bossT){
     bossT+= Math.max(35, 70 - T/20); // boss ra nhanh hơn về sau, từ 60s giảm xuống 35s
     spawnEnemy('b');
-    if(T>=150 && Math.random()<0.25){
+    if(T>=210 && Math.random()<0.12){
       spawnEnemy('b');
       pushText({x:P.x,y:P.y-50,v:'⚠⚠ DOUBLE BOSS!!',t:2.5,c:true,big:true});
       fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff00ff'});
@@ -3903,7 +3907,8 @@ function render(){
 let last=performance.now();
 function loop(now){
   let dt=(now-last)/1000;last=now;
-  if(dt>.05)dt=.05;
+  // Khi trình duyệt tụt FPS, không cho một frame dồn quá nhiều sát thương.
+  if(dt>.033)dt=.033;
   if(state==='play')update(dt);
   render();
   requestAnimationFrame(loop);
