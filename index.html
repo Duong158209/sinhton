@@ -1199,9 +1199,7 @@ document.addEventListener('click',function(e){
   if(!t||!t.closest) return;
   if(t.closest('#modeSolo')) setGameMode('solo');
   else if(t.closest('#modeCoop')) setGameMode('coop');
-  else if(t.closest('#addFriendBtn')) addFriendById(document.getElementById('friendIdInput')?.value||'');
-  else if(t.closest('#createRoomBtn')) createCoopRoom();
-  else if(t.closest('#joinRoomBtn')) joinCoopRoom(document.getElementById('roomCodeInput')?.value||'');
+  // (addFriendBtn/createRoomBtn/joinRoomBtn đã có onclick riêng trong bindLobbyUI — không xử lý lặp ở đây)
 }, false);
 const _startBtn = $('startBtn');
 if(_startBtn){ _startBtn.onclick = (e)=>{ e.preventDefault(); startGame(); }; }
