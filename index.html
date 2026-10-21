@@ -997,7 +997,7 @@ function updateHud(){
   $('kills').textContent=kills;
   $('timer').textContent=fmt(T);
 }
-function show(id,on){$(id).style.display=on?'flex':'none';}
+function show(id,on){const el=$(id); el.style.display=on?'flex':'none'; el.style.pointerEvents=on?'auto':'none';}
 function startBackgroundMusic(){
   const music=$('bgMusic');
   if(!music) return;
