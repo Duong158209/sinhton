@@ -1643,7 +1643,11 @@ function levelCheck(){
   }
 }
 function gainXp(v){P.xp+=v*(1+.2*ps.xp)*((typeof coopActive!=='undefined'&&coopActive)?1.8:1);levelCheck();updateHud();} // Co-op: tăng thêm 20% so với hệ số cũ 1.5x (thành 1.8x)
-const maxEnemies=()=>Math.min(frenzyActive ? ((typeof coopActive!=='undefined'&&coopActive)?3600:3000) : 260,180+Math.floor(T/45)*6);
+const maxEnemies=()=>{
+  const baseCap = Math.min(260, 180 + Math.floor(T/45)*6);
+  // Điên Loạn: tăng số quái tối đa cùng lúc thêm 120% (x2.2), có trần để tránh treo máy.
+  return frenzyActive ? Math.min(572, Math.floor(baseCap*2.2)) : baseCap;
+};
 function spawnEnemy(forceType,px,py){
   if(enemies.length>=maxEnemies()&&forceType!=='b')return;
   const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;
@@ -1702,6 +1706,8 @@ function spawnEnemy(forceType,px,py){
     }
     bossIdx++;
   }
+  // Giảm 20% máu boss sau khi tính các hệ số theo thời gian và chế độ.
+  if(e.t==='b') e.hp*=0.80;
   // Quái thường trước 1:30 được cộng 25%, sau đó giảm 15% sát thương ở mọi thời điểm.
   if(e.t!=='b' && T<90) e.dmg*=1.25*1.5;
   if(e.t!=='b') e.dmg*=0.85;
@@ -2494,7 +2500,7 @@ function update(dt){
     frenzyDuration = (typeof coopActive!=='undefined' && coopActive) ? 30 : 20;
     frenzyT=frenzyDuration;
     frenzyCount++;
-    pushText({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +20% HP, +20% dame, spawn x'+((typeof coopActive!=='undefined'&&coopActive)?50:25)+' - '+frenzyDuration+'s',t:3,c:true,big:true});
+    pushText({x:P.x,y:P.y-70,v:'⚠ ĐIÊN LOẠN #'+frenzyCount+'! Quái +120% số lượng, +20% HP, +20% dame - '+frenzyDuration+'s',t:3,c:true,big:true});
     fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff0000'});
     shake=12;
     if(typeof sfx==='function') sfx('frenzy');
@@ -2522,9 +2528,19 @@ function update(dt){
   const frenzySpawnMult = frenzyActive ? ((typeof coopActive!=='undefined' && coopActive) ? 50 : 25) : 1;
   // Tăng lượng quái đầu game x1.3 (T<60)
   spawnAcc+=dt*((T<60?2.4*1.3:1.2+T/9)*frenzySpawnMult);
-  while(spawnAcc>=1){spawnAcc--;spawnEnemy();}
+  // Không để spawnAcc hoặc vòng while tích tụ vô hạn khi đã chạm giới hạn quái.
+  let _spawnBudget = Math.min(12, Math.max(0, maxEnemies()-enemies.length));
+  while(spawnAcc>=1 && _spawnBudget>0){spawnAcc--;spawnEnemy();_spawnBudget--;}
+  if(enemies.length>=maxEnemies()) spawnAcc=Math.min(spawnAcc,1);
   burstT-=dt;
-  if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?1.35:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(T<60?1.3:1)*(frenzyActive?frenzySpawnMult:1)); for(let i=0;i<n;i++)spawnEnemy();}
+  if(burstT<=0){
+    burstT=(T<60?14:26)/(frenzyActive?1.35:1);
+    const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8));
+    const n=Math.floor(baseN*(T<60?1.3:1)*(frenzyActive?frenzySpawnMult:1));
+    // Burst Điên Loạn được rải theo nhiều frame thay vì gọi hàng nghìn spawnEnemy cùng lúc.
+    const burstNow = frenzyActive ? Math.min(n, 24, Math.max(0,maxEnemies()-enemies.length)) : Math.min(n, Math.max(0,maxEnemies()-enemies.length));
+    for(let i=0;i<burstNow;i++) spawnEnemy();
+  }
   fireWeapons(dt);
   const isCoopBossWave = (typeof coopActive!=='undefined' && coopActive);
   // Co-op: đợt boss đầu tiên ở 1:45, các đợt tiếp theo cách nhau 1:45. Solo giữ lịch cũ.
@@ -3969,9 +3985,9 @@ function listenRoom(code){
 function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
   const now = performance.now();
-  // 8s đầu hoặc chưa thấy partner: sync nhanh; sau đó ~10 lần/giây là đủ (Firestore không chịu 70ms)
-  const early = (typeof coopStartedAt!=='undefined' && (Date.now()-coopStartedAt)<10000) || !partner;
-  const minInterval = early ? 90 : 110;
+  // Firestore dùng chung 1 room document cho cả 2 người; giảm tần suất ghi
+  // và chỉ giữ payload mới nhất nếu lần ghi trước chưa xong để tránh backlog sau vài phút.
+  const minInterval = 320;
   if(!force && now - lastSelfSync < minInterval) return;
   lastSelfSync = now;
   // Vận tốc để bên kia nội suy mượt
@@ -4006,16 +4022,38 @@ function syncCoopSelf(force){
       isEvo: !!(lv.golem>=6)
     } : { active: false }
   };
-  // Dotted field paths MUST use update(); set({merge:true}) treats dotted keys as
-  // literal field names in this SDK path and caused each client to miss the other's state.
+  // Dotted field paths MUST use update(). Serialize writes: when Firestore is slow,
+  // overwrite the queued state with the newest position instead of building a stale queue.
   const data = {};
   data['players.' + currentUser.uid] = payload;
-  if(!_sentPlaying || force){ data.status='playing'; data.t=Math.floor(T); _sentPlaying=true; }
-  db.collection('rooms').doc(currentRoomId).update(data).then(()=>{ _coopErr=''; }).catch(e=>{
-    _coopErr='ghi: '+((e&&e.code)||'lỗi');
-    _sentPlaying=false;
-    console.warn('coop sync update failed', e);
-  });
+  const _sendLatest = (writeData) => {
+    if(syncCoopSelf._writeBusy){
+      syncCoopSelf._queuedData = writeData;
+      return;
+    }
+    if(!_sentPlaying){
+      writeData.status = 'playing';
+      writeData.t = Math.floor(T);
+      _sentPlaying = true;
+    }
+    syncCoopSelf._writeBusy = true;
+    db.collection('rooms').doc(currentRoomId).update(writeData)
+      .then(()=>{ _coopErr=''; })
+      .catch(e=>{
+        _coopErr='ghi: '+((e&&e.code)||'lỗi');
+        _sentPlaying=false;
+        console.warn('coop sync update failed', e);
+      })
+      .finally(()=>{
+        syncCoopSelf._writeBusy = false;
+        const queued = syncCoopSelf._queuedData;
+        syncCoopSelf._queuedData = null;
+        if(queued && coopActive && currentRoomId && currentUser){
+          _sendLatest(queued);
+        }
+      });
+  };
+  _sendLatest(data);
   updateCoopBadge();
 }
 function updateCoopBadge(){
