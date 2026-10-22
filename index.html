@@ -3647,7 +3647,8 @@ function listenTeamInvites(){
     const all = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>{
       const age = Date.now() - teamInviteCreatedMillis(x.createdAt);
       if(age>300000 && x.status==='pending'){ try{ db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(x.id).set({status:'expired'},{merge:true}); }catch(_){} return false; }
-      return x.status==='pending' && age>=0 && age<300000;
+      // Cho phép lệch giờ thiết bị tối đa 2 phút.
+      return x.status==='pending' && age>-120000 && age<300000;
     }).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt));
     const doc = all[0];
     if(!doc){ wrap.style.display='none'; activeTeamInvite=null; return; }
@@ -3673,8 +3674,13 @@ function listenTeamInvites(){
   if(window._teamInvitePoll){ try{clearInterval(window._teamInvitePoll);}catch(_){} window._teamInvitePoll=null; }
 }
 async function inviteFriendToTeam(friend){
+  const statusEl = document.getElementById('roomStatus');
+  const playersEl = document.getElementById('roomPlayersList');
   if(!currentUser){ alert('Chưa đăng nhập!'); return; }
-  if(!friend?.uid){ const st=document.getElementById('roomStatus'); if(st) st.textContent='Bạn này chưa có UID (chưa từng đăng nhập). Hãy bảo họ nhập ID 6 ký tự của bạn để kết bạn trước.'; return; }
+  if(!friend?.uid){ if(statusEl) statusEl.textContent='Bạn này chưa có UID (chưa từng đăng nhập). Hãy bảo họ nhập ID 6 ký tự của bạn để kết bạn trước.'; return; }
+  // Hiện phản hồi ngay khi bấm, không đợi Firestore hoàn tất.
+  if(statusEl) statusEl.textContent='⏳ Đang tạo phòng và gửi lời mời tới '+(friend.name||friend.shortId||'bạn bè')+'...';
+  if(playersEl) playersEl.innerHTML='<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng)<br><span style="color:#ffd166">⏳ Đang gửi lời mời...</span></div>';
   try{
     const allInv = await db.collection('users').doc(currentUser.uid).collection('teamInvites').get();
     const pendingFromFriend = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-teamInviteCreatedMillis(x.createdAt)<300000).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt))[0];
@@ -3730,7 +3736,15 @@ async function inviteFriendToTeam(friend){
         try{ if(typeof sfx==='function') sfx('frenzy'); }catch(_){}
       }
     });
-  }catch(e){ const st=document.getElementById('roomStatus'); if(st) st.textContent='Không gửi được lời mời: '+(e.message||e); console.warn(e); }
+  }catch(e){
+    const st=document.getElementById('roomStatus');
+    const msg='Không gửi được lời mời ('+(e.code||'lỗi')+'): '+(e.message||String(e));
+    if(st) st.textContent=msg;
+    const pl=document.getElementById('roomPlayersList');
+    if(pl) pl.innerHTML='<div style="color:#ff8a8a;font-size:12px">'+msg.replace(/</g,'&lt;')+'</div>';
+    console.warn('inviteFriendToTeam failed',e);
+    try{ if(typeof showToast==='function') showToast(msg); }catch(_){}
+  }
 }
 function saveFriendsLocal(){
   try{ localStorage.setItem('friendsList', JSON.stringify(friendsList.slice(0,30))); }catch(_){}
