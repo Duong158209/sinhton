@@ -4175,21 +4175,12 @@ function drawGojoModel(ctx, anim, moving, face, scale, stateKey){
     const strideShiftX = Math.sin(walkCycle) * 1.65 * st.walkBlend;
     const kneeLift = Math.max(0, -Math.cos(walkCycle)) * 1.45 * st.walkBlend;
 
-    // Lớp 1: Chân bước phía sau khi chạy (tạo hiệu ứng bước chân 3D)
-    if (st.walkBlend > 0.08) {
-      ctx.save();
-      ctx.translate(0, dyHip);
-      ctx.rotate(-strideSwing * 0.85);
-      ctx.globalAlpha *= 0.88;
-      ctx.drawImage(img, 0, syHip, sw, sh - syHip, -W/2 - strideShiftX * 0.9, -1 - kneeLift * 0.5, W, legH + 1);
-      ctx.restore();
-    }
-
-    // Lớp 2: Quần thụng & Chân trụ phía trước
+    // Chân: CHỈ vẽ MỘT lần (ảnh gốc đã có sẵn 2 chân -> vẽ thêm lớp nữa sẽ bị 4 chân).
+    // Hiệu ứng bước chân bằng cách nghiêng (shear) luân phiên trái/phải quanh hông.
     ctx.save();
     ctx.translate(0, dyHip);
-    ctx.rotate(strideSwing);
-    ctx.drawImage(img, 0, syHip, sw, sh - syHip, -W/2 + strideShiftX, -1.2 - kneeLift, W, legH + 1.2);
+    ctx.transform(1, 0, strideSwing * 0.9, 1, 0, 0);
+    ctx.drawImage(img, 0, syHip, sw, sh - syHip, -W/2 + strideShiftX * 0.5, -1.2 - kneeLift * 0.5, W, legH + 1.2);
     ctx.restore();
 
     // Lớp 3: Thân trên, vai, đầu và tay kết ấn
