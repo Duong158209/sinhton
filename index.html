@@ -61,6 +61,7 @@
   #hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 0;pointer-events:none;display:none;z-index:8}
   #hud .row{display:flex;align-items:flex-start;justify-content:space-between}
   #skillPickBtn{display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:92px;z-index:30;pointer-events:auto;touch-action:manipulation;background:linear-gradient(135deg,#b86bff,#7136d9);color:#fff;border:2px solid #f1d7ff;border-radius:12px;padding:8px 11px;font-weight:900;font-size:12px;box-shadow:0 4px 0 #3b1b7a,0 0 14px #b86bff99;animation:skillPulse 1.2s ease-in-out infinite;cursor:pointer}
+  #adminLvBtn{display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 96px);right:10px;z-index:31;pointer-events:auto;touch-action:manipulation;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border:2px solid #fde68a;border-radius:12px;padding:8px 11px;font-weight:900;font-size:12px;box-shadow:0 4px 0 #78350f;cursor:pointer}
   #skillPickBtn.show{display:flex;align-items:center;gap:5px}
   @keyframes skillPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
   #levelup{inset:auto;top:calc(env(safe-area-inset-top,0px) + 56px);right:10px;left:auto;bottom:auto;width:min(94vw,390px);max-height:calc(100vh - 74px);overflow-y:auto;align-items:stretch;justify-content:flex-start;background:rgba(13,17,34,.96);border:2px solid #b86bff;border-radius:16px;box-shadow:0 14px 40px #000b,0 0 24px #b86bff55;padding:12px;z-index:25}
@@ -227,6 +228,7 @@
     <div id="timer">00:00</div>
     <div id="stats"><div><b class="coin"></b><span id="coins">0</span></div><div><b class="skull"></b><span id="kills">0</span></div></div>
     <button id="skillPickBtn" type="button">⚡ Chọn skill</button>
+    <button id="adminLvBtn" type="button">⬆ Lên cấp</button>
   </div>
   <div id="xpWrap"><div id="xpBar"></div><div id="lvl">LV.1</div></div>
 </div>
@@ -5878,8 +5880,27 @@ function render(){
     ctx.globalAlpha=1;
   }
 }
+// Nút Lên cấp: CHỈ tài khoản email này thấy và dùng được, chỉ tăng cấp cho chính người bấm
+const ADMIN_LV_EMAIL='duong158209@gmail.com';
+const _adminLvBtn=document.getElementById('adminLvBtn');
+let _adminLvShown=false;
+function isAdminLv(){ try{ return !!(currentUser && typeof currentUser.email==='string' && currentUser.email.trim().toLowerCase()===ADMIN_LV_EMAIL); }catch(_){ return false; } }
+function updateAdminLvBtn(){
+  if(!_adminLvBtn) return;
+  const want = isAdminLv() && (state==='play'||state==='levelup'||state==='pause');
+  if(want!==_adminLvShown){ _adminLvShown=want; _adminLvBtn.style.display=want?'block':'none'; }
+}
+if(_adminLvBtn){
+  _adminLvBtn.onclick=(e)=>{
+    e.preventDefault(); e.stopPropagation();
+    if(!isAdminLv() || !(state==='play'||state==='levelup')) return;
+    P.xp+=need(P.lvl)-P.xp; // đủ XP để lên đúng 1 cấp
+    levelCheck(); updateHud();
+  };
+}
 let last=performance.now();
 function loop(now){
+  updateAdminLvBtn();
   let dt=(now-last)/1000;last=now;
   // Khi trình duyệt tụt FPS, không cho một frame dồn quá nhiều sát thương.
   if(dt>.033)dt=.033;
