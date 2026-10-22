@@ -1305,11 +1305,17 @@ function bindLobbyUI(){
       const d=snap.data();
       if(d.status!=='waiting' && d.status!=='ready'){ await consumeInvite('expired'); throw new Error('Lời mời đã hết hạn'); }
       await consumeInvite('accepted');
-      await ref.set({guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',status:'playing',startedAt:Date.now(),
-        players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1}}},{merge:true});
+      // Dotted path: không xóa entry players của host
+      await ref.set({
+        guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',
+        status:'playing',startedAt:Date.now(),
+        ['players.'+currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}
+      },{merge:true});
       try{ await db.collection('users').doc(inv.fromUid).collection('teamInviteResponses').doc(inv.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:inv.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
       currentRoomId=inv.roomId;isRoomHost=false;partnerUid=inv.fromUid;coopEnded=false;coopActive=true;
       listenRoom(inv.roomId);startGame();
+      // Burst sync để host thấy mình ngay
+      try{ setTimeout(()=>syncCoopSelf(true),80); setTimeout(()=>syncCoopSelf(true),250); setTimeout(()=>syncCoopSelf(true),600); }catch(_){}
     }catch(e){alert('Không vào được đội: '+(e.message||e));}
   };
   const declineInvite=document.getElementById('declineTeamInvite');
@@ -3632,8 +3638,17 @@ function listenTeamInvites(){
     }
   };
   // Lấy ngay 1 lần (không chờ snapshot) để lời mời hiện nhanh
-  db.collection('users').doc(currentUser.uid).collection('teamInvites').get().then(applyTeamInvites).catch(()=>{});
-  teamInviteUnsub=db.collection('users').doc(currentUser.uid).collection('teamInvites').onSnapshot(applyTeamInvites,e=>console.warn('team invite listener',e));
+  const invCol = db.collection('users').doc(currentUser.uid).collection('teamInvites');
+  invCol.get().then(applyTeamInvites).catch(()=>{});
+  teamInviteUnsub=invCol.onSnapshot(applyTeamInvites,e=>console.warn('team invite listener',e));
+  // Backup poll mỗi 2.5s trong 30s đầu sau khi mở lobby (tránh delay snapshot)
+  if(window._teamInvitePoll){ try{clearInterval(window._teamInvitePoll);}catch(_){} }
+  let _pollLeft = 12;
+  window._teamInvitePoll = setInterval(()=>{
+    _pollLeft--;
+    if(_pollLeft<=0 || !currentUser){ clearInterval(window._teamInvitePoll); window._teamInvitePoll=null; return; }
+    invCol.get().then(applyTeamInvites).catch(()=>{});
+  }, 2500);
 }
 async function inviteFriendToTeam(friend){
   if(!currentUser){ alert('Chưa đăng nhập!'); return; }
@@ -3647,7 +3662,12 @@ async function inviteFriendToTeam(friend){
       const snap=await ref.get();
       if(snap.exists && snap.data().status!=='ended'){
         await db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(pendingFromFriend.id).set({status:'accepted'},{merge:true});
-        await ref.set({guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',status:'playing',startedAt:Date.now(),players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1}}},{merge:true});
+        // Không ghi đè cả map players — chỉ set guest + entry của mình bằng dotted path
+        await ref.set({
+          guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',
+          status:'playing',startedAt:Date.now(),
+          ['players.'+currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}
+        },{merge:true});
         try{ await db.collection('users').doc(pendingFromFriend.fromUid).collection('teamInviteResponses').doc(pendingFromFriend.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:pendingFromFriend.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
         currentRoomId=pendingFromFriend.roomId; isRoomHost=false; partnerUid=pendingFromFriend.fromUid; coopEnded=false; coopActive=true;
         listenRoom(pendingFromFriend.roomId); startGame();
@@ -3658,12 +3678,22 @@ async function inviteFriendToTeam(friend){
     await db.collection('rooms').doc(code).set({
       code,hostUid:currentUser.uid,hostShortId:myShortId,hostName:currentUser.displayName||'Người chơi',
       guestUid:null,status:'waiting',mode:'coop',createdAt:Date.now(),
-      players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Người chơi',x:0,y:0,hp:400,maxhp:400,alive:true,face:1}}
+      players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Người chơi',x:0,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}}
     });
-    await db.collection('users').doc(friend.uid).collection('teamInvites').doc(code).set({
+    const invitePayload = {
       roomId:code,fromUid:currentUser.uid,fromName:currentUser.displayName||'Người chơi',
-      fromShortId:myShortId,status:'pending',createdAt:Date.now()
-    });
+      fromShortId:myShortId,status:'pending',createdAt:Date.now(),updatedAt:Date.now()
+    };
+    // Ghi lời mời + retry 1 lần nếu fail (mạng chậm hay Rules)
+    try{
+      await db.collection('users').doc(friend.uid).collection('teamInvites').doc(code).set(invitePayload);
+    }catch(e1){
+      console.warn('invite write retry', e1);
+      await new Promise(r=>setTimeout(r,400));
+      await db.collection('users').doc(friend.uid).collection('teamInvites').doc(code).set(invitePayload);
+    }
+    // Mirror trên chính mình để debug / host biết đã gửi
+    try{ await db.collection('users').doc(currentUser.uid).collection('teamInviteOutbox').doc(code).set({...invitePayload,toUid:friend.uid,toName:friend.name||''}); }catch(_){}
     const st=document.getElementById('roomStatus'); if(st) st.textContent='📤 Đã gửi lời mời tới '+(friend.name||friend.shortId)+' — đang chờ họ Đồng ý...\nPhòng: '+code+' (1/2 người)';
     const plList=document.getElementById('roomPlayersList'); if(plList) plList.innerHTML='<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng) ✅<br><span style="color:#ff8a8a">⏳ Đang chờ '+(friend.name||'bạn')+' bấm Đồng ý...</span></div>';
     listenRoom(code);
@@ -3759,7 +3789,7 @@ function createCoopRoom(){
     guestUid: null, status: 'waiting', mode: 'coop',
     createdAt: Date.now(),
     players: {
-      [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Host', x:0, y:0, hp:400, maxhp:400, alive:true, face:1 }
+      [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Host', x:0, y:0, hp:400, maxhp:400, alive:true, face:1, charId: typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor', moving:false, t:Date.now() }
     }
   };
   // Ghi server nền + listen
@@ -3803,7 +3833,7 @@ function joinCoopRoom(code){
       guestShortId: myShortId,
       guestName: currentUser.displayName||'Guest',
       status: 'ready',
-      players: { [currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1 } }
+      ['players.'+currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1, charId: typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor', moving:false, t:Date.now() }
     }, { merge:true });
   }).catch(e=>{
     _coopErr = (e&&e.code)||'loi'; if(st) st.textContent = 'Lỗi vào phòng (Rules?) ['+((e&&e.code)||'')+']: '+(e.message||e);
@@ -3826,9 +3856,16 @@ function listenRoom(code){
       const _old = partner;
       const nx = (typeof op.x==='number') ? op.x : (_old ? _old.x : 0);
       const ny = (typeof op.y==='number') ? op.y : (_old ? _old.y : 0);
+      // Giữ dx/dy để lerp mượt; chỉ snap nếu lệch quá xa hoặc vừa spawn
+      let keepDx = _old && _old.dx!==undefined ? _old.dx : nx;
+      let keepDy = _old && _old.dy!==undefined ? _old.dy : ny;
+      if(!_old || Math.hypot(nx-keepDx, ny-keepDy)>220){ keepDx=nx; keepDy=ny; }
       partner = {
-        dx: _old && _old.dx!==undefined ? _old.dx : nx,
-        dy: _old && _old.dy!==undefined ? _old.dy : ny,
+        dx: keepDx,
+        dy: keepDy,
+        vx: (typeof op.vx==='number') ? op.vx : 0,
+        vy: (typeof op.vy==='number') ? op.vy : 0,
+        lastSync: (typeof op.t==='number') ? op.t : Date.now(),
         lv: (op.lv && typeof op.lv==='object') ? Object.assign({}, op.lv) : (_old && _old.lv ? _old.lv : {}),
         x: nx, y: ny,
         hp: (typeof op.hp==='number') ? op.hp : (_old ? _old.hp : 400),
@@ -3926,19 +3963,30 @@ function listenRoom(code){
 function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
   const now = performance.now();
-  // 8s đầu hoặc chưa thấy partner: sync rất nhanh để 2 bên hiện + di chuyển đúng
-  const early = (typeof coopStartedAt!=='undefined' && (Date.now()-coopStartedAt)<8000) || !partner;
-  const minInterval = early ? 70 : 160;
+  // 8s đầu hoặc chưa thấy partner: sync nhanh; sau đó ~10 lần/giây là đủ (Firestore không chịu 70ms)
+  const early = (typeof coopStartedAt!=='undefined' && (Date.now()-coopStartedAt)<10000) || !partner;
+  const minInterval = early ? 90 : 110;
   if(!force && now - lastSelfSync < minInterval) return;
   lastSelfSync = now;
+  // Vận tốc để bên kia nội suy mượt
+  if(typeof syncCoopSelf._lx!=='number'){ syncCoopSelf._lx=P.x; syncCoopSelf._ly=P.y; syncCoopSelf._lt=now; }
+  const dtSec = Math.max(0.016, (now - syncCoopSelf._lt)/1000);
+  let vx = (P.x - syncCoopSelf._lx)/dtSec;
+  let vy = (P.y - syncCoopSelf._ly)/dtSec;
+  // clamp vận tốc ảo
+  const spd = Math.hypot(vx,vy);
+  if(spd>520){ vx*=520/spd; vy*=520/spd; }
+  syncCoopSelf._lx=P.x; syncCoopSelf._ly=P.y; syncCoopSelf._lt=now;
   const payload = {
-    x: Math.round(P.x), y: Math.round(P.y),
+    x: Math.round(P.x*10)/10, y: Math.round(P.y*10)/10,
+    vx: Math.round(vx*10)/10, vy: Math.round(vy*10)/10,
     hp: Math.round(P.hp), maxhp: Math.round(P.maxhp),
     face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
     moving: !!P.moving, charId: equippedCharacter||'survivor',
     name: (currentUser.displayName||'P'), shortId: myShortId,
     lv: Object.assign({}, lv),
     golemSkin: golemSkin||'default',
+    t: Date.now(),
     golem: (lv.golem && golemSt && golemSt.active) ? {
       active: true,
       x: Math.round(golemSt.x),
@@ -3952,10 +4000,19 @@ function syncCoopSelf(force){
       isEvo: !!(lv.golem>=6)
     } : { active: false }
   };
-  // Fire-and-forget — không await, không làm lag trận
-  const data = { players: { [currentUser.uid]: payload } };
+  // QUAN TRỌNG: dùng đường dẫn lồng (dotted path) để KHÔNG ghi đè toàn bộ map players
+  // (set({players:{[uid]:...}}, {merge:true}) sẽ XÓA entry của đối phương!)
+  const data = {};
+  data['players.' + currentUser.uid] = payload;
   if(!_sentPlaying || force){ data.status='playing'; data.t=Math.floor(T); _sentPlaying=true; }
-  db.collection('rooms').doc(currentRoomId).set(data, { merge:true }).then(()=>{ _coopErr=''; }).catch(e=>{ _coopErr='ghi: '+((e&&e.code)||'lỗi'); _sentPlaying=false; console.warn('coop sync', e); });
+  db.collection('rooms').doc(currentRoomId).set(data, { merge:true }).then(()=>{ _coopErr=''; }).catch(e=>{
+    // fallback update nếu set merge lỗi
+    db.collection('rooms').doc(currentRoomId).update(data).then(()=>{ _coopErr=''; }).catch(e2=>{
+      _coopErr='ghi: '+((e2&&e2.code)||(e&&e.code)||'lỗi');
+      _sentPlaying=false;
+      console.warn('coop sync', e2||e);
+    });
+  });
   updateCoopBadge();
 }
 function updateCoopBadge(){
@@ -4199,12 +4256,17 @@ function drawPartnerGolemModel(gx, gy, pSkin, isEvo, walk, moving, face, atkFx, 
 }
 function drawPartner(){
   if(!partner || !partner.alive) return;
-  // Làm mượt vị trí nhanh hơn để thấy di chuyển tức thì (~0.45)
+  // Làm mượt + dự đoán vận tốc để giảm khựng/delay
   if(partner.dx===undefined){ partner.dx=partner.x; partner.dy=partner.y; }
-  const _lerp = 0.45;
-  partner.dx += (partner.x-partner.dx)*_lerp; partner.dy += (partner.y-partner.dy)*_lerp;
-  // Nếu lệch quá xa (teleport / mới nhận data) thì snap ngay
-  if(Math.hypot(partner.x-partner.dx, partner.y-partner.dy)>180){ partner.dx=partner.x; partner.dy=partner.y; }
+  const age = Math.min(0.25, Math.max(0, (Date.now()-(partner.lastSync||Date.now()))/1000));
+  const predX = partner.x + (partner.vx||0)*age*0.85;
+  const predY = partner.y + (partner.vy||0)*age*0.85;
+  const dist = Math.hypot(predX-partner.dx, predY-partner.dy);
+  // Lerp nhanh hơn khi gần, snap khi xa
+  const _lerp = dist>120 ? 1 : (dist>40 ? 0.55 : 0.38);
+  partner.dx += (predX-partner.dx)*_lerp;
+  partner.dy += (predY-partner.dy)*_lerp;
+  if(dist>200){ partner.dx=predX; partner.dy=predY; }
   const px=partner.dx, py=partner.dy;
   partner.anim=(partner.anim||0)+((partner.moving?12:3)/60);
   try{ drawPartnerSkills(px,py); }catch(e){ console.warn('partner skills', e); }
