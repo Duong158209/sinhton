@@ -1306,11 +1306,14 @@ function bindLobbyUI(){
       if(d.status!=='waiting' && d.status!=='ready'){ await consumeInvite('expired'); throw new Error('Lời mời đã hết hạn'); }
       await consumeInvite('accepted');
       // Dotted path: không xóa entry players của host
-      await ref.set({
+      // IMPORTANT: dotted field paths are interpreted by update(), not set({merge:true}).
+      // The old set() silently created a literal field named `players.<uid>`, so the
+      // players map never contained the guest on the other device.
+      await ref.update({
         guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',
         status:'playing',startedAt:Date.now(),
         ['players.'+currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}
-      },{merge:true});
+      });
       try{ await db.collection('users').doc(inv.fromUid).collection('teamInviteResponses').doc(inv.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:inv.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
       currentRoomId=inv.roomId;isRoomHost=false;partnerUid=inv.fromUid;coopEnded=false;coopActive=true;
       listenRoom(inv.roomId);startGame();
@@ -3611,6 +3614,12 @@ async function searchFriendById(){
     row.append(info,send); if(box){box.textContent='';box.appendChild(row);}
   }catch(e){console.warn('search friend',e);if(box)box.textContent='Lỗi tìm bạn ('+(e.code||e.message||'lỗi')+'). Kiểm tra Firestore Rules.';}
 }
+function teamInviteCreatedMillis(value){
+  if(value && typeof value.toMillis==='function') return value.toMillis();
+  if(value && typeof value.toDate==='function') return value.toDate().getTime();
+  const n=Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 function listenTeamInvites(){
   if(!currentUser || typeof db==='undefined') return;
   if(teamInviteUnsub){try{teamInviteUnsub()}catch(_){} teamInviteUnsub=null;}
@@ -3618,10 +3627,10 @@ function listenTeamInvites(){
     const wrap=document.getElementById('incomingTeamInvite');
     if(!wrap) return;
     const all = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>{
-      const age = Date.now() - (x.createdAt||0);
+      const age = Date.now() - teamInviteCreatedMillis(x.createdAt);
       if(age>300000 && x.status==='pending'){ try{ db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(x.id).set({status:'expired'},{merge:true}); }catch(_){} return false; }
-      return x.status==='pending' && age<300000;
-    }).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      return x.status==='pending' && age>=0 && age<300000;
+    }).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt));
     const doc = all[0];
     if(!doc){ wrap.style.display='none'; activeTeamInvite=null; return; }
     // Tránh rung/bíp lặp lại cùng 1 lời mời
@@ -3641,21 +3650,16 @@ function listenTeamInvites(){
   const invCol = db.collection('users').doc(currentUser.uid).collection('teamInvites');
   invCol.get().then(applyTeamInvites).catch(()=>{});
   teamInviteUnsub=invCol.onSnapshot(applyTeamInvites,e=>console.warn('team invite listener',e));
-  // Backup poll mỗi 2.5s trong 30s đầu sau khi mở lobby (tránh delay snapshot)
-  if(window._teamInvitePoll){ try{clearInterval(window._teamInvitePoll);}catch(_){} }
-  let _pollLeft = 12;
-  window._teamInvitePoll = setInterval(()=>{
-    _pollLeft--;
-    if(_pollLeft<=0 || !currentUser){ clearInterval(window._teamInvitePoll); window._teamInvitePoll=null; return; }
-    invCol.get().then(applyTeamInvites).catch(()=>{});
-  }, 2500);
+  // onSnapshot delivers realtime updates; avoid repeated polling reads that can
+  // race with the listener and make invite UI flicker or consume extra quota.
+  if(window._teamInvitePoll){ try{clearInterval(window._teamInvitePoll);}catch(_){} window._teamInvitePoll=null; }
 }
 async function inviteFriendToTeam(friend){
   if(!currentUser){ alert('Chưa đăng nhập!'); return; }
   if(!friend?.uid){ const st=document.getElementById('roomStatus'); if(st) st.textContent='Bạn này chưa có UID (chưa từng đăng nhập). Hãy bảo họ nhập ID 6 ký tự của bạn để kết bạn trước.'; return; }
   try{
     const allInv = await db.collection('users').doc(currentUser.uid).collection('teamInvites').get();
-    const pendingFromFriend = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-(x.createdAt||0)<300000).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
+    const pendingFromFriend = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-teamInviteCreatedMillis(x.createdAt)<300000).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt))[0];
     if(pendingFromFriend){
       const st=document.getElementById('roomStatus'); if(st) st.textContent='🔄 Bạn và '+(friend.name||'bạn')+' cùng mời nhau! Tự động vào phòng của bạn ấy...';
       const ref=db.collection('rooms').doc(pendingFromFriend.roomId);
@@ -3663,11 +3667,11 @@ async function inviteFriendToTeam(friend){
       if(snap.exists && snap.data().status!=='ended'){
         await db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(pendingFromFriend.id).set({status:'accepted'},{merge:true});
         // Không ghi đè cả map players — chỉ set guest + entry của mình bằng dotted path
-        await ref.set({
+        await ref.update({
           guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',
           status:'playing',startedAt:Date.now(),
           ['players.'+currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}
-        },{merge:true});
+        });
         try{ await db.collection('users').doc(pendingFromFriend.fromUid).collection('teamInviteResponses').doc(pendingFromFriend.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:pendingFromFriend.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
         currentRoomId=pendingFromFriend.roomId; isRoomHost=false; partnerUid=pendingFromFriend.fromUid; coopEnded=false; coopActive=true;
         listenRoom(pendingFromFriend.roomId); startGame();
@@ -3828,13 +3832,13 @@ function joinCoopRoom(code){
     // Hiện sẵn sàng ngay
     if(st) st.textContent = 'Đã vào phòng '+code+' — cả 2 bấm Bắt đầu';
     listenRoom(code);
-    return ref.set({
+    return ref.update({
       guestUid: currentUser.uid,
       guestShortId: myShortId,
       guestName: currentUser.displayName||'Guest',
       status: 'ready',
       ['players.'+currentUser.uid]: { shortId: myShortId, name: currentUser.displayName||'Guest', x:40, y:0, hp:400, maxhp:400, alive:true, face:1, charId: typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor', moving:false, t:Date.now() }
-    }, { merge:true });
+    });
   }).catch(e=>{
     _coopErr = (e&&e.code)||'loi'; if(st) st.textContent = 'Lỗi vào phòng (Rules?) ['+((e&&e.code)||'')+']: '+(e.message||e);
   });
@@ -4000,18 +4004,15 @@ function syncCoopSelf(force){
       isEvo: !!(lv.golem>=6)
     } : { active: false }
   };
-  // QUAN TRỌNG: dùng đường dẫn lồng (dotted path) để KHÔNG ghi đè toàn bộ map players
-  // (set({players:{[uid]:...}}, {merge:true}) sẽ XÓA entry của đối phương!)
+  // Dotted field paths MUST use update(); set({merge:true}) treats dotted keys as
+  // literal field names in this SDK path and caused each client to miss the other's state.
   const data = {};
   data['players.' + currentUser.uid] = payload;
   if(!_sentPlaying || force){ data.status='playing'; data.t=Math.floor(T); _sentPlaying=true; }
-  db.collection('rooms').doc(currentRoomId).set(data, { merge:true }).then(()=>{ _coopErr=''; }).catch(e=>{
-    // fallback update nếu set merge lỗi
-    db.collection('rooms').doc(currentRoomId).update(data).then(()=>{ _coopErr=''; }).catch(e2=>{
-      _coopErr='ghi: '+((e2&&e2.code)||(e&&e.code)||'lỗi');
-      _sentPlaying=false;
-      console.warn('coop sync', e2||e);
-    });
+  db.collection('rooms').doc(currentRoomId).update(data).then(()=>{ _coopErr=''; }).catch(e=>{
+    _coopErr='ghi: '+((e&&e.code)||'lỗi');
+    _sentPlaying=false;
+    console.warn('coop sync update failed', e);
   });
   updateCoopBadge();
 }
