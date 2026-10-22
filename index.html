@@ -864,7 +864,7 @@ const SK={
 const MAXLV=5;
 // Giảm 55% + 75% sát thương SKILL của boss ở giai đoạn đầu game (2 phút đầu). Muốn đổi: sửa 2 số dưới.
 const EARLY_BOSS_T=90, EARLY_BOSS_SKILL_MUL=0.65*0.45; // giảm ít hơn trước: còn ~29% dame trong 90s đầu, sau đó full dame (buff late)
-const bossSkillMul=()=>(T<EARLY_BOSS_T?EARLY_BOSS_SKILL_MUL:0.90); // giảm thêm 10% sát thương kỹ năng boss
+const bossSkillMul=()=>(T<EARLY_BOSS_T?EARLY_BOSS_SKILL_MUL:0.90)*((typeof coopActive!=='undefined'&&coopActive)?0.90:1); // Co-op: giảm thêm 10% dame skill boss // giảm thêm 10% sát thương kỹ năng boss
 const LS=[0,.01,.02,.03],LS_TXT=[1,2,3];
 const EVO={
   kunai:{n:'Vòng Kunai Bất Tận',ic:'🌪️',d:'TIẾN HÓA: liên tục phóng vòng 32 kunai ra ngoài rồi thu về ngay lập tức, sát thương x4.'},
@@ -1023,7 +1023,7 @@ function joyDefault(){joy.bx=W/2;joy.by=H-110-(parseFloat(getComputedStyle(docum
 function joyPos(e){return [e.clientX,e.clientY];}
 cv.style.touchAction='none';
 cv.addEventListener('pointerdown',e=>{
-  if(state!=='play'||joy.active)return;
+  if(!(state==='play'||(state==='levelup'&&typeof coopActive!=='undefined'&&coopActive))||joy.active)return;
   if(e.cancelable)e.preventDefault();
   joy.active=true;joy.id=e.pointerId;
   [joy.bx,joy.by]=joyPos(e);joy.kx=joy.bx;joy.ky=joy.by;joy.dx=joy.dy=0;
@@ -1109,6 +1109,8 @@ function startGame(){ window.startGame=startGame;
     try{ if(typeof reset==='function') reset(); }catch(_){}
     try{ runRewardSaved=false; }catch(_){}
     state='play';
+    // Co-op: ghi mốc bắt đầu ván + bất tử 3s đầu để không bị chết oan
+    try{ if(typeof coopActive!=='undefined'&&coopActive){ coopStartedAt=Date.now(); coopEnded=false; coopOutcome=''; P.inv=Math.max(P.inv||0,3); } }catch(_){}
     show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
     const hud=$('hud'); if(hud) hud.style.display='block';
     if(typeof joyDefault==='function') joyDefault();
@@ -1216,6 +1218,7 @@ let partnerUid = null;
 let lastPartnerSync = 0;
 let lastSelfSync = 0;
 let coopEnded = false;
+let coopStartedAt = 0;
 let coopOutcome = ''; // 'win' | 'lose'
 let _coopErr = '';
 let _sentPlaying = false;
@@ -1235,13 +1238,23 @@ function bindLobbyUI(){
   const acceptInvite=document.getElementById('acceptTeamInvite');
   if(acceptInvite) acceptInvite.onclick=async()=>{
     const inv=activeTeamInvite;if(!inv||!currentUser)return;
+    // Ẩn & xóa lời mời NGAY khi bấm đồng ý (không để lời mời còn treo)
+    activeTeamInvite=null;
+    const _wrap=document.getElementById('incomingTeamInvite'); if(_wrap)_wrap.style.display='none';
+    const _inviteDoc=db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(inv.id);
+    const consumeInvite=async(status)=>{
+      try{ await _inviteDoc.set({status:status},{merge:true}); }
+      catch(_){ try{ await _inviteDoc.delete(); }catch(__){} }
+    };
     try{
       const ref=db.collection('rooms').doc(inv.roomId), snap=await ref.get();
-      if(!snap.exists)throw new Error('Phòng không còn tồn tại');
+      if(!snap.exists){ await consumeInvite('expired'); throw new Error('Phòng không còn tồn tại'); }
       const d=snap.data();
-      await ref.set({guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',status:'playing',
+      if(d.status!=='waiting' && d.status!=='ready'){ await consumeInvite('expired'); throw new Error('Lời mời đã hết hạn'); }
+      await consumeInvite('accepted');
+      await ref.set({guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',status:'playing',startedAt:Date.now(),
         players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1}}},{merge:true});
-      await db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(inv.id).set({status:'accepted'},{merge:true});
+      try{ await db.collection('users').doc(inv.fromUid).collection('teamInviteResponses').doc(inv.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:inv.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
       currentRoomId=inv.roomId;isRoomHost=false;partnerUid=inv.fromUid;coopEnded=false;coopActive=true;
       listenRoom(inv.roomId);startGame();
     }catch(e){alert('Không vào được đội: '+(e.message||e));}
@@ -1249,6 +1262,7 @@ function bindLobbyUI(){
   const declineInvite=document.getElementById('declineTeamInvite');
   if(declineInvite) declineInvite.onclick=async()=>{
     const inv=activeTeamInvite;if(!inv||!currentUser)return;
+    activeTeamInvite=null; { const _w=document.getElementById('incomingTeamInvite'); if(_w)_w.style.display='none'; }
     try{
       await db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(inv.id).set({status:'declined'},{merge:true});
       await db.collection('users').doc(inv.fromUid).collection('teamInviteResponses').doc(inv.id).set({status:'declined',toName:currentUser.displayName||'Đối phương',roomId:inv.roomId,updatedAt:Date.now()},{merge:true});
@@ -1526,7 +1540,7 @@ function openLevelUp(isReroll){
       if(state!=='play') return;
       state='levelup';
       // Chỉ dừng điều khiển khi người chơi chủ động mở panel chọn
-      joy.active=false; joy.dx=joy.dy=0;
+      if(!(typeof coopActive!=='undefined'&&coopActive)){ joy.active=false; joy.dx=joy.dy=0; } // Co-op: game vẫn chạy, giữ joystick
       show('levelup',true);
     };
   }
@@ -1635,6 +1649,7 @@ function spawnEnemy(forceType,px,py){
   if(typeof coopActive!=='undefined' && coopActive){
     e.hp*=1.5; e.max=e.hp;
     e.dmg=(e.dmg||10)*1.05;
+    if(e.t==='b') e.dmg*=0.90; // Co-op: giảm 10% dame boss
   }
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
@@ -1951,7 +1966,8 @@ function fireWeapons(dt){
       const acidDurByLv = [0,3,3.5,4,4.5,5,5];
       const isUlt = l>=6;
       const baseKunaiDmg = (12+4*Math.min(l,5))*(1+0.10*(Math.min(l,5)-1));
-      const acidDmg = baseKunaiDmg*1.10 * (isUlt?2.5:1); // lv6 dame 2.5x đạn lv5
+      const acidLvBonus = 1+0.10*(Math.min(l,5)-1); // thêm +10% mỗi cấp (dame + độc)
+      const acidDmg = baseKunaiDmg*1.10*acidLvBonus * (isUlt?2.5:1); // lv6 dame 2.5x đạn lv5
       const baseCd = (.85-.06*Math.min(l,5));
       const acidCd = baseCd*1.05;
       if(isUlt){
@@ -1964,7 +1980,7 @@ function fireWeapons(dt){
           const spread = (i-3)*0.18;
           const a = baseAng + spread + rnd(-0.06,0.06);
           const dmg = acidDmg + rnd(-2,2);
-          const dot = acidDotByLv[5]*2; // 100 = 2x DOT lv5
+          const dot = acidDotByLv[5]*2*acidLvBonus; // 100 = 2x DOT lv5
           const dur = acidDurByLv[5];
           projs.push({k:'acid',x:P.x,y:P.y,vx:Math.cos(a)*300,vy:Math.sin(a)*300,a,dmg,hit:new Set(),life:1.6,r:20,acid:true,fog:true,dot:dot,dur:dur,slow:0.05,pierce:3});
         }
@@ -1984,7 +2000,7 @@ function fireWeapons(dt){
         for(let i=0;i<n;i++){
           window._acidShotCount++;
           const a=base+(i-(n-1)/2)*.12;
-          const dot = acidDotByLv[Math.min(l,5)];
+          const dot = acidDotByLv[Math.min(l,5)]*acidLvBonus;
           const dur = acidDurByLv[Math.min(l,5)];
           projs.push({k:'acid',x:P.x,y:P.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,a,dmg:acidDmg,hit:new Set(),life:1.8,r:12,acid:true,dot:dot,dur:dur,slow:0,pierce:1});
           if(window._acidShotCount%4===0 && (window.poisonPuddles||[]).length<12){
@@ -3515,8 +3531,11 @@ function listenTeamInvites(){
   if(teamInviteUnsub){try{teamInviteUnsub()}catch(_){} teamInviteUnsub=null;}
   teamInviteUnsub=db.collection('users').doc(currentUser.uid).collection('teamInvites')
     .where('status','==','pending').onSnapshot(snap=>{
-      const doc=snap.docs[0], wrap=document.getElementById('incomingTeamInvite');
+      const wrap=document.getElementById('incomingTeamInvite');
       if(!wrap) return;
+      // Lời mời quá 3 phút coi như hết hạn: tự dọn, không hiện lại
+      const _fresh=snap.docs.filter(x=>{const c=(x.data()||{}).createdAt||0; if(Date.now()-c>180000){ x.ref.set({status:'expired'},{merge:true}).catch(()=>{}); return false; } return true;});
+      const doc=_fresh[0];
       if(!doc){wrap.style.display='none';activeTeamInvite=null;return;}
       activeTeamInvite={id:doc.id,...doc.data()};
       wrap.style.display='block';
@@ -3707,7 +3726,8 @@ function listenRoom(code){
       coopActive = true;
       startGame();
     }
-    if(d.status==='ended' && !coopEnded){
+    // Chỉ nhận kết thúc khi đang trong trận và là kết quả MỚI (bỏ qua phòng cũ còn status 'ended')
+    if(d.status==='ended' && !coopEnded && (state==='play'||state==='pause'||state==='levelup') && (d.endedAt||0) >= coopStartedAt-500){
       coopEnded = true;
       coopOutcome = d.winnerUid === currentUser.uid ? 'win' : 'lose';
       pushText && pushText({x:P.x,y:P.y-40,v:coopOutcome==='win'?'🏆 WIN — ĐỒNG ĐỘI ĐÃ NGÃ!':'💀 THUA — BẠN ĐÃ NGÃ!',t:3,c:true,big:true});
@@ -5863,7 +5883,8 @@ function loop(now){
   let dt=(now-last)/1000;last=now;
   // Khi trình duyệt tụt FPS, không cho một frame dồn quá nhiều sát thương.
   if(dt>.033)dt=.033;
-  if(state==='play')update(dt);
+  // Co-op: đang chọn skill game vẫn tiếp tục chạy (quái, boss, skill vẫn hoạt động)
+  if(state==='play' || (state==='levelup' && typeof coopActive!=='undefined' && coopActive)) update(dt);
   render();
   requestAnimationFrame(loop);
 }
