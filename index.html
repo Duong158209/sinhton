@@ -1149,7 +1149,6 @@ function startGame(){ window.startGame=startGame;
     // Co-op: ghi mốc bắt đầu ván + bất tử 3s đầu để không bị chết oan
     try{ if(typeof coopActive!=='undefined'&&coopActive){
       coopStartedAt=Date.now(); coopEnded=false; coopOutcome=''; P.inv=Math.max(P.inv||0,3);
-      // FIX: Tạo placeholder đồng đội ngay khi vào trận (không chờ Firebase)
       if(!partner){
         partner = {
           x:(P.x||0)+56, y:(P.y||0), dx:(P.x||0)+56, dy:(P.y||0),
@@ -2450,7 +2449,7 @@ function updateProjs(dt){
 }
 function update(dt){
   T+=dt;
-  // Safety net: đang co-op mà chưa có partner thì tạo placeholder + force sync
+  // Safety net: co-op mà chưa có partner thì tạo + force sync
   if(typeof coopActive!=='undefined' && coopActive && !partner){
     partner = {
       x:(P.x||0)+56, y:(P.y||0), dx:(P.x||0)+56, dy:(P.y||0),
@@ -3579,13 +3578,28 @@ async function searchFriendById(){
     const info=document.createElement('div'); info.style.flex='1'; info.textContent=(d.name||d.displayName||'Người chơi')+' · '+sid;
     const send=document.createElement('button'); send.className='lobby-close';send.style.background='#3b82f6';send.textContent='Gửi lời mời';
     send.onclick=async()=>{
+      // Giới hạn gửi lời mời kết bạn: cách nhau tối thiểu 5 giây
+      if(typeof window._lastFriendInviteAt==='number' && Date.now()-window._lastFriendInviteAt<5000){
+        const left=Math.ceil((5000-(Date.now()-window._lastFriendInviteAt))/1000);
+        if(box)box.textContent='Chờ '+left+'s rồi gửi lời mời tiếp.';
+        return;
+      }
       send.disabled=true;send.textContent='Đang gửi…';
       try{
         await db.collection('users').doc(uid).collection('friendRequests').doc(currentUser.uid).set({
           fromUid:currentUser.uid,fromShortId:myShortId,fromName:currentUser.displayName||'Người chơi',
           fromAvatar:accountAvatar||'🧑',status:'pending',createdAt:Date.now()
         });
-        if(box)box.textContent='Đã gửi lời mời kết bạn tới '+(d.name||sid)+'.';
+        window._lastFriendInviteAt=Date.now();
+        if(box)box.textContent='Đã gửi lời mời kết bạn tới '+(d.name||sid)+'. (Chờ 5s nếu muốn gửi lại)';
+        // Khóa nút 5s
+        let left=5;
+        send.textContent='Chờ '+left+'s';
+        const tmr=setInterval(()=>{
+          left--;
+          if(left<=0){ clearInterval(tmr); send.disabled=false; send.textContent='Gửi lời mời'; }
+          else send.textContent='Chờ '+left+'s';
+        },1000);
       }catch(e){send.disabled=false;send.textContent='Gửi lời mời';if(box)box.textContent='Không gửi được lời mời ('+(e.code||'lỗi')+'). Kiểm tra Firestore Rules và đăng nhập.';}
     };
     row.append(info,send); if(box){box.textContent='';box.appendChild(row);}
@@ -3594,7 +3608,7 @@ async function searchFriendById(){
 function listenTeamInvites(){
   if(!currentUser || typeof db==='undefined') return;
   if(teamInviteUnsub){try{teamInviteUnsub()}catch(_){} teamInviteUnsub=null;}
-  teamInviteUnsub=db.collection('users').doc(currentUser.uid).collection('teamInvites').onSnapshot(snap=>{
+  const applyTeamInvites = (snap)=>{
     const wrap=document.getElementById('incomingTeamInvite');
     if(!wrap) return;
     const all = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>{
@@ -3604,15 +3618,22 @@ function listenTeamInvites(){
     }).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     const doc = all[0];
     if(!doc){ wrap.style.display='none'; activeTeamInvite=null; return; }
+    // Tránh rung/bíp lặp lại cùng 1 lời mời
+    const isNew = !activeTeamInvite || activeTeamInvite.id!==doc.id;
     activeTeamInvite=doc;
     wrap.style.display='block';
     wrap.style.pointerEvents='auto';
     const txt=document.getElementById('incomingTeamInviteText');
     if(txt) txt.textContent='📩 '+(doc.fromName||'Bạn bè')+' mời bạn lập đội Co-op! (Phòng '+doc.roomId+')';
-    try{ if(navigator.vibrate) navigator.vibrate([200,100,200]); }catch(_){}
-    try{ if(typeof sfx==='function') sfx('frenzy'); }catch(_){}
-    try{ wrap.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
-  },e=>console.warn('team invite listener',e));
+    if(isNew){
+      try{ if(navigator.vibrate) navigator.vibrate([200,100,200]); }catch(_){}
+      try{ if(typeof sfx==='function') sfx('frenzy'); }catch(_){}
+      try{ wrap.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
+    }
+  };
+  // Lấy ngay 1 lần (không chờ snapshot) để lời mời hiện nhanh
+  db.collection('users').doc(currentUser.uid).collection('teamInvites').get().then(applyTeamInvites).catch(()=>{});
+  teamInviteUnsub=db.collection('users').doc(currentUser.uid).collection('teamInvites').onSnapshot(applyTeamInvites,e=>console.warn('team invite listener',e));
 }
 async function inviteFriendToTeam(friend){
   if(!currentUser){ alert('Chưa đăng nhập!'); return; }
@@ -3799,21 +3820,31 @@ function listenRoom(code){
     if(!otherUid){ const _c = d.hostUid===currentUser.uid ? d.guestUid : d.hostUid; if(_c && _c!==currentUser.uid) otherUid=_c; }
     partnerUid = otherUid || d.guestUid || d.hostUid || partnerUid || null;
     if(partnerUid === currentUser.uid) partnerUid = otherUid || (d.hostUid===currentUser.uid ? d.guestUid : d.hostUid) || null;
-    // FIX mạnh: luôn có partner khi biết partnerUid (dù chưa có data players)
+    // Cập nhật partner từ data thật (giữ dx/dy để mượt) + luôn cập nhật charId/ngoại hình
     if(otherUid && _pl[otherUid]){
       const op = _pl[otherUid];
       const _old = partner;
+      const nx = (typeof op.x==='number') ? op.x : (_old ? _old.x : 0);
+      const ny = (typeof op.y==='number') ? op.y : (_old ? _old.y : 0);
       partner = {
-        dx: _old ? (_old.dx ?? op.x) : (op.x||0), dy: _old ? (_old.dy ?? op.y) : (op.y||0),
+        dx: _old && _old.dx!==undefined ? _old.dx : nx,
+        dy: _old && _old.dy!==undefined ? _old.dy : ny,
         lv: (op.lv && typeof op.lv==='object') ? Object.assign({}, op.lv) : (_old && _old.lv ? _old.lv : {}),
-        x: op.x||0, y: op.y||0, hp: op.hp||400, maxhp: op.maxhp||400,
-        face: op.face||1, alive: op.alive!==false, name: op.name || d.guestName || d.hostName || 'Đồng đội',
-        avatar: op.avatar||'🧑', anim: op.anim||0, moving: !!op.moving,
-        charId: op.charId||'survivor',
-        golemSkin: op.golemSkin||'default',
-        golem: op.golem||null,
-        gx: _old && _old.gx!==undefined ? _old.gx : (op.golem && op.golem.x ? op.golem.x : (op.x||0)-34),
-        gy: _old && _old.gy!==undefined ? _old.gy : (op.golem && op.golem.y ? op.golem.y : (op.y||0))
+        x: nx, y: ny,
+        hp: (typeof op.hp==='number') ? op.hp : (_old ? _old.hp : 400),
+        maxhp: (typeof op.maxhp==='number') ? op.maxhp : (_old ? _old.maxhp : 400),
+        face: op.face||(_old&&_old.face)||1,
+        alive: op.alive!==false,
+        name: op.name || d.guestName || d.hostName || (_old&&_old.name) || 'Đồng đội',
+        avatar: op.avatar||(_old&&_old.avatar)||'🧑',
+        anim: (typeof op.anim==='number') ? op.anim : (_old ? _old.anim : 0),
+        moving: !!op.moving,
+        charId: op.charId || (_old && _old.charId) || 'survivor',
+        golemSkin: op.golemSkin || (_old && _old.golemSkin) || 'default',
+        golem: op.golem || null,
+        gx: _old && _old.gx!==undefined ? _old.gx : (op.golem && op.golem.x ? op.golem.x : nx-34),
+        gy: _old && _old.gy!==undefined ? _old.gy : (op.golem && op.golem.y ? op.golem.y : ny),
+        _fa: _old && _old._fa, _ft: _old && _old._ft
       };
     } else if(partnerUid && partnerUid !== currentUser.uid){
       const pName = (d.guestUid===partnerUid ? (d.guestName||'Đồng đội') : (d.hostName||'Đồng đội'));
@@ -3828,7 +3859,6 @@ function listenRoom(code){
         partner.name = pName;
       }
     }
-    // Safety khi đang chơi mà vẫn chưa có partner
     if((state==='play'||state==='levelup'||state==='pause') && coopActive && !partner){
       partner = {
         x:(typeof P!=='undefined'?P.x:0)+56, y:(typeof P!=='undefined'?P.y:0),
@@ -3868,8 +3898,8 @@ function listenRoom(code){
         coopActive = true;
         partnerUid = d.guestUid || partnerUid || Object.keys(_pl).find(k=>k!==currentUser.uid);
         if(!currentRoomId) currentRoomId = d.code||code;
-        // Force sync ngay khi vào trận để bên kia thấy mình tức thì
-        try{ if(typeof syncCoopSelf==='function'){ syncCoopSelf(true); setTimeout(function(){syncCoopSelf(true);},70); setTimeout(function(){syncCoopSelf(true);},220); } }catch(_){}
+        // Force sync ngay khi vào trận để bên kia thấy mình
+        try{ if(typeof syncCoopSelf==='function') setTimeout(()=>syncCoopSelf(true), 100); }catch(_){}
         startGame();
       }
     }
@@ -3896,9 +3926,9 @@ function listenRoom(code){
 function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
   const now = performance.now();
-  // 8s đầu hoặc chưa thấy partner: sync rất nhanh để 2 bên hiện ngay
+  // 8s đầu hoặc chưa thấy partner: sync rất nhanh để 2 bên hiện + di chuyển đúng
   const early = (typeof coopStartedAt!=='undefined' && (Date.now()-coopStartedAt)<8000) || !partner;
-  const minInterval = early ? 70 : 200;
+  const minInterval = early ? 70 : 160;
   if(!force && now - lastSelfSync < minInterval) return;
   lastSelfSync = now;
   const payload = {
@@ -3929,8 +3959,7 @@ function syncCoopSelf(force){
   updateCoopBadge();
 }
 function updateCoopBadge(){
-  const nowT = performance.now();
-  if(nowT-_badgeT < (partner ? 500 : 150)) return; _badgeT=nowT;
+  const nowT = performance.now(); if(nowT-_badgeT<500) return; _badgeT=nowT;
   let el=document.getElementById('coopBadge');
   if(!el){
     el=document.createElement('div'); el.id='coopBadge';
@@ -3965,12 +3994,11 @@ function _pSpark(x,y,c){
   for(let i=0;i<4;i++){ const a=Math.random()*6.28,sp=60+Math.random()*80; _pfx.push({k:'dot',x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:.3,T:.3,c:c||'#fff',r:1.5+Math.random()*1.5}); }
 }
 function drawPartnerSkills(px,py){
-  const L=partner.lv||{}; if(!L || typeof L!=='object') return;
+  const L=partner.lv; if(!L) return;
   const now=performance.now(); let dt=(now-_pLast)/1000; _pLast=now; if(!(dt>0)||dt>0.1) dt=0.016;
   const t=now/1000;
   if(partner._ft>0) partner._ft-=dt;
-  // Skill đối phương bắn sớm hơn khi mới nhận data
-  const every=(k,sec,fn)=>{ if(!L[k]) return; if(_pcd[k]===undefined) _pcd[k]=Math.random()*0.35; _pcd[k]-=dt; if(_pcd[k]<=0){ _pcd[k]=sec; fn(L[k], L[k]>=6?1.6:1); } };
+  const every=(k,sec,fn)=>{ if(!L[k]) return; if(_pcd[k]===undefined) _pcd[k]=0; _pcd[k]-=dt; if(_pcd[k]<=0){ _pcd[k]=sec; fn(L[k], L[k]>=6?1.6:1); } };
   const AT=(arr,l)=>arr[Math.min(l,arr.length)-1];
   const aim=(e)=>Math.atan2(e.y-py,e.x-px);
   const fire=(a)=>{ partner._fa=a; partner._ft=.12; };
@@ -4171,9 +4199,12 @@ function drawPartnerGolemModel(gx, gy, pSkin, isEvo, walk, moving, face, atkFx, 
 }
 function drawPartner(){
   if(!partner || !partner.alive) return;
-  // làm mượt vị trí (mạng ~5Hz)
+  // Làm mượt vị trí nhanh hơn để thấy di chuyển tức thì (~0.45)
   if(partner.dx===undefined){ partner.dx=partner.x; partner.dy=partner.y; }
-  partner.dx += (partner.x-partner.dx)*0.25; partner.dy += (partner.y-partner.dy)*0.25;
+  const _lerp = 0.45;
+  partner.dx += (partner.x-partner.dx)*_lerp; partner.dy += (partner.y-partner.dy)*_lerp;
+  // Nếu lệch quá xa (teleport / mới nhận data) thì snap ngay
+  if(Math.hypot(partner.x-partner.dx, partner.y-partner.dy)>180){ partner.dx=partner.x; partner.dy=partner.y; }
   const px=partner.dx, py=partner.dy;
   partner.anim=(partner.anim||0)+((partner.moving?12:3)/60);
   try{ drawPartnerSkills(px,py); }catch(e){ console.warn('partner skills', e); }
@@ -4191,19 +4222,21 @@ function drawPartner(){
     const gap=13, x0=-(ks.length-1)*gap/2;
     ks.forEach((k,i)=>{ ctx.fillText(PICON[k], x0+i*gap, -45); });
   }
-  // model đơn giản / theo char
-  if(partner.charId==='gojo' && typeof drawGojoModel==='function'){
+  // Model theo đúng charId của đối phương
+  const pChar = partner.charId || 'survivor';
+  if(pChar==='gojo' && typeof drawGojoModel==='function'){
     drawGojoModel(ctx, partner.anim||0, !!partner.moving, partner.face||1, 0.95, partner);
   }else{
+    // Survivor / mặc định — dùng màu da + quần giống player local hơn
     const b = Math.sin(partner.anim||0)*(partner.moving?1.2:.4);
     ctx.translate(0,b);
     ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(0,10,9,3,0,0,7); ctx.fill();
     ctx.scale(partner.face||1,1);
     ctx.fillStyle='#2c2f4a'; ctx.fillRect(-6,1,12,9);
-    ctx.fillStyle='#3b82f6'; ctx.fillRect(-7,-1,14,4); // áo xanh phân biệt
+    ctx.fillStyle='#e8e8f0'; ctx.fillRect(-7,-1,14,5); // áo trắng như survivor
     ctx.fillStyle='#f0c9a0'; ctx.beginPath();
     if(ctx.roundRect){ ctx.roundRect(-8,-12,16,13,4); ctx.fill(); } else ctx.fillRect(-8,-12,16,13);
-    ctx.fillStyle='#4aa6e8'; ctx.fillRect(-8,-13,16,5);
+    ctx.fillStyle='#1a1a22'; ctx.fillRect(-8,-13,16,5); // tóc đen
     ctx.fillStyle='#1c1c28'; ctx.fillRect(-4,-5,3,3); ctx.fillRect(2,-5,3,3);
     ctx.fillStyle='#bfc4d8'; ctx.fillRect(7,2,7,2);
   }
