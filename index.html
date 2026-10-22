@@ -1147,7 +1147,24 @@ function startGame(){ window.startGame=startGame;
     try{ runRewardSaved=false; }catch(_){}
     state='play';
     // Co-op: ghi mốc bắt đầu ván + bất tử 3s đầu để không bị chết oan
-    try{ if(typeof coopActive!=='undefined'&&coopActive){ coopStartedAt=Date.now(); coopEnded=false; coopOutcome=''; P.inv=Math.max(P.inv||0,3); } }catch(_){}
+    try{ if(typeof coopActive!=='undefined'&&coopActive){
+      coopStartedAt=Date.now(); coopEnded=false; coopOutcome=''; P.inv=Math.max(P.inv||0,3);
+      // FIX: Tạo placeholder đồng đội ngay khi vào trận (không chờ Firebase)
+      if(!partner){
+        partner = {
+          x:(P.x||0)+56, y:(P.y||0), dx:(P.x||0)+56, dy:(P.y||0),
+          hp:400, maxhp:400, face:1, alive:true, name:'Đồng đội',
+          avatar:'👥', anim:0, moving:false, charId:'survivor', lv:{}, golemSkin:'default', golem:null
+        };
+      }
+      try{ if(typeof syncCoopSelf==='function'){
+        syncCoopSelf(true);
+        setTimeout(function(){syncCoopSelf(true);},60);
+        setTimeout(function(){syncCoopSelf(true);},180);
+        setTimeout(function(){syncCoopSelf(true);},400);
+        setTimeout(function(){syncCoopSelf(true);},900);
+      } }catch(_){}
+    } }catch(_){}
     show('menu',false);show('lobby',false);show('over',false);show('pause',false);show('levelup',false);
     const hud=$('hud'); if(hud) hud.style.display='block';
     if(typeof joyDefault==='function') joyDefault();
@@ -1617,7 +1634,7 @@ function levelCheck(){
     }
   }
 }
-function gainXp(v){P.xp+=v*(1+.2*ps.xp);levelCheck();updateHud();}
+function gainXp(v){P.xp+=v*(1+.2*ps.xp)*((typeof coopActive!=='undefined'&&coopActive)?1.5:1);levelCheck();updateHud();}
 const maxEnemies=()=>Math.min(frenzyActive ? ((typeof coopActive!=='undefined'&&coopActive)?3600:3000) : 260,180+Math.floor(T/45)*6);
 function spawnEnemy(forceType,px,py){
   if(enemies.length>=maxEnemies()&&forceType!=='b')return;
@@ -2433,6 +2450,15 @@ function updateProjs(dt){
 }
 function update(dt){
   T+=dt;
+  // Safety net: đang co-op mà chưa có partner thì tạo placeholder + force sync
+  if(typeof coopActive!=='undefined' && coopActive && !partner){
+    partner = {
+      x:(P.x||0)+56, y:(P.y||0), dx:(P.x||0)+56, dy:(P.y||0),
+      hp:400, maxhp:400, face:1, alive:true, name:'Đồng đội',
+      avatar:'👥', anim:0, moving:false, charId:'survivor', lv:{}, golem:null
+    };
+    try{ if(typeof syncCoopSelf==='function') syncCoopSelf(true); }catch(_){}
+  }
   // buff từ phút 2
   if(T>=120 && T>=lastScaleT){
     lastScaleT+=30;
@@ -2486,10 +2512,11 @@ function update(dt){
   P.anim+=dt*(P.moving?12:3);
   P.hurt=Math.max(0,P.hurt-dt);P.inv=Math.max(0,(P.inv||0)-dt);
   const frenzySpawnMult = frenzyActive ? ((typeof coopActive!=='undefined' && coopActive) ? 50 : 25) : 1;
-  spawnAcc+=dt*((T<60?2.4:1.2+T/9)*frenzySpawnMult);
+  // Tăng lượng quái đầu game x1.3 (T<60)
+  spawnAcc+=dt*((T<60?2.4*1.3:1.2+T/9)*frenzySpawnMult);
   while(spawnAcc>=1){spawnAcc--;spawnEnemy();}
   burstT-=dt;
-  if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?1.35:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(frenzyActive?frenzySpawnMult:1)); for(let i=0;i<n;i++)spawnEnemy();}
+  if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?1.35:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(T<60?1.3:1)*(frenzyActive?frenzySpawnMult:1)); for(let i=0;i<n;i++)spawnEnemy();}
   fireWeapons(dt);
   if(T>=bossT){
     bossT+= Math.max(35, 70 - T/20);
@@ -3770,15 +3797,17 @@ function listenRoom(code){
     const _pl = d.players||{};
     let otherUid = Object.keys(_pl).find(k=>k!==currentUser.uid) || null;
     if(!otherUid){ const _c = d.hostUid===currentUser.uid ? d.guestUid : d.hostUid; if(_c && _c!==currentUser.uid) otherUid=_c; }
-    partnerUid = otherUid || d.guestUid || null;
-    // FIX: Luôn tạo partner placeholder nếu có guestUid nhưng chưa có data players -> tránh lỗi 1 bên không thấy đồng đội
+    partnerUid = otherUid || d.guestUid || d.hostUid || partnerUid || null;
+    if(partnerUid === currentUser.uid) partnerUid = otherUid || (d.hostUid===currentUser.uid ? d.guestUid : d.hostUid) || null;
+    // FIX mạnh: luôn có partner khi biết partnerUid (dù chưa có data players)
     if(otherUid && _pl[otherUid]){
       const op = _pl[otherUid];
       const _old = partner;
       partner = {
-        dx: _old ? (_old.dx ?? op.x) : (op.x||0), dy: _old ? (_old.dy ?? op.y) : (op.y||0), lv: op.lv||{},
+        dx: _old ? (_old.dx ?? op.x) : (op.x||0), dy: _old ? (_old.dy ?? op.y) : (op.y||0),
+        lv: (op.lv && typeof op.lv==='object') ? Object.assign({}, op.lv) : (_old && _old.lv ? _old.lv : {}),
         x: op.x||0, y: op.y||0, hp: op.hp||400, maxhp: op.maxhp||400,
-        face: op.face||1, alive: op.alive!==false, name: op.name||'Bạn',
+        face: op.face||1, alive: op.alive!==false, name: op.name || d.guestName || d.hostName || 'Đồng đội',
         avatar: op.avatar||'🧑', anim: op.anim||0, moving: !!op.moving,
         charId: op.charId||'survivor',
         golemSkin: op.golemSkin||'default',
@@ -3786,16 +3815,27 @@ function listenRoom(code){
         gx: _old && _old.gx!==undefined ? _old.gx : (op.golem && op.golem.x ? op.golem.x : (op.x||0)-34),
         gy: _old && _old.gy!==undefined ? _old.gy : (op.golem && op.golem.y ? op.golem.y : (op.y||0))
       };
-    } else if(partnerUid){
-      // Chưa có player data nhưng đã có guestUid -> tạo placeholder gần người chơi để hiện ngay
+    } else if(partnerUid && partnerUid !== currentUser.uid){
+      const pName = (d.guestUid===partnerUid ? (d.guestName||'Đồng đội') : (d.hostName||'Đồng đội'));
       if(!partner){
         partner = {
           dx: (typeof P!=='undefined'?P.x:0)+60, dy: (typeof P!=='undefined'?P.y:0),
           x: (typeof P!=='undefined'?P.x:0)+60, y: (typeof P!=='undefined'?P.y:0),
-          hp:400, maxhp:400, face:1, alive:true, name:(d.guestUid===partnerUid? (d.guestName||'Đồng đội') : (d.hostName||'Đồng đội')),
+          hp:400, maxhp:400, face:1, alive:true, name: pName,
           avatar:'👥', anim:0, moving:false, charId:'survivor', lv:{}, golem:null
         };
+      } else if(partner.name==='Đồng đội' || partner.name==='Bạn'){
+        partner.name = pName;
       }
+    }
+    // Safety khi đang chơi mà vẫn chưa có partner
+    if((state==='play'||state==='levelup'||state==='pause') && coopActive && !partner){
+      partner = {
+        x:(typeof P!=='undefined'?P.x:0)+56, y:(typeof P!=='undefined'?P.y:0),
+        dx:(typeof P!=='undefined'?P.x:0)+56, dy:(typeof P!=='undefined'?P.y:0),
+        hp:400, maxhp:400, face:1, alive:true, name:'Đồng đội',
+        avatar:'👥', anim:0, moving:false, charId:'survivor', lv:{}, golem:null
+      };
     }
     // UI danh sách phòng
     const st = document.getElementById('roomStatus');
@@ -3828,8 +3868,8 @@ function listenRoom(code){
         coopActive = true;
         partnerUid = d.guestUid || partnerUid || Object.keys(_pl).find(k=>k!==currentUser.uid);
         if(!currentRoomId) currentRoomId = d.code||code;
-        // Force sync ngay khi vào trận để bên kia thấy mình
-        try{ if(typeof syncCoopSelf==='function') setTimeout(()=>syncCoopSelf(true), 100); }catch(_){}
+        // Force sync ngay khi vào trận để bên kia thấy mình tức thì
+        try{ if(typeof syncCoopSelf==='function'){ syncCoopSelf(true); setTimeout(function(){syncCoopSelf(true);},70); setTimeout(function(){syncCoopSelf(true);},220); } }catch(_){}
         startGame();
       }
     }
@@ -3856,7 +3896,10 @@ function listenRoom(code){
 function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
   const now = performance.now();
-  if(!force && now - lastSelfSync < 200) return; // ~5 Hz, không chặn frame
+  // 8s đầu hoặc chưa thấy partner: sync rất nhanh để 2 bên hiện ngay
+  const early = (typeof coopStartedAt!=='undefined' && (Date.now()-coopStartedAt)<8000) || !partner;
+  const minInterval = early ? 70 : 200;
+  if(!force && now - lastSelfSync < minInterval) return;
   lastSelfSync = now;
   const payload = {
     x: Math.round(P.x), y: Math.round(P.y),
@@ -3886,7 +3929,8 @@ function syncCoopSelf(force){
   updateCoopBadge();
 }
 function updateCoopBadge(){
-  const nowT = performance.now(); if(nowT-_badgeT<500) return; _badgeT=nowT;
+  const nowT = performance.now();
+  if(nowT-_badgeT < (partner ? 500 : 150)) return; _badgeT=nowT;
   let el=document.getElementById('coopBadge');
   if(!el){
     el=document.createElement('div'); el.id='coopBadge';
@@ -3921,11 +3965,12 @@ function _pSpark(x,y,c){
   for(let i=0;i<4;i++){ const a=Math.random()*6.28,sp=60+Math.random()*80; _pfx.push({k:'dot',x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:.3,T:.3,c:c||'#fff',r:1.5+Math.random()*1.5}); }
 }
 function drawPartnerSkills(px,py){
-  const L=partner.lv; if(!L) return;
+  const L=partner.lv||{}; if(!L || typeof L!=='object') return;
   const now=performance.now(); let dt=(now-_pLast)/1000; _pLast=now; if(!(dt>0)||dt>0.1) dt=0.016;
   const t=now/1000;
   if(partner._ft>0) partner._ft-=dt;
-  const every=(k,sec,fn)=>{ if(!L[k]) return; if(_pcd[k]===undefined) _pcd[k]=0; _pcd[k]-=dt; if(_pcd[k]<=0){ _pcd[k]=sec; fn(L[k], L[k]>=6?1.6:1); } };
+  // Skill đối phương bắn sớm hơn khi mới nhận data
+  const every=(k,sec,fn)=>{ if(!L[k]) return; if(_pcd[k]===undefined) _pcd[k]=Math.random()*0.35; _pcd[k]-=dt; if(_pcd[k]<=0){ _pcd[k]=sec; fn(L[k], L[k]>=6?1.6:1); } };
   const AT=(arr,l)=>arr[Math.min(l,arr.length)-1];
   const aim=(e)=>Math.atan2(e.y-py,e.x-px);
   const fire=(a)=>{ partner._fa=a; partner._ft=.12; };
