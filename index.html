@@ -2850,7 +2850,8 @@ function update(dt){
         }
       }
     }
-    if(d>Math.max(W,H)/zoom){const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;e.x=P.x+Math.cos(a)*r;e.y=P.y+Math.sin(a)*r;}
+    const _dMe=Math.hypot(P.x-e.x,P.y-e.y), _dPt=(typeof coopActive!=='undefined'&&coopActive&&partner&&partner.alive)?Math.hypot(partner.x-e.x,partner.y-e.y):999999;
+    if(e.t!=='b' && !frenzyActive && Math.min(_dMe,_dPt)>Math.max(W,H)/zoom*1.45){const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;e.x=P.x+Math.cos(a)*r;e.y=P.y+Math.sin(a)*r;}
   }
   for(const b of eprojs){
     if(b.fromSky){ b.y+=b.vy*dt; b.life-=dt; if(b.y>=P.y-10){ if(Math.hypot(P.x-b.x,P.y-b.y)<42+18){ P.hp-=applyArmor(b.dmg*(b.sm||1)); P.hurt=0.3; if(typeof sfx==='function') sfx('arrow_hit'); } b.dead=true; continue; } }
@@ -2874,9 +2875,10 @@ function update(dt){
   if(eprojs.length>120) eprojs.splice(0,eprojs.length-120);
   enemies=enemies.filter(e=>!e.dead);
   // Dọn quái thường ở xa khi máy yếu, luôn giữ boss.
-  if(enemies.length>210){
-    const keep=enemies.filter(e=>e.t==='b'||Math.hypot(e.x-P.x,e.y-P.y)<Math.max(W,H)/zoom*0.9);
-    enemies=keep.length>170?keep:enemies.slice(-170);
+  if(enemies.length>240){
+    const _maxKeepD = Math.max(W,H)/zoom*1.2;
+    const keep=enemies.filter(e=>e.t==='b'||Math.hypot(e.x-P.x,e.y-P.y)<_maxKeepD||(typeof coopActive!=='undefined'&&coopActive&&partner&&partner.alive&&Math.hypot(e.x-partner.x,e.y-partner.y)<_maxKeepD));
+    if(keep.length>=160) enemies=keep;
   }
   const mag=60+40*ps.mag;
   for(const g of gems){
@@ -2967,12 +2969,22 @@ function update(dt){
   for(const f of fx){f.t-=dt;if(f.vx!==undefined){f.x+=f.vx*dt;f.y+=f.vy*dt;}}
   fx=fx.filter(f=>f.t>0);
   if(fx.length>100) fx.splice(0,fx.length-100);
-  // Co-op tối ưu: giới hạn entity tránh lag 2 người
+  // Co-op tối ưu: luôn giữ toàn bộ Boss và quái gần 2 người chơi, không tự xóa khi Điên Loạn
   if(typeof coopActive!=='undefined' && coopActive){
-    if(enemies.length>90) enemies = enemies.filter(e=>!e.dead).slice(-90);
-    if(projs.length>70) projs=projs.slice(-70);
-    if(texts.length>40) texts=texts.slice(-40);
-    if(fx.length>60) fx=fx.slice(-60);
+    const _coopCap = frenzyActive ? 220 : 160;
+    if(enemies.length>_coopCap){
+      const _bosses = enemies.filter(e=>!e.dead && e.t==='b');
+      const _mobs = enemies.filter(e=>!e.dead && e.t!=='b');
+      _mobs.sort((a,b)=>{
+        const da = Math.min(Math.hypot(a.x-P.x,a.y-P.y), (partner&&partner.alive)?Math.hypot(a.x-partner.x,a.y-partner.y):999999);
+        const db = Math.min(Math.hypot(b.x-P.x,b.y-P.y), (partner&&partner.alive)?Math.hypot(b.x-partner.x,b.y-partner.y):999999);
+        return da - db;
+      });
+      enemies = _bosses.concat(_mobs.slice(0, Math.max(0, _coopCap - _bosses.length)));
+    }
+    if(projs.length>110) projs=projs.slice(-110);
+    if(texts.length>50) texts=texts.slice(-50);
+    if(fx.length>90) fx=fx.slice(-90);
   }
   // Giới hạn hiệu ứng chữ/particule để Android không bị nghẽn render.
   if(fx.length>260) fx.splice(0,fx.length-260);
@@ -3612,7 +3624,11 @@ function listenRoom(code){
         x: op.x||0, y: op.y||0, hp: op.hp||400, maxhp: op.maxhp||400,
         face: op.face||1, alive: op.alive!==false, name: op.name||'Bạn',
         avatar: op.avatar||'🧑', anim: op.anim||0, moving: !!op.moving,
-        charId: op.charId||'survivor'
+        charId: op.charId||'survivor',
+        golemSkin: op.golemSkin||'default',
+        golem: op.golem||null,
+        gx: _old && _old.gx!==undefined ? _old.gx : (op.golem && op.golem.x ? op.golem.x : (op.x||0)-34),
+        gy: _old && _old.gy!==undefined ? _old.gy : (op.golem && op.golem.y ? op.golem.y : (op.y||0))
       };
       const st = document.getElementById('roomStatus');
       if(st && d.status!=='playing') st.textContent = 'Bạn cùng chơi: '+(op.name||'...')+' — sẵn sàng!';
@@ -3639,7 +3655,20 @@ function syncCoopSelf(force){
     face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
     moving: !!P.moving, charId: equippedCharacter||'survivor',
     name: (currentUser.displayName||'P'), shortId: myShortId,
-    lv: Object.assign({}, lv)
+    lv: Object.assign({}, lv),
+    golemSkin: golemSkin||'default',
+    golem: (lv.golem && golemSt && golemSt.active) ? {
+      active: true,
+      x: Math.round(golemSt.x),
+      y: Math.round(golemSt.y),
+      walk: +(golemSt.walk||0).toFixed(2),
+      moving: !!golemSt.moving,
+      face: golemSt.face||1,
+      atkFx: +(golemAttackFx||0).toFixed(2),
+      rootFx: +(golemRootFx||0).toFixed(2),
+      life: Math.round(golemSt.life||30),
+      isEvo: !!(lv.golem>=6)
+    } : { active: false }
   };
   // Fire-and-forget — không await, không làm lag trận
   const data = { players: { [currentUser.uid]: payload } };
@@ -3718,7 +3747,26 @@ function drawPartnerSkills(px,py){
   every('boomerang', 2.4, (l,B)=>{ const e=_pNear(px,py,450); const a=e?aim(e):Math.random()*6.28; _pfx.push({k:'boom',x:px,y:py,a,t:1.1,T:1.1,B}); });
   every('ringz', Math.max(1.0,3.4-.25*(L.ringz||1)), (l,B)=>{ _pfx.push({k:'ring',x:px,y:py,t:.6,T:.6,R:(110+12*l)*(B>1?1.2:1),c:'#b86bff',follow:true}); });
   every('ice', 4, (l,B)=>{ _pfx.push({k:'ring',x:px,y:py,t:.8,T:.8,R:(130+15*l)*B,c:'#7fd8ff',fill:true,follow:true}); });
-  every('golem', 3, (l,B)=>{ _pfx.push({k:'ring',x:px-34,y:py,t:.5,T:.5,R:70*B,c:'#5ec06a',fill:true,follow:false}); });
+  if(L.tuocdoat){
+    every('tuocdoat', L.tuocdoat>=6?2.2:3.5, (l,B)=>{
+      const e=_pNear(px,py,440);
+      if(e){
+        const a=aim(e);
+        _pfx.push({k:'proj',p:{k:'tuocdoat',x:px,y:py,vx:Math.cos(a)*460,vy:Math.sin(a)*460,a,r:14},t:1.1,hitR:14,pierce:2,hit:new Set(),spark:'#ff2222'});
+      }
+    });
+  }
+  if(L.kunai>=6){
+    const ph=((t)%1.1)/1.1, krad=24+190*Math.sin(ph*Math.PI), koff=t*1.5;
+    ctx.save();ctx.strokeStyle='rgba(230,240,255,.22)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py,krad,0,7);ctx.stroke();ctx.restore();
+    for(let i=0;i<24;i++){
+      const a=koff+i*Math.PI/12;
+      ctx.save();ctx.translate(px+Math.cos(a)*krad,py+Math.sin(a)*krad);
+      ctx.rotate(a+(ph<.5?Math.PI/2:-Math.PI/2));
+      ctx.fillStyle='#e8ecf5';ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(3,3);ctx.lineTo(-3,3);ctx.fill();
+      ctx.restore();
+    }
+  }
   every('hoden', 7, (l,B)=>{ const a=Math.random()*6.28; _pfx.push({k:'hole',x:px+Math.cos(a)*110,y:py+Math.sin(a)*110,t:3,T:3,R:55*B}); });
   every('firestorm', 6, (l,B)=>{ const a=Math.random()*6.28; _pfx.push({k:'fire',x:px+Math.cos(a)*100,y:py+Math.sin(a)*100,t:3,T:3,R:45*B}); });
   if(L.drone){
@@ -3727,7 +3775,27 @@ function drawPartnerSkills(px,py){
     _pcd._drone=(_pcd._drone===undefined?0:_pcd._drone)-dt;
     if(_pcd._drone<=0){ _pcd._drone=Math.max(.2,.7-.08*L.drone); const e=_pNear(dxp,dyp,380); if(e){ const aa=Math.atan2(e.y-dyp,e.x-dxp); if(L.drone>=6){ _pfx.push({k:'line',x:dxp,y:dyp,x2:e.x,y2:e.y,t:.12,T:.12,c:'#00e5ff'}); _pSpark(e.x,e.y,'#00e5ff'); } else _pfx.push({k:'proj',p:{k:'drone',x:dxp,y:dyp,vx:Math.cos(aa)*420,vy:Math.sin(aa)*420,a:aa,r:4},t:.8,hitR:6,pierce:1,hit:new Set(),spark:'#ffea00'}); } }
   }
-  if(L.golem){ ctx.font=(18*(L.golem>=6?1.5:1))+'px serif'; ctx.textAlign='center'; ctx.fillText('☸️',px-34,py+4+Math.sin(t*3)*2); }
+  if(L.golem){
+    const pg = partner.golem && partner.golem.active ? partner.golem : { active:true, x:px-42, y:py+8, walk:t*4, moving:partner.moving, face:partner.face||1, atkFx:0, rootFx:0, life:30, isEvo:L.golem>=6 };
+    if(partner.gx===undefined){ partner.gx=pg.x; partner.gy=pg.y; }
+    partner.gx += (pg.x - partner.gx)*0.25;
+    partner.gy += (pg.y - partner.gy)*0.25;
+    const gx = partner.gx, gy = partner.gy;
+    const pSkin = partner.golemSkin || 'default';
+    const isEvo = L.golem>=6;
+    every('golem', 2.4, (l,B)=>{
+      _pfx.push({k:'ring',x:gx,y:gy,t:.45,T:.45,R:85*B,c:pSkin==='mahoraga'?'#ffd43b':'#5ec06a',fill:true,follow:false});
+      const e=_pNear(gx,gy,420);
+      if(e){
+        const ba=Math.atan2(e.y-gy,e.x-gx), cnt=isEvo?3:1;
+        for(let bi=0;bi<cnt;bi++){
+          const ang=ba+(bi-(cnt-1)/2)*0.25;
+          _pfx.push({k:'proj',p:{k:'golemEarth',pSkin:pSkin,big:isEvo,x:gx,y:gy,vx:Math.cos(ang)*320,vy:Math.sin(ang)*320,a:ang,r:isEvo?20:14},t:1.5,hitR:16,pierce:3,hit:new Set(),spark:pSkin==='mahoraga'?'#ffd43b':'#8b5a2b'});
+        }
+      }
+    });
+    drawPartnerGolemModel(gx, gy, pSkin, isEvo, pg.walk||t*4, !!pg.moving, pg.face||1, pg.atkFx||0, pg.rootFx||0);
+  }
   // vẽ + cập nhật
   ctx.save();
   for(let i=_pfx.length-1;i>=0;i--){
@@ -3782,6 +3850,68 @@ function drawPartnerSkills(px,py){
   }
   ctx.restore();
   if(_pfx.length>360) _pfx.splice(0,_pfx.length-360);
+}
+function drawPartnerGolemModel(gx, gy, pSkin, isEvo, walk, moving, face, atkFx, rootFx){
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  if(pSkin === 'mahoraga'){
+    const bob = moving ? Math.abs(Math.sin(walk*1.8))*4 : Math.sin(walk*1.1)*1.5;
+    const w = isEvo ? 88 : 76, h = isEvo ? 94 : 82;
+    ctx.translate(gx, gy - bob);
+    ctx.fillStyle='rgba(0,0,0,.36)';
+    ctx.beginPath(); ctx.ellipse(0, 38+bob, 30, 10, 0, 0, Math.PI*2); ctx.fill();
+    ctx.save();
+    ctx.scale(face||1, 1);
+    if(golemImg && golemImg.complete && golemImg.naturalWidth>0){
+      const sw = golemImg.naturalWidth, sh = golemImg.naturalHeight;
+      ctx.drawImage(golemImg, 0, 0, sw, sh, -w*0.55, -h*0.62, w*1.1, h*1.15);
+    }else{
+      ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(0,-10,24,0,7); ctx.fill();
+    }
+    const wheelAngle = (T*1.6) + (rootFx>0 ? (0.7-rootFx)*5 : 0);
+    ctx.translate(w*0.22, -h*0.38);
+    ctx.rotate(wheelAngle);
+    const wr = isEvo ? 14 : 12;
+    ctx.strokeStyle = isEvo ? '#ff4d4d' : '#ffd43b';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0,0,wr,0,Math.PI*2); ctx.stroke();
+    for(let i=0;i<8;i++){
+      const a = i*Math.PI/4;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*wr, Math.sin(a)*wr); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle='#ffd43b'; ctx.font='900 9px Arial'; ctx.textAlign='center';
+    ctx.fillText('☸ '+(partner.name||'Đồng đội'), 0, -h*0.68);
+  }else{
+    const bob = moving ? Math.sin(walk*1.4)*2 : Math.sin(walk*0.8)*1;
+    const w = isEvo ? 78 : 66, h = isEvo ? 84 : 72;
+    ctx.translate(gx, gy + bob);
+    ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,36,28,9,0,0,7); ctx.fill();
+    // Chân
+    for(let side of [-1,1]){
+      ctx.fillStyle='#4a3522'; ctx.strokeStyle='#1a120a'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.roundRect(side*11-6, 12, 12, 22, 5); ctx.fill(); ctx.stroke();
+    }
+    // Thân gỗ Golem Cây
+    const grad = ctx.createLinearGradient(-w*0.3,0,w*0.3,0);
+    grad.addColorStop(0,'#2f1e12'); grad.addColorStop(0.5,'#6b4a2e'); grad.addColorStop(1,'#2f1e12');
+    ctx.fillStyle=grad; ctx.strokeStyle='#0f0a06'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.roundRect(-w*0.32, -h*0.42, w*0.64, h*0.6, 12); ctx.fill(); ctx.stroke();
+    // Rêu vai & đầu
+    ctx.fillStyle='#3d6b2a'; ctx.beginPath(); ctx.arc(-w*0.3,-h*0.3,9,0,7); ctx.arc(w*0.3,-h*0.3,9,0,7); ctx.fill();
+    ctx.fillStyle='#5a3d24'; ctx.beginPath(); ctx.roundRect(-w*0.22,-h*0.68,w*0.44,h*0.3,10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=isEvo?'#ff2222':'#7ff8ff';
+    ctx.beginPath(); ctx.arc(-w*0.09,-h*0.54,3.8,0,7); ctx.arc(w*0.09,-h*0.54,3.8,0,7); ctx.fill();
+    ctx.fillStyle=isEvo?'#2a5ab2':'#5fbf4a';
+    ctx.beginPath(); ctx.ellipse(0,-h*0.76,20,12,0,0,7); ctx.fill();
+    // Tay
+    for(let side of [-1,1]){
+      ctx.fillStyle='#5a412e'; ctx.beginPath(); ctx.roundRect(side*w*0.36-8, -h*0.26, 16, 44, 7); ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle='#86efac'; ctx.font='900 9px Arial'; ctx.textAlign='center';
+    ctx.fillText('🌳 '+(partner.name||'Đồng đội'), 0, -h*0.92);
+  }
+  ctx.restore();
 }
 function drawPartner(){
   if(!partner || !partner.alive) return;
@@ -4277,27 +4407,87 @@ function renderWeaponPanel(){
   if(!equippedWeapon){ warn.style.display='block'; } else { warn.style.display='none'; }
 }
 
+let _skinGolemExpanded = false;
 function renderSkinPanel(){
   const body=document.getElementById('lobbyPanelBody');
   if(!body) return;
   body.innerHTML='';
   const head=document.createElement('div');
   head.style.cssText='font-weight:900;color:#8fd7ff;margin:2px 0 4px';
-  head.textContent='🌳 Skin Golem';
+  head.textContent='🌳 Kỹ Năng & Skin Golem';
   const hint=document.createElement('div');
   hint.style.cssText='color:#9eacc9;font-size:12px;margin-bottom:10px';
-  hint.textContent='Bấm vào skin để dùng ngay. Khung xanh + dấu ✓ = đang dùng.';
+  hint.textContent='Bấm vào Golem Cây để mở danh sách skin và bấm Trang bị.';
+
+  const baseGolem = GOLEM_SKINS[0];
+  const mahSkin = GOLEM_SKINS[1];
+  const isMahEquipped = (golemSkin === 'mahoraga');
+
   const grid=document.createElement('div');
   grid.className='weapon-grid';
-  GOLEM_SKINS.forEach(s=>{
-    const on=golemSkin===s.id;
-    const card=document.createElement('div');
-    card.className='weapon-card '+(on?'equipped':'unequipped');
-    card.innerHTML='<div class="tick" style="display:'+(on?'grid':'none')+'">✓</div><div class="w-ic">'+s.icon+'</div><div class="w-name">'+s.name+'</div><div class="w-desc">'+s.desc+'</div>';
-    card.onclick=()=>{ setGolemSkin(s.id); renderSkinPanel(); toastMsg('Đã dùng skin '+s.name,'#22c55e'); };
-    grid.appendChild(card);
-  });
-  body.appendChild(head); body.appendChild(hint); body.appendChild(grid);
+
+  // Chỉ hiện thẻ Golem Cây ở mục chính
+  const rootCard=document.createElement('div');
+  rootCard.className='weapon-card '+(isMahEquipped?'equipped':'unequipped');
+  rootCard.style.gridColumn='span 2';
+  rootCard.innerHTML='<div class="tick" style="display:grid">✓</div>'
+    +'<div class="w-ic">'+baseGolem.icon+'</div>'
+    +'<div class="w-name">'+baseGolem.name+'</div>'
+    +'<div class="w-desc">'+baseGolem.desc+'</div>'
+    +'<div style="margin-top:6px;font-size:11px;font-weight:900;color:#ffd23a">Skin đang trang bị: '+(isMahEquipped ? mahSkin.name : 'Mặc định (Golem Cây)')+' '+(_skinGolemExpanded?'▲':'▼')+'</div>';
+  rootCard.onclick=()=>{
+    _skinGolemExpanded = !_skinGolemExpanded;
+    renderSkinPanel();
+  };
+  grid.appendChild(rootCard);
+  body.appendChild(head);
+  body.appendChild(hint);
+  body.appendChild(grid);
+
+  // Khi bấm vào Golem Cây mới hiện ra skin Mahoraga và nút Trang bị
+  if(_skinGolemExpanded && mahSkin){
+    const subWrap=document.createElement('div');
+    subWrap.className='weapon-detail';
+    subWrap.style.marginTop='12px';
+    subWrap.style.padding='12px';
+    subWrap.innerHTML='<div style="font-weight:900;color:#ffd23a;margin-bottom:8px;font-size:13px">✨ SKIN CỦA GOLEM CÂY</div>';
+
+    const skinCard=document.createElement('div');
+    skinCard.className='weapon-card '+(isMahEquipped?'equipped':'unequipped');
+    skinCard.style.cursor='default';
+    skinCard.innerHTML='<div class="tick" style="display:'+(isMahEquipped?'grid':'none')+'">✓</div>'
+      +'<div class="w-ic">'+mahSkin.icon+'</div>'
+      +'<div class="w-name">'+mahSkin.name+'</div>'
+      +'<div class="w-desc">'+mahSkin.desc+'</div>'
+      +'<div class="weapon-actions" style="margin-top:10px">'
+      +(isMahEquipped
+        ? '<button type="button" class="btn-unequip" id="btnUnequipMah">Gỡ trang bị (Về Golem Cây)</button>'
+        : '<button type="button" class="btn-equip" id="btnEquipMah">Trang bị</button>')
+      +'</div>';
+    subWrap.appendChild(skinCard);
+    body.appendChild(subWrap);
+
+    const eqBtn = document.getElementById('btnEquipMah');
+    if(eqBtn){
+      eqBtn.onclick=(e)=>{
+        e.stopPropagation();
+        setGolemSkin('mahoraga');
+        if(typeof syncCoopSelf==='function' && coopActive) syncCoopSelf(true);
+        renderSkinPanel();
+        toastMsg('Đã trang bị skin '+mahSkin.name,'#22c55e');
+      };
+    }
+    const uneqBtn = document.getElementById('btnUnequipMah');
+    if(uneqBtn){
+      uneqBtn.onclick=(e)=>{
+        e.stopPropagation();
+        setGolemSkin('default');
+        if(typeof syncCoopSelf==='function' && coopActive) syncCoopSelf(true);
+        renderSkinPanel();
+        toastMsg('Đã quay về Golem Cây mặc định','#3b82f6');
+      };
+    }
+  }
 }
 
 function gameOver(){
@@ -4586,7 +4776,7 @@ function drawProj(p){
       ctx.shadowBlur=0;
     }
   }
-  if(p.k==='golemEarth' && golemSkin!=='mahoraga'){
+  if(p.k==='golemEarth' && (p.pSkin||golemSkin)!=='mahoraga'){
     ctx.save();
     ctx.shadowColor='#8b5a2a'; ctx.shadowBlur=18;
     const pulse = 1 + Math.sin(T*8)*0.12;
@@ -5496,6 +5686,112 @@ function render(){
   ctx.globalAlpha=1;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   if(state==='play'||state==='pause'||state==='levelup'){
+    // === MINI-MAP GÓC TRÊN BÊN TRÁI ===
+    try{
+      const mmX = 10, mmY = 66, mmS = 96;
+      const mmCx = mmX + mmS/2, mmCy = mmY + mmS/2;
+      const mmRange = 1100;
+      const mmScale = (mmS/2 - 6) / mmRange;
+      ctx.save();
+      ctx.fillStyle = 'rgba(12, 18, 32, 0.78)';
+      ctx.strokeStyle = '#52627d';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(mmX, mmY, mmS, mmS, 10);
+      else ctx.rect(mmX, mmY, mmS, mmS);
+      ctx.fill();
+      ctx.stroke();
+      ctx.clip();
+
+      // Lưới radar mờ
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(mmCx, mmCy, mmS*0.22, 0, Math.PI*2);
+      ctx.arc(mmCx, mmCy, mmS*0.42, 0, Math.PI*2);
+      ctx.moveTo(mmCx, mmY); ctx.lineTo(mmCx, mmY+mmS);
+      ctx.moveTo(mmX, mmCy); ctx.lineTo(mmX+mmS, mmCy);
+      ctx.stroke();
+
+      // Quái thường & Boss trên Mini-map
+      for(const e of enemies){
+        if(e.dead) continue;
+        const dx = e.x - P.x, dy = e.y - P.y;
+        let ex = mmCx + dx * mmScale, ey = mmCy + dy * mmScale;
+        const dist = Math.hypot(ex - mmCx, ey - mmCy);
+        const maxR = mmS/2 - 5;
+        if(e.t === 'b'){
+          if(dist > maxR){
+            const a = Math.atan2(ey - mmCy, ex - mmCx);
+            ex = mmCx + Math.cos(a)*maxR;
+            ey = mmCy + Math.sin(a)*maxR;
+          }
+          ctx.fillStyle = '#ffd23a';
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(ex, ey, 4.2 + Math.sin(T*8)*0.8, 0, Math.PI*2);
+          ctx.fill();
+          ctx.stroke();
+        }else if(dist <= maxR){
+          ctx.fillStyle = frenzyActive ? '#fb923c' : '#ef4444';
+          ctx.fillRect(ex - 1.3, ey - 1.3, 2.6, 2.6);
+        }
+      }
+
+      // Golem của mình trên Mini-map
+      if(lv.golem && golemSt && golemSt.active){
+        const gx = mmCx + (golemSt.x - P.x)*mmScale;
+        const gy = mmCy + (golemSt.y - P.y)*mmScale;
+        if(Math.hypot(gx-mmCx, gy-mmCy) <= mmS/2 - 4){
+          ctx.fillStyle = '#a855f7';
+          ctx.beginPath(); ctx.arc(gx, gy, 2.5, 0, Math.PI*2); ctx.fill();
+        }
+      }
+
+      // Người chơi khác (Đồng đội Co-op) trên Mini-map
+      if(typeof coopActive!=='undefined' && coopActive && partner && partner.alive){
+        const pdx = (partner.dx!==undefined?partner.dx:partner.x) - P.x;
+        const pdy = (partner.dy!==undefined?partner.dy:partner.y) - P.y;
+        let px = mmCx + pdx * mmScale, py = mmCy + pdy * mmScale;
+        const pdist = Math.hypot(px - mmCx, py - mmCy);
+        const maxR = mmS/2 - 5;
+        if(pdist > maxR){
+          const a = Math.atan2(py - mmCy, px - mmCx);
+          px = mmCx + Math.cos(a)*maxR;
+          py = mmCy + Math.sin(a)*maxR;
+        }
+        ctx.fillStyle = '#38bdf8';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, py, 3.8, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Bản thân ở tâm Mini-map
+      ctx.fillStyle = '#22c55e';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(mmCx, mmCy, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Chú thích nhỏ dưới đáy Mini-map
+      ctx.font = '700 8px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#86efac';
+      ctx.fillText('●Bạn', mmX+4, mmY+mmS-4);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#7dd3fc';
+      ctx.fillText('●Bồ', mmCx, mmY+mmS-4);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#fde047';
+      ctx.fillText('●Boss', mmX+mmS-4, mmY+mmS-4);
+      ctx.restore();
+    }catch(_){}
     const bx=joy.active?joy.bx:W/2,by=joy.active?joy.by:H-110;
     ctx.globalAlpha=joy.active?.9:.5;
     ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.fillStyle='rgba(255,255,255,.12)';
