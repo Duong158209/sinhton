@@ -1642,7 +1642,7 @@ function levelCheck(){
     }
   }
 }
-function gainXp(v){P.xp+=v*(1+.2*ps.xp)*((typeof coopActive!=='undefined'&&coopActive)?1.5:1);levelCheck();updateHud();}
+function gainXp(v){P.xp+=v*(1+.2*ps.xp)*((typeof coopActive!=='undefined'&&coopActive)?1.8:1);levelCheck();updateHud();} // Co-op: tăng thêm 20% so với hệ số cũ 1.5x (thành 1.8x)
 const maxEnemies=()=>Math.min(frenzyActive ? ((typeof coopActive!=='undefined'&&coopActive)?3600:3000) : 260,180+Math.floor(T/45)*6);
 function spawnEnemy(forceType,px,py){
   if(enemies.length>=maxEnemies()&&forceType!=='b')return;
@@ -2526,9 +2526,11 @@ function update(dt){
   burstT-=dt;
   if(burstT<=0){burstT=(T<60?14:26)/(frenzyActive?1.35:1);const baseN=(T<60?14+Math.floor(T/5):16+Math.floor(T/8)); const n=Math.floor(baseN*(T<60?1.3:1)*(frenzyActive?frenzySpawnMult:1)); for(let i=0;i<n;i++)spawnEnemy();}
   fireWeapons(dt);
-  if(T>=bossT){
-    bossT+= Math.max(35, 70 - T/20);
-    const bossN = (typeof coopActive!=='undefined' && coopActive) ? 4 : 1;
+  const isCoopBossWave = (typeof coopActive!=='undefined' && coopActive);
+  // Co-op: đợt boss đầu tiên ở 1:45, các đợt tiếp theo cách nhau 1:45. Solo giữ lịch cũ.
+  if(T >= (isCoopBossWave ? Math.max(105, bossT) : bossT)){
+    bossT = isCoopBossWave ? (T + 105) : (bossT + Math.max(35, 70 - T/20));
+    const bossN = isCoopBossWave ? 2 : 1;
     for(let bi=0;bi<bossN;bi++) spawnEnemy('b');
     if(!(coopActive) && T>=210 && Math.random()<0.12){
       spawnEnemy('b');
@@ -2536,7 +2538,7 @@ function update(dt){
       fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff00ff'});
       shake=15;
     }
-    pushText({x:P.x,y:P.y-50,v: coopActive ? ('⚠ CO-OP: 4 BOSS ĐỢT #'+bossIdx+'!') : (((bossIdx-1)%2?'⚠ BOSS PHÁP SƯ #':'⚠ BOSS #')+bossIdx+' XUẤT HIỆN!'),t:2.2,c:true,big:true});}
+    pushText({x:P.x,y:P.y-50,v: coopActive ? ('⚠ CO-OP: 2 BOSS ĐỢT #'+bossIdx+'!') : (((bossIdx-1)%2?'⚠ BOSS PHÁP SƯ #':'⚠ BOSS #')+bossIdx+' XUẤT HIỆN!'),t:2.2,c:true,big:true});}
   updateProjs(dt);
   if(lv.kunai>=6){
     kr.t+=dt;
