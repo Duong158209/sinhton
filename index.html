@@ -289,11 +289,11 @@
     <section id="friendTabRequests" style="display:none">
       <div id="friendRequestsList" style="display:flex;flex-direction:column;gap:6px;max-height:150px;overflow:auto;font-size:12px;color:#b9c7dc">Chưa có lời mời.</div>
     </section>
-    <div id="incomingTeamInvite" style="display:none;margin:8px 0;padding:10px;border:1px solid #ffd23a;border-radius:10px;background:#2b2617">
+    <div id="incomingTeamInvite" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;width:min(92vw,400px);padding:20px;border:3px solid #ffd23a;border-radius:20px;background:linear-gradient(160deg,#3a2e12,#1e1a2e);box-shadow:0 20px 60px #000e,0 0 30px #ffd23a88;pointer-events:auto;touch-action:manipulation">
       <div id="incomingTeamInviteText" style="font-size:12px;color:#fff;margin-bottom:8px">Bạn được mời lập đội.</div>
       <div style="display:flex;gap:8px">
-        <button id="acceptTeamInvite" type="button" class="lobby-close" style="flex:1;background:#22c55e">Đồng ý</button>
-        <button id="declineTeamInvite" type="button" class="lobby-close" style="flex:1;background:#b91c1c">Từ chối</button>
+        <button id="acceptTeamInvite" type="button" class="lobby-close" style="flex:1;background:linear-gradient(#22c55e,#16a34a);color:#fff;padding:16px 10px;font-size:16px;font-weight:900;border-radius:14px;min-height:52px;touch-action:manipulation;border:2px solid #86efac">✅ Đồng ý</button>
+        <button id="declineTeamInvite" type="button" class="lobby-close" style="flex:1;background:linear-gradient(#ef4444,#b91c1c);color:#fff;padding:16px 10px;font-size:16px;font-weight:900;border-radius:14px;min-height:52px;touch-action:manipulation">❌ Từ chối</button>
       </div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -301,7 +301,8 @@
       <input id="roomCodeInput" placeholder="Mã phòng" maxlength="6" style="width:90px;padding:8px;border-radius:8px;border:1px solid #43536e;background:#0e1528;color:#fff;font-weight:800;text-align:center">
       <button type="button" id="joinRoomBtn" class="lobby-close" style="background:#22c55e">Vào</button>
     </div>
-    <div id="roomStatus" style="margin-top:8px;font-size:12px;color:#9eacc9;min-height:18px"></div>
+    <div id="roomStatus" style="margin-top:8px;font-size:12px;color:#9eacc9;min-height:18px;white-space:pre-wrap;background:#0f172a88;border:1px solid #334155;border-radius:8px;padding:8px"></div>
+    <div id="roomPlayersList" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
   </div>
   <button class="btn" id="lobbyStart" type="button" onclick="try{if(window.startGame)startGame();}catch(e){alert(e)}">▶ BẮT ĐẦU</button>
   <div class="lobby-section-title">🏆 BXH SỐNG LÂU</div>
@@ -1100,6 +1101,19 @@ function pauseBackgroundMusic(){
   try{ music.pause(); }catch(_){}
 }
 function startGame(){ window.startGame=startGame;
+  try{
+    if(typeof gameMode!=='undefined' && gameMode==='coop'){
+      if(!partnerUid && !partner && !currentRoomId){
+        alert('Co-op cần 2 người! Hãy mời bạn bè và đợi họ Đồng ý. Khi thấy "Đã đủ 2/2" mới bấm Bắt đầu.');
+        const rs=document.getElementById('roomStatus'); if(rs) rs.textContent='⚠ Chưa có phòng! Hãy bấm Mời bạn bè bên dưới.';
+        return;
+      }
+      if(!partnerUid && !partner){
+        alert('Chưa có ai vào phòng! Đợi bạn bè Đồng ý lời mời đã. Nhìn dòng "Phòng: ... 1/2 -> 2/2" nhé.');
+        return;
+      }
+    }
+  }catch(_){}
   try{ _sentPlaying=false; }catch(_){}
 
   try{
@@ -3352,30 +3366,11 @@ function restartLeaderboardLive(){
 
 
 function returnToLobby(){
-  // === CO-OP QUIT MECHANIC: Về sảnh = tính chết thầm lặng, người kia thắng, vẫn cộng vàng ===
   try{
     if(typeof coopActive!=='undefined' && coopActive && typeof currentRoomId!=='undefined' && currentRoomId && !coopEnded && (state==='play'||state==='pause'||state==='levelup')){
-      coopEnded = true;
-      coopOutcome = 'lose';
-      // Vẫn cộng vàng trước khi thoát
-      if(!runRewardSaved && typeof saveRunResult==='function'){
-        try{ saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0); }catch(_){}
-        runRewardSaved = true;
-      }
-      // Báo phòng là quit, không hiện thông báo chết cho người thoát
-      try{
-        if(typeof db!=='undefined' && typeof currentUser!=='undefined' && currentUser){
-          db.collection('rooms').doc(currentRoomId).set({
-            status: 'ended',
-            loserUid: currentUser.uid,
-            winnerUid: partnerUid || null,
-            endedAt: Date.now(),
-            quit: true,
-            quitterUid: currentUser.uid,
-            quitterName: (currentUser.displayName||'Người chơi')
-          }, {merge:true}).catch(()=>{});
-        }
-      }catch(_){}
+      coopEnded=true; coopOutcome='lose';
+      if(!runRewardSaved && typeof saveRunResult==='function'){ try{ saveRunResult(Math.floor(T||0), kills||0, (P&&P.lvl)||1, coins||0); }catch(_){} runRewardSaved=true; }
+      try{ if(typeof db!=='undefined' && currentUser){ db.collection('rooms').doc(currentRoomId).set({status:'ended',loserUid:currentUser.uid,winnerUid:partnerUid||null,endedAt:Date.now(),quit:true,quitterUid:currentUser.uid,quitterName:(currentUser.displayName||'Người chơi')},{merge:true}).catch(()=>{}); } }catch(_){}
     }
   }catch(_){}
   try{ stopBackgroundMusic(); }catch(_){}
@@ -3579,24 +3574,58 @@ async function searchFriendById(){
 function listenTeamInvites(){
   if(!currentUser || typeof db==='undefined') return;
   if(teamInviteUnsub){try{teamInviteUnsub()}catch(_){} teamInviteUnsub=null;}
-  teamInviteUnsub=db.collection('users').doc(currentUser.uid).collection('teamInvites')
-    .where('status','==','pending').onSnapshot(snap=>{
-      const wrap=document.getElementById('incomingTeamInvite');
-      if(!wrap) return;
-      // Lời mời quá 3 phút coi như hết hạn: tự dọn, không hiện lại
-      const _fresh=snap.docs.filter(x=>{const c=(x.data()||{}).createdAt||0; if(Date.now()-c>180000){ x.ref.set({status:'expired'},{merge:true}).catch(()=>{}); return false; } return true;});
-      const doc=_fresh[0];
-      if(!doc){wrap.style.display='none';activeTeamInvite=null;return;}
-      activeTeamInvite={id:doc.id,...doc.data()};
-      wrap.style.display='block';
-      const txt=document.getElementById('incomingTeamInviteText');
-      if(txt)txt.textContent=(activeTeamInvite.fromName||'Bạn bè')+' mời bạn lập đội. Đồng ý để vào trận cùng nhau?';
-    },e=>console.warn('team invite listener',e));
+  // FIX: Không dùng where để tránh lỗi index, lọc client-side
+  teamInviteUnsub=db.collection('users').doc(currentUser.uid).collection('teamInvites').onSnapshot(snap=>{
+    const wrap=document.getElementById('incomingTeamInvite');
+    if(!wrap) return;
+    const all = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>{
+      const age = Date.now() - (x.createdAt||0);
+      if(age>300000 && x.status==='pending'){ try{ db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(x.id).set({status:'expired'},{merge:true}); }catch(_){} return false; }
+      return x.status==='pending' && age<300000;
+    }).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    const doc = all[0];
+    if(!doc){ wrap.style.display='none'; activeTeamInvite=null; return; }
+    activeTeamInvite=doc;
+    wrap.style.display='block';
+    wrap.style.pointerEvents='auto';
+    const txt=document.getElementById('incomingTeamInviteText');
+    if(txt) txt.textContent='📩 '+(doc.fromName||'Bạn bè')+' mời bạn lập đội Co-op! (Phòng '+doc.roomId+')';
+    try{ if(navigator.vibrate) navigator.vibrate([200,100,200]); }catch(_){}
+    try{ if(typeof sfx==='function') sfx('frenzy'); }catch(_){}
+    try{ wrap.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
+  },e=>console.warn('team invite listener',e));
 }
 async function inviteFriendToTeam(friend){
-  if(!currentUser || !friend?.uid){const st=document.getElementById('roomStatus');if(st)st.textContent='Không tìm thấy tài khoản của bạn này. Hãy tìm ID và gửi lời mời kết bạn trước.';return;}
+  if(!currentUser){ alert('Chưa đăng nhập!'); return; }
+  if(!friend?.uid){ const st=document.getElementById('roomStatus'); if(st) st.textContent='Bạn này chưa có UID (chưa từng đăng nhập). Hãy bảo họ nhập ID 6 ký tự của bạn để kết bạn trước.'; return; }
   try{
-    const code=genShortId(); currentRoomId=code;_createdCode=code;isRoomHost=true;partnerUid=null;partner=null;coopEnded=false;
+    // FIX MUTUAL INVITE: Nếu bạn đó đã mời mình trước, thì chấp nhận luôn thay vì tạo phòng mới
+    const existingSnap = await db.collection('users').doc(currentUser.uid).collection('teamInvites').where('fromUid','==',friend.uid).where('status','==','pending').get().catch(()=>null);
+    let pendingFromFriend = null;
+    if(existingSnap && !existingSnap.empty){
+      pendingFromFriend = existingSnap.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>Date.now()-(x.createdAt||0)<300000).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
+    } else {
+      // fallback không cần index
+      const allInv = await db.collection('users').doc(currentUser.uid).collection('teamInvites').get();
+      const filtered = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-(x.createdAt||0)<300000);
+      if(filtered.length) pendingFromFriend = filtered.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
+    }
+    if(pendingFromFriend){
+      const st=document.getElementById('roomStatus'); if(st) st.textContent='🔄 Bạn và '+(friend.name||'bạn')+' cùng mời nhau! Tự động vào phòng của bạn ấy...';
+      // Auto accept
+      const ref=db.collection('rooms').doc(pendingFromFriend.roomId);
+      const snap=await ref.get();
+      if(snap.exists && snap.data().status==='waiting'){
+        await db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(pendingFromFriend.id).set({status:'accepted'},{merge:true});
+        await ref.set({guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',status:'playing',startedAt:Date.now(),players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1}}},{merge:true});
+        try{ await db.collection('users').doc(pendingFromFriend.fromUid).collection('teamInviteResponses').doc(pendingFromFriend.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:pendingFromFriend.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
+        currentRoomId=pendingFromFriend.roomId; isRoomHost=false; partnerUid=pendingFromFriend.fromUid; coopEnded=false; coopActive=true;
+        listenRoom(pendingFromFriend.roomId); startGame();
+        return;
+      }
+    }
+
+    const code=genShortId(); currentRoomId=code; _createdCode=code; isRoomHost=true; partnerUid=null; partner=null; coopEnded=false;
     await db.collection('rooms').doc(code).set({
       code,hostUid:currentUser.uid,hostShortId:myShortId,hostName:currentUser.displayName||'Người chơi',
       guestUid:null,status:'waiting',mode:'coop',createdAt:Date.now(),
@@ -3606,15 +3635,21 @@ async function inviteFriendToTeam(friend){
       roomId:code,fromUid:currentUser.uid,fromName:currentUser.displayName||'Người chơi',
       fromShortId:myShortId,status:'pending',createdAt:Date.now()
     });
-    const st=document.getElementById('roomStatus');if(st)st.textContent='Đã gửi lời mời lập đội tới '+(friend.name||friend.shortId)+'.';
+    const st=document.getElementById('roomStatus'); if(st) st.textContent='📤 Đã gửi lời mời tới '+(friend.name||friend.shortId)+' — đang chờ họ Đồng ý...\nPhòng: '+code+' (1/2 người)';
+    const plList=document.getElementById('roomPlayersList'); if(plList) plList.innerHTML='<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng) ✅<br><span style="color:#ff8a8a">⏳ Đang chờ '+(friend.name||'bạn')+' bấm Đồng ý...</span></div>';
     listenRoom(code);
     if(teamResponseUnsub){try{teamResponseUnsub()}catch(_){} teamResponseUnsub=null;}
     teamResponseUnsub=db.collection('users').doc(currentUser.uid).collection('teamInviteResponses').doc(code).onSnapshot(rs=>{
-      if(!rs.exists)return;const rd=rs.data();
-      if(rd.status==='declined' && st)st.textContent=(rd.toName||friend.name||'Đối phương')+' đã từ chối lời mời lập đội.';
-      else if(rd.status==='accepted' && st)st.textContent=(friend.name||'Bạn bè')+' đã đồng ý — đang vào trận!';
+      if(!rs.exists) return; const rd=rs.data();
+      if(rd.status==='declined'){
+        if(st) st.textContent='❌ '+(rd.toName||friend.name||'Đối phương')+' đã từ chối. Mời người khác nhé.';
+        if(plList) plList.innerHTML='<div style="color:#ff8a8a;font-size:12px">❌ Bị từ chối — mời lại bạn khác!</div>';
+      } else if(rd.status==='accepted'){
+        if(st) st.textContent='✅ '+(friend.name||'Bạn bè')+' đã đồng ý — đủ 2 người! Bấm BẮT ĐẦU để chiến!';
+        try{ if(typeof sfx==='function') sfx('frenzy'); }catch(_){}
+      }
     });
-  }catch(e){const st=document.getElementById('roomStatus');if(st)st.textContent='Không gửi được lời mời lập đội. Kiểm tra quyền Firestore.';}
+  }catch(e){ const st=document.getElementById('roomStatus'); if(st) st.textContent='Không gửi được lời mời: '+(e.message||e)+'. Kiểm tra Firestore Rules cho teamInvites/rooms.'; console.warn(e); }
 }
 function saveFriendsLocal(){
   try{ localStorage.setItem('friendsList', JSON.stringify(friendsList.slice(0,30))); }catch(_){}
@@ -3770,31 +3805,49 @@ function listenRoom(code){
         gy: _old && _old.gy!==undefined ? _old.gy : (op.golem && op.golem.y ? op.golem.y : (op.y||0))
       };
       const st = document.getElementById('roomStatus');
-      if(st && d.status!=='playing') st.textContent = 'Bạn cùng chơi: '+(op.name||'...')+' — sẵn sàng!';
+      const plList = document.getElementById('roomPlayersList');
+      if(plList){
+        const players = d.players||{};
+        const entries = Object.entries(players);
+        plList.innerHTML = entries.map(([uid,p])=>{
+          const isMe = uid===currentUser.uid;
+          return '<div style="display:flex;align-items:center;gap:6px;background:'+(isMe?'#1f3a2a':'#1a2438')+';border:1px solid '+(isMe?'#22c55e':'#334155')+';border-radius:8px;padding:6px 8px;font-size:12px;color:#fff"><span>'+(isMe?'👑 Bạn':'👥 '+(p.name||'Khách'))+'</span><span style="opacity:.7">'+(p.alive===false?'💀':'✅')+'</span><span style="margin-left:auto;color:'+(isMe?'#86efac':'#ffd23a')+'">'+(isMe?'Chủ phòng':'Đã vào')+'</span></div>';
+        }).join('') + (entries.length<2 ? '<div style="font-size:11px;color:#ff8a8a;padding:4px">⏳ Đang chờ thêm 1 người nữa... ('+entries.length+'/2)</div>' : '<div style="font-size:11px;color:#22c55e;padding:4px;font-weight:900">✅ Đủ 2/2 người — bấm BẮT ĐẦU ngay!</div>');
+      }
+      if(st){
+        if(d.status==='waiting'){
+          const cnt = Object.keys(d.players||{}).length;
+          st.textContent = 'Phòng '+ (d.code||'') +' — '+cnt+'/2 người. ' + (cnt>=2?'Đã đủ người, bấm Bắt đầu!':'Đang chờ bạn bè đồng ý... Nhấn mời lại nếu không thấy lời mời bên kia.');
+        } else if(d.status!=='playing'){
+          st.textContent = 'Bạn cùng chơi: '+(op.name||'...')+' — sẵn sàng! ('+Object.keys(d.players||{}).length+'/2)';
+        }
+      }
     }
-    if(d.status==='playing' && state==='lobby'){
-      coopActive = true;
-      startGame();
+    if((d.status==='playing' || d.guestUid) && state==='lobby'){
+      // FIX: Nếu phòng đã có guest hoặc đang playing thì cả 2 cùng vào, không cần đợi 2 lần đồng ý
+      if(d.guestUid || Object.keys(d.players||{}).length>=2){
+        coopActive = true;
+        partnerUid = d.guestUid || partnerUid || Object.keys(d.players||{}).find(k=>k!==currentUser.uid);
+        if(!currentRoomId) currentRoomId = d.code||code;
+        startGame();
+      }
     }
-    // Chỉ nhận kết thúc khi đang trong trận và là kết quả MỚI (bỏ qua phòng cũ còn status 'ended')
+        // Chỉ nhận kết thúc khi đang trong trận và là kết quả MỚI
     if(d.status==='ended' && !coopEnded && (state==='play'||state==='pause'||state==='levelup') && (d.endedAt||0) >= coopStartedAt-500){
       coopEnded = true;
       coopOutcome = d.winnerUid === currentUser.uid ? 'win' : 'lose';
       const isQuit = !!d.quit;
       const quitterIsMe = d.quitterUid && d.quitterUid===currentUser.uid;
       if(!quitterIsMe){
-        // Người ở lại: hiện thắng, không hiện chết cho người thoát
         if(isQuit){
           if(coopOutcome==='win'){
             pushText && pushText({x:P.x,y:P.y-40,v:'🏆 WIN — ĐỒNG ĐỘI ĐÃ VỀ SẢNH! Bạn thắng!',t:3.5,c:true,big:true});
           }
-          // nếu mình là người thua do quit của mình thì không hiện gì (đã về sảnh rồi) - case này không vào đây vì quitterIsMe đã loại
         } else {
           pushText && pushText({x:P.x,y:P.y-40,v:coopOutcome==='win'?'🏆 WIN — ĐỒNG ĐỘI ĐÃ NGÃ!':'💀 THUA — BẠN ĐÃ NGÃ!',t:3,c:true,big:true});
         }
       }
       if(state==='play' || state==='pause' || state==='levelup'){
-        // Người thắng vẫn cộng vàng khi gameOver
         gameOver();
       }
     }
@@ -4636,7 +4689,7 @@ function gameOver(){
     });
   }
   state='over';
-  const _overTitle=document.getElementById('over') && document.getElementById('over').querySelector('h1');
+  const _overTitle=$('over') && $('over').querySelector('h1');
   if(_overTitle && coopActive){
     const _won = coopOutcome==='win';
     _overTitle.textContent = _won ? '🏆 CHIẾN THẮNG' : '💀 THẤT BẠI';
