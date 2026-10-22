@@ -4101,6 +4101,7 @@ function drawGojoModel(ctx, anim, moving, face, scale, stateKey){
   st.smoothFace += (targetFace - st.smoothFace) * 0.22;
   st.walkBlend += ((moving ? 1 : 0) - st.walkBlend) * 0.18;
 
+  // Phát hiện hướng di chuyển Lên (Quay lưng) hay Xuống/Ngang (Nhìn trước)
   let goingUp = false;
   if (!stateKey && typeof keys !== 'undefined') {
     const up = !!(keys['w'] || keys['arrowup']);
@@ -4122,22 +4123,20 @@ function drawGojoModel(ctx, anim, moving, face, scale, stateKey){
   }
   st.backBlend += ((goingUp ? 1 : 0) - st.backBlend) * 0.25;
 
-  const targetLean = moving ? targetFace * 0.08 * st.walkBlend : 0;
+  const targetLean = moving ? targetFace * 0.085 * st.walkBlend : 0;
   st.lean += (targetLean - st.lean) * 0.20;
 
-  const walkCycle = (anim || 0) * 1.4;
-  const breath = Math.sin((anim || 0) * 0.9) * (1 - st.walkBlend * 0.6);
-  
-  // Chuyển động dáng người thật: Nhịp nhấp nhô theo bước chân (double bounce như người thật đi bộ)
-  const bobY = -Math.abs(Math.sin(walkCycle)) * 4.5 * st.walkBlend + breath * 1.2;
-  const swayX = Math.sin(walkCycle * 0.5) * 1.5 * st.walkBlend;
-  const tiltAngle = st.lean + Math.sin(walkCycle) * 0.035 * st.walkBlend;
+  const walkCycle = (anim || 0) * 1.15;
+  const breath = Math.sin((anim || 0) * 0.85) * (1 - st.walkBlend * 0.5);
+  const bobY = -Math.abs(Math.sin(walkCycle)) * 3.2 * st.walkBlend + breath * 0.75;
+  const squashX = 1 + Math.sin(walkCycle * 2) * 0.032 * st.walkBlend + breath * 0.01;
+  const stretchY = 1 - Math.sin(walkCycle * 2) * 0.036 * st.walkBlend - breath * 0.012;
 
   ctx.save();
   ctx.scale(s, s);
 
-  // Hào quang vô hạ hạn & Bóng dưới chân thật
-  const shadowScale = 1 - Math.abs(bobY) * 0.035;
+  // Hào quang Vô Hạ Hạn (Infinity Aura) & Bóng đổ dưới chân
+  const shadowScale = 1 - Math.abs(bobY) * 0.04;
   const auraPulse = 0.75 + Math.sin((anim || 0) * 2.2) * 0.25;
   const grad = ctx.createRadialGradient(0, 24, 1, 0, 24, 15 * shadowScale);
   grad.addColorStop(0, 'rgba(56, 189, 248, ' + (0.42 * auraPulse) + ')');
@@ -4157,25 +4156,72 @@ function drawGojoModel(ctx, anim, moving, face, scale, stateKey){
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    ctx.translate(swayX, bobY);
-    ctx.rotate(tiltAngle);
-    
+    ctx.translate(0, bobY);
+    ctx.rotate(st.lean);
     const flipSign = Math.abs(st.smoothFace) < 0.18 ? (targetFace * 0.18) : st.smoothFace;
-    ctx.scale(flipSign, 1);
+    ctx.scale(flipSign * squashX, stretchY);
 
-    const W = 28, H = 64;
+    const W = 27.5, H = 60;
+    const baseY = -34;
     const sw = img.naturalWidth, sh = img.naturalHeight;
 
-    // Hiệu ứng uốn lượn cơ thể tự nhiên (Natural Human Weight Shift & Sway)
+    // Chia khớp hông (47% chiều cao) để bước chân cắt kéo và vạt quần đung đưa mượt mà
+    const hipRatio = 0.47;
+    const syHip = Math.floor(sh * hipRatio);
+    const dyHip = baseY + H * hipRatio;
+    const legH = H * (1 - hipRatio);
+
+    const strideSwing = Math.sin(walkCycle) * 0.145 * st.walkBlend;
+    const strideShiftX = Math.sin(walkCycle) * 1.65 * st.walkBlend;
+    const kneeLift = Math.max(0, -Math.cos(walkCycle)) * 1.45 * st.walkBlend;
+
+    // Lớp 1: Chân bước phía sau khi chạy (tạo hiệu ứng bước chân 3D)
+    if (st.walkBlend > 0.08) {
+      ctx.save();
+      ctx.translate(0, dyHip);
+      ctx.rotate(-strideSwing * 0.85);
+      ctx.globalAlpha *= 0.88;
+      ctx.drawImage(img, 0, syHip, sw, sh - syHip, -W/2 - strideShiftX * 0.9, -1 - kneeLift * 0.5, W, legH + 1);
+      ctx.restore();
+    }
+
+    // Lớp 2: Quần thụng & Chân trụ phía trước
+    ctx.save();
+    ctx.translate(0, dyHip);
+    ctx.rotate(strideSwing);
+    ctx.drawImage(img, 0, syHip, sw, sh - syHip, -W/2 + strideShiftX, -1.2 - kneeLift, W, legH + 1.2);
+    ctx.restore();
+
+    // Lớp 3: Thân trên, vai, đầu và tay kết ấn
+    const torsoSway = Math.sin(walkCycle + 0.6) * 0.045 * st.walkBlend + breath * 0.016;
+    ctx.save();
+    ctx.translate(0, dyHip);
+    ctx.rotate(torsoSway);
     ctx.shadowColor = 'rgba(56, 189, 248, 0.45)';
     ctx.shadowBlur = 6;
-    ctx.drawImage(img, 0, 0, sw, sh, -W/2, -H + 24, W, H);
+    ctx.drawImage(img, 0, 0, sw, syHip + 6, -W/2, -H * hipRatio, W, H * hipRatio + 2.2);
+    ctx.restore();
 
     ctx.imageSmoothingEnabled = prevSmooth;
   }
   ctx.restore();
 }
 
+// Sprite HTML/canvas preview cho lobby
+function survivorSpriteHTML(scale){
+  const s = scale||1;
+  const w = Math.round(56*s), h = Math.round(64*s);
+  return '<div class="survivor-sprite" style="position:relative;width:'+w+'px;height:'+h+'px;margin:0 auto">'
+    + '<div style="position:absolute;left:50%;bottom:4px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(8*s)+'px;background:rgba(0,0,0,.3);border-radius:50%"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(28*s)+'px;transform:translateX(-50%);width:'+Math.round(22*s)+'px;height:'+Math.round(18*s)+'px;background:#2c2f4a;border-radius:3px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(24*s)+'px;transform:translateX(-50%);width:'+Math.round(26*s)+'px;height:'+Math.round(8*s)+'px;background:#d8353a;border-radius:2px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(6*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(24*s)+'px;background:#f0c9a0;border-radius:'+Math.round(6*s)+'px"></div>'
+    + '<div style="position:absolute;left:50%;top:'+Math.round(2*s)+'px;transform:translateX(-50%);width:'+Math.round(28*s)+'px;height:'+Math.round(10*s)+'px;background:#4aa6e8;border-radius:'+Math.round(3*s)+'px '+Math.round(3*s)+'px 0 0"></div>'
+    + '<div style="position:absolute;left:calc(50% - '+Math.round(9*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(6*s)+'px;height:'+Math.round(6*s)+'px;background:#1c1c28;border-radius:1px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(3*s)+'px);top:'+Math.round(16*s)+'px;width:'+Math.round(6*s)+'px;height:'+Math.round(6*s)+'px;background:#1c1c28;border-radius:1px"></div>'
+    + '<div style="position:absolute;left:calc(50% + '+Math.round(12*s)+'px);top:'+Math.round(32*s)+'px;width:'+Math.round(14*s)+'px;height:'+Math.round(5*s)+'px;background:#bfc4d8;border-radius:2px"></div>'
+    + '</div>';
+}
 function gojoSpriteHTML(scale){
   const s = scale||1;
   const w = Math.round(56*s), h = Math.round(88*s);
