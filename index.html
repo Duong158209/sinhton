@@ -533,42 +533,20 @@ async function fsRestGet(path){
   return _docToObj(await res.json());
 }
 async function fsWriteRoom(code, roomData){
-  // Thử SDK trước (nhanh nếu OK), fallback REST nếu timeout
-  const ref = db.collection('rooms').doc(code);
-  let sdkOk = false;
-  try{
-    try{ await db.enableNetwork(); }catch(_){}
-    await Promise.race([
-      ref.set(roomData),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('sdk-timeout')), 6000))
-    ]);
-    sdkOk = true;
-  }catch(e){ console.warn('SDK room set fail, dùng REST', e); }
-  if(!sdkOk){
-    await fsRestSet('rooms/'+code, roomData);
-  }
-  // Xác nhận đọc lại
-  try{
-    const viaSdk = await Promise.race([
-      ref.get({source:'server'}),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('read-timeout')), 5000))
-    ]);
-    if(viaSdk && viaSdk.exists) return viaSdk.data();
-  }catch(_){}
-  const viaRest = await fsRestGet('rooms/'+code);
-  if(!viaRest) throw new Error('Tạo phòng xong nhưng không đọc lại được. Kiểm tra Rules.');
-  return viaRest;
+  // Co-op dùng Firestore REST trực tiếp để tránh SDK IndexedDB/AsyncQueue
+  // bị kẹt trên Safari/iOS sau khi tab chạy nền.
+  await fsRestSet('rooms/'+code, roomData);
+  const saved = await fsRestGet('rooms/'+code);
+  if(!saved) throw new Error('Đã gửi yêu cầu tạo phòng nhưng không đọc lại được. Kiểm tra Rules/kết nối.');
+  return saved;
 }
 async function fsWriteInvite(toUid, inviteId, payload){
-  const path = 'users/'+toUid+'/teamInvites/'+inviteId;
-  try{
-    await Promise.race([
-      db.collection('users').doc(toUid).collection('teamInvites').doc(inviteId).set(payload),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('sdk-timeout')), 6000))
-    ]);
-    return;
-  }catch(e){ console.warn('SDK invite fail, REST', e); }
-  await fsRestSet(path, payload);
+  // REST-first: không để lỗi nội bộ Firestore SDK làm hỏng thao tác gửi lời mời.
+  await fsRestSet('users/'+toUid+'/teamInvites/'+inviteId, payload);
+  const saved = await fsRestGet('users/'+toUid+'/teamInvites/'+inviteId);
+  if(!saved || saved.fromUid !== payload.fromUid || saved.roomId !== payload.roomId){
+    throw new Error('Không xác nhận được lời mời trên server. Hãy kiểm tra Firestore Rules/kết nối.');
+  }
 }
 
 let currentUser = null;
@@ -3907,11 +3885,27 @@ async function inviteFriendToTeam(friend){
       hostCard('✅ Chờ đồng ý · Mã '+code));
     listenRoom(code);
     if(teamResponseUnsub){try{teamResponseUnsub()}catch(_){} teamResponseUnsub=null;}
-    teamResponseUnsub=db.collection('users').doc(currentUser.uid).collection('teamInviteResponses').doc(code).onSnapshot(rs=>{
-      if(!rs.exists) return; const rd=rs.data()||{};
-      if(rd.status==='declined') setUI('❌ Từ chối', errCard('Từ chối'));
-      else if(rd.status==='accepted') setUI('✅ Đủ 2! Bấm BẮT ĐẦU', hostCard('✅ 2/2'));
-    },e=>console.warn(e));
+    // Đọc phản hồi bằng REST polling thay vì onSnapshot: nếu Firestore SDK
+    // bị INTERNAL ASSERTION trên Safari/iOS thì host vẫn nhận được accepted.
+    let responsePollBusy = false;
+    const checkTeamResponse = async ()=>{
+      if(responsePollBusy || !currentUser) return;
+      responsePollBusy = true;
+      try{
+        const rd = await fsRestGet('users/'+currentUser.uid+'/teamInviteResponses/'+code);
+        if(rd && rd.status==='declined'){
+          setUI('❌ Từ chối', errCard('Bạn bè đã từ chối lời mời.'));
+          if(teamResponseUnsub){teamResponseUnsub();teamResponseUnsub=null;}
+        }else if(rd && rd.status==='accepted'){
+          setUI('✅ Đủ 2! Bấm BẮT ĐẦU', hostCard('✅ 2/2'));
+          if(teamResponseUnsub){teamResponseUnsub();teamResponseUnsub=null;}
+        }
+      }catch(e){ console.warn('Đọc phản hồi Co-op qua REST thất bại', e); }
+      finally{ responsePollBusy = false; }
+    };
+    checkTeamResponse();
+    const responseTimer = setInterval(checkTeamResponse, 1500);
+    teamResponseUnsub = ()=>clearInterval(responseTimer);
   }catch(e){
     console.warn(e);
     let msg='Không gửi được: '+(e.message||e);
