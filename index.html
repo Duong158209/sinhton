@@ -966,7 +966,7 @@ const GOLEM_TXT={
 };
 const gtxt=k=>(GOLEM_TXT[golemSkin]||GOLEM_TXT.default)[k];
 let golemAttackFx=0, golemRootFx=0;
-function golemExtraDmg(e){ return (lv.golem>=6 ? e.max*0.03 : 0); } // giảm từ 5% xuống 3% theo yêu cầu
+function golemExtraDmg(e){ return (lv.golem>=6 ? e.max*0.015 : 0); } // Lv6: sát thương theo % máu tối đa giảm từ 3% xuống 1.5% (áp dụng mọi skin)
 let W=0,H=0,dpr=1,zoom=1;
 function resize(){
   dpr=Math.min(window.devicePixelRatio||1,2);
@@ -1054,7 +1054,7 @@ function reset(){
   const _cb = (typeof getCharBonus==='function') ? getCharBonus() : {hpMul:1};
   const baseHp = Math.round(400 * (_cb.hpMul||1));
   P={x:0,y:0,hp:baseHp,maxhp:baseHp,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
-  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];
+  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];coopBossWaveIndex=0; _coopBossDamageQueue={}; _coopBossDamageApplied={}; _coopBossChestBusy={};
   try{localStorage.removeItem('lastRunCoins');}catch(_){}
   coopOutcome='';
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;pendingSkillPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=120;frenzyActive=false;frenzyT=0;frenzyDuration=20;frenzyCount=0;tuocdoatProcT=5;
@@ -1388,6 +1388,7 @@ let roomUnsub = null;
 let isRoomHost = false;
 // Đồng bộ boss/rương co-op: chủ phòng giữ trạng thái chuẩn, cả hai người cùng gây sát thương.
 let _coopBossSyncAt=0, _coopBossDamageQueue={}, _coopBossDamageApplied={}, _coopBossChestBusy={};
+let coopBossWaveIndex=0; // số đợt boss Co-op, dùng tăng sức mạnh theo từng đợt
 let partner = null; // {x,y,hp,maxhp,face,alive,name,avatar,anim,moving,charId}
 let partnerUid = null;
 let lastPartnerSync = 0;
@@ -1779,7 +1780,7 @@ function spawnEnemy(forceType,px,py){
     const roll=Math.random();
     if(T>25&&roll>.8)type='r';
     else if(T>40&&roll<0.18)type='f';
-    else if(T>80&&roll<0.28)type='t';
+    else if(T>80&&roll<(frenzyActive?0.30:0.28))type='t';
     else if(T>60&&roll>0.88)type='bom';
     else if(T>70&&roll<0.15)type='arc';
   }
@@ -1790,12 +1791,12 @@ function spawnEnemy(forceType,px,py){
   const earlyHpBonus = T<=90 ? 1.3 : 1.0;
   
   let e={x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
-  if(type==='n'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
-  if(type==='f'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
-  if(type==='r'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
-  if(type==='t'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
-  if(type==='sk'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
-  if(type==='bom'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
+  if(type==='n'){const fH=1, fD=frenzyActive?1.2:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
+  if(type==='f'){const fH=1, fD=frenzyActive?1.2:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
+  if(type==='r'){const fH=1, fD=frenzyActive?1.2:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
+  if(type==='t'){const fH=1, fD=frenzyActive?1.2:1; e.hp=70*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(28,34);e.r=14;e.dmg=18*mmDmg*fD;e.s=1.5;}
+  if(type==='sk'){const fH=1, fD=frenzyActive?1.2:1; e.hp=160*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(32,40);e.r=10;e.dmg=50*mmDmg*fD;e.s=1.2;e.isSkel=true;e.revived=false;}
+  if(type==='bom'){const fH=1, fD=frenzyActive?1.2:1; e.hp=22*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(58,72);e.r=11;e.dmg=55*mmDmg*fD;e.s=1.15;e.isBomber=true;e.bombT=2.5;e.bombTick=0;e.exploded=false;}
   if(type==='arc'){const fH=frenzyActive?1.2:1, fD=frenzyActive?1.2:1; e.hp=18*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(30,38);e.r=9;e.dmg=14*mmDmg*fD;e.s=1.0;e.isArcher=true;e.shootCd=rnd(1,2.5);e.keepDist=160;}
   if(type==='b'){
     const rollTanker = Math.random();
@@ -1834,15 +1835,22 @@ function spawnEnemy(forceType,px,py){
   // Quái thường trước 1:30 được cộng 25%, sau đó giảm 15% sát thương ở mọi thời điểm.
   if(e.t!=='b' && T<90) e.dmg*=1.25*1.5;
   if(e.t!=='b') e.dmg*=0.85;
-  // Điên loạn: toàn bộ quái được tăng 20% HP ở mọi chế độ.
-  if(frenzyActive) e.hp*=1.20;
+  // Điên loạn: toàn bộ quái nhận +50% HP; loại quái to xuất hiện nhiều hơn 20% trong đợt này.
+  if(frenzyActive) e.hp*=1.50;
   // Co-op: quái/boss trâu x1.5, dame +5%
   if(typeof coopActive!=='undefined' && coopActive){
     e.hp*=1.5; e.max=e.hp;
     e.dmg=(e.dmg||10)*1.05;
     if(e.t==='b') e.dmg*=0.90; // Co-op: giảm 10% dame boss
   }
-  if(e.t==='b') e.hp*=1.05; // Tăng nhẹ thêm 5% máu boss theo yêu cầu
+  if(e.t==='b'){
+    e.hp*=1.30; // Boss +30% máu
+    e.dmg*=1.10; // Boss +10% sát thương
+    if(typeof coopActive!=='undefined' && coopActive){
+      const waveMul=Math.pow(1.5,Math.max(0,coopBossWaveIndex-1));
+      e.hp*=waveMul; e.dmg*=waveMul; // Mỗi đợt Co-op sau mạnh gấp 1.5 lần đợt trước
+    }
+  }
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
   if(px!==undefined){e.x=px;e.y=py;}
@@ -2672,10 +2680,12 @@ function update(dt){
   }
   fireWeapons(dt);
   const isCoopBossWave = (typeof coopActive!=='undefined' && coopActive);
-  // Co-op: đợt boss đầu tiên ở 1:45, các đợt tiếp theo cách nhau 1:45. Solo giữ lịch cũ.
-  if(T >= (isCoopBossWave ? Math.max(105, bossT) : bossT)){
-    bossT = isCoopBossWave ? (T + 105) : (bossT + Math.max(35, 70 - T/20));
-    const bossN = isCoopBossWave ? 2 : 1;
+  // Co-op: 4 boss mỗi đợt; đợt đầu ở 1:00, các đợt tiếp theo cách nhau đúng 60 giây. Solo giữ lịch cũ.
+  const coopBossDue = coopBossWaveIndex===0 ? 60 : bossT;
+  if(T >= (isCoopBossWave ? coopBossDue : bossT)){
+    if(isCoopBossWave){ coopBossWaveIndex++; bossT=T+60; }
+    else { bossT=bossT+Math.max(35,70-T/20); }
+    const bossN = isCoopBossWave ? 4 : 1;
     for(let bi=0;bi<bossN;bi++) spawnEnemy('b');
     if(!(coopActive) && T>=210 && Math.random()<0.12){
       spawnEnemy('b');
@@ -2683,7 +2693,7 @@ function update(dt){
       fx.push({x:P.x,y:P.y,ring:200,t:.8,T:.8,c:'#ff00ff'});
       shake=15;
     }
-    pushText({x:P.x,y:P.y-50,v: coopActive ? ('⚠ CO-OP: 2 BOSS ĐỢT #'+bossIdx+'!') : (((bossIdx-1)%2?'⚠ BOSS PHÁP SƯ #':'⚠ BOSS #')+bossIdx+' XUẤT HIỆN!'),t:2.2,c:true,big:true});}
+    pushText({x:P.x,y:P.y-50,v: coopActive ? ('⚠ CO-OP: 4 BOSS ĐỢT #'+coopBossWaveIndex+'!') : (((bossIdx-1)%2?'⚠ BOSS PHÁP SƯ #':'⚠ BOSS #')+bossIdx+' XUẤT HIỆN!'),t:2.2,c:true,big:true});}
   updateProjs(dt);
   if(lv.kunai>=6){
     kr.t+=dt;
@@ -2820,7 +2830,7 @@ function update(dt){
             hitEnemy(e,dmg, e.x-golemSt.x, e.y-golemSt.y);
             if(lv.golem>=6 && e.max>100){
               // hiệu ứng đỏ khi rút 1% máu
-              pushText({x:e.x+rnd(-8,8),y:e.y-18,v:'-2% HP',t:.7,c:true});
+              pushText({x:e.x+rnd(-8,8),y:e.y-18,v:'-1.5% HP',t:.7,c:true});
               fx.push({x:e.x,y:e.y,vx:rnd(-20,20),vy:rnd(-30,-10),t:.4,c:'#ff2222',r:3});
             }
             const kb= (lv.golem>=6?160:120);
@@ -2842,7 +2852,7 @@ function update(dt){
             if(dist< (lv.golem>=6?190:160)+e.r){
               let dmg = pitDmg + golemExtraDmg(e);
               hitEnemy(e,dmg, e.x-golemSt.x, e.y-golemSt.y);
-              if(lv.golem>=6) pushText({x:e.x,y:e.y-16,v:'-2% HP',t:.6,c:true});
+              if(lv.golem>=6) pushText({x:e.x,y:e.y-16,v:'-1.5% HP',t:.6,c:true});
               e.kx+= (e.x-golemSt.x)/dist*220;
               e.ky+= (e.y-golemSt.y)/dist*220;
               e.rooted=Math.max(e.rooted||0,0.6);
@@ -2997,7 +3007,7 @@ function update(dt){
             P.hp = Math.min(P.maxhp, P.hp + heal);
             if(heal>0) pushText({x:P.x+rnd(-10,10),y:P.y-20,v:'+'+Math.round(heal),t:.6,heal:true});
           }
-          if(bh.isEvo && extra>0) pushText({x:e.x,y:e.y-18,v:'-2% HP',t:.5,c:true});
+          if(bh.isEvo && extra>0) pushText({x:e.x,y:e.y-18,v:'-1.5% HP',t:.5,c:true});
         }
       }
       fx.push({x:bh.x,y:bh.y,ring:bh.rad,t:.25,T:.25,c:'#7a00ff'});
