@@ -209,6 +209,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
 
 </head>
 <body>
@@ -374,19 +375,20 @@
 // ========== FIREBASE AUTH ==========
 // Điền config Firebase của bạn vào đây (Project Settings > Your apps)
 const firebaseConfig = {
-  apiKey: "AIzaSyBQH5znF07WKmpZMYfRaS52M_bunKNFwz8",
-  authDomain: "sinhton-56277.firebaseapp.com",
-  projectId: "sinhton-56277",
-  storageBucket: "sinhton-56277.firebasestorage.app",
-  messagingSenderId: "1046710491620",
-  appId: "1:1046710491620:web:488161727a707107414ff1",
-  measurementId: "G-R5Z1K3636E"
+  apiKey: "AIzaSyAesnYhMsrQ2dNDMnPsBGbS46zq1N_eNN8",
+  authDomain: "sinhton2-13a45.firebaseapp.com",
+  projectId: "sinhton2-13a45",
+  storageBucket: "sinhton2-13a45.firebasestorage.app",
+  messagingSenderId: "1028858810490",
+  appId: "1:1028858810490:web:30ca234cb5bb1964db2bc3",
+  measurementId: "G-N4ZGCCE10D"
 };
 if(typeof firebase==='undefined'){
   console.warn('Firebase SDK không tải được');
   window.firebase={initializeApp(){},auth:()=>({}),firestore:()=>({})};
 }
 firebase.initializeApp(firebaseConfig);
+try{ if(typeof firebase.analytics==="function") firebase.analytics(); }catch(e){ console.warn("Analytics lỗi (bỏ qua)", e); }
 
 function setAuthVisible(on){
   const ov=document.getElementById('authOv');
@@ -442,7 +444,7 @@ try {
 }
 
 // ===== Firestore REST fallback (iOS SDK hay treo) =====
-const FS_PROJECT = (firebaseConfig && firebaseConfig.projectId) || 'sinhton-56277';
+const FS_PROJECT = (firebaseConfig && firebaseConfig.projectId) || 'sinhton2-13a45';
 const FS_BASE = 'https://firestore.googleapis.com/v1/projects/' + FS_PROJECT + '/databases/(default)/documents';
 
 function _fsVal(v){
@@ -834,8 +836,9 @@ auth.onAuthStateChanged(async (user) => {
       const profileData = profileSnap.exists ? profileSnap.data() : {};
       accountAvatar = profileData.avatar || '🧑';
       if(profileData.shortId){ myShortId = profileData.shortId; try{ localStorage.setItem('myShortId', myShortId); }catch(_){} }
-      else { ensureShortId(); }
+      else { myShortId=''; try{ localStorage.removeItem('myShortId'); }catch(_){} ensureShortId(); }
       if(Array.isArray(profileData.friends)){ friendsList = profileData.friends; saveFriendsLocal(); }
+      else { friendsList = []; saveFriendsLocal(); }
       try{listenFriendRequests();listenAcceptedFriends();listenTeamInvites();}catch(_){}
       refreshLobbyProfile(nm);
     }catch(_){}
@@ -3663,14 +3666,28 @@ function ensureShortId(){
   }
   const el = document.getElementById('myShortIdDisp');
   if(el) el.textContent = myShortId;
-  // Đồng bộ nền (không chặn UI)
-  if(typeof currentUser!=='undefined' && currentUser && typeof db!=='undefined'){
-    Promise.resolve().then(async()=>{
+  // Đồng bộ nền (không chặn UI). Claim playerIds trước; nếu ID đã thuộc người khác thì đổi ID mới.
+  if(typeof currentUser!=='undefined' && currentUser && typeof db!=='undefined' && !window._sidBusy){
+    window._sidBusy=true;
+    (async()=>{
       try{
-        await db.collection('users').doc(currentUser.uid).set({ shortId: myShortId }, { merge:true });
-        await db.collection('playerIds').doc(myShortId).set({uid:currentUser.uid,shortId:myShortId,name:currentUser.displayName||'Người chơi',avatar:accountAvatar||'🧑',updatedAt:Date.now()},{merge:true});
-      }catch(e){ console.warn('shortId bg', e); }
-    });
+        for(let i=0;i<6;i++){
+          try{
+            await db.collection('playerIds').doc(myShortId).set({uid:currentUser.uid,shortId:myShortId,name:currentUser.displayName||'Người chơi',avatar:accountAvatar||'🧑',updatedAt:Date.now()},{merge:true});
+            await db.collection('users').doc(currentUser.uid).set({ shortId: myShortId }, { merge:true });
+            return;
+          }catch(e){
+            if(e && e.code==='permission-denied' && i<5){
+              myShortId = genShortId();
+              try{ localStorage.setItem('myShortId', myShortId); }catch(_){}
+              const el2=document.getElementById('myShortIdDisp'); if(el2) el2.textContent=myShortId;
+              continue;
+            }
+            console.warn('shortId bg', e); return;
+          }
+        }
+      } finally { window._sidBusy=false; }
+    })();
   }
   return Promise.resolve(myShortId);
 }
@@ -3839,7 +3856,7 @@ async function inviteFriendToTeam(friend){
 
   let targetUid=friend&&friend.uid?String(friend.uid):'';
   let targetName=(friend&&(friend.name||friend.shortId))||'bạn bè';
-  if(!targetUid && friend&&friend.shortId){
+  if(friend&&friend.shortId){
     setUI('⏳ Tra ID '+friend.shortId+'...', hostCard('Tra ID'));
     try{
       // REST đọc playerIds
@@ -3899,7 +3916,7 @@ async function inviteFriendToTeam(friend){
     console.warn(e);
     let msg='Không gửi được: '+(e.message||e);
     if((e.code||'')==='permission-denied'||/403|permission|Permission/i.test(msg))
-      msg+='\n\n→ RULES đang chặn. Firebase Console → Firestore → Rules → Publish:\nallow read, write: if request.auth != null;';
+      msg+='\n\n→ RULES đang chặn. Firebase Console → Firestore Database → Rules → dán nội dung file firestore.rules → Publish.';
     setUI(msg, errCard(msg));
     try{ alert(msg); }catch(_){}
   }
