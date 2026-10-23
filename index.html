@@ -3429,7 +3429,7 @@ function returnToLobby(){
     }
   }catch(_){}
   try{ runRewardSaved=false; }catch(_){}
-  try{ if(typeof roomUnsub!=='undefined' && roomUnsub){ roomUnsub(); roomUnsub=null; } coopActive=false; currentRoomId=null; partner=null; partnerUid=null; _createdCode=null; _coopErr=''; const _rs=document.getElementById('roomStatus'); if(_rs) _rs.textContent=''; }catch(_){}
+  try{ CoopNet.close(); }catch(_){} try{ if(typeof roomUnsub!=='undefined' && roomUnsub){ roomUnsub(); roomUnsub=null; } coopActive=false; currentRoomId=null; partner=null; partnerUid=null; _createdCode=null; _coopErr=''; const _rs=document.getElementById('roomStatus'); if(_rs) _rs.textContent=''; }catch(_){}
   state='lobby';
   try{ show('menu',false);show('pause',false);show('levelup',false);show('over',false); }catch(_){}
   try{
@@ -3875,6 +3875,73 @@ function joinCoopRoom(code){
     _coopErr = (e&&e.code)||'loi'; if(st) st.textContent = 'Lỗi vào phòng (Rules?) ['+((e&&e.code)||'')+']: '+(e.message||e);
   });
 }
+// ===== CO-OP NET: WebRTC DataChannel (P2P ~20Hz); Firestore chỉ dùng để bắt tay + dự phòng =====
+function applyPartnerState(op,src,d){
+  if(!op || typeof op!=='object') return;
+  const ts=+op.t||0;
+  if(partner && partner._lastT && ts && ts<=partner._lastT) return; // bản cũ/trùng (snapshot Firestore trễ) -> bỏ
+  const n=(v,def,lo,hi)=>{ v=+v; return Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):def; };
+  const s=(v,def)=>(typeof v==='string' && v)?v.slice(0,24):def;
+  if(!partner) partner={x:0,y:0,hp:400,maxhp:400,face:1,alive:true,name:'Đồng đội',avatar:'👥',anim:0,moving:false,charId:'survivor',lv:{},golemSkin:'default',golem:null};
+  const q=partner, bx=q.rx!==undefined?q.rx:q.x, by=q.ry!==undefined?q.ry:q.y;
+  q.rx=n(op.x,bx,-1e6,1e6); q.ry=n(op.y,by,-1e6,1e6);
+  q.rvx=n(op.vx,0,-600,600); q.rvy=n(op.vy,0,-600,600);
+  q.rt=performance.now(); q._lastT=ts;
+  if(src==='p2p') q._p2pAt=q.rt;
+  if(q.dx===undefined){ q.dx=q.x=q.rx; q.dy=q.y=q.ry; }
+  q.hp=n(op.hp,q.hp,0,1e6); q.maxhp=n(op.maxhp,q.maxhp,1,1e6);
+  if(op.face!==undefined) q.face=op.face<0?-1:1;
+  q.alive=op.alive!==false; q.moving=!!op.moving;
+  q.name=s(op.name,(q.name&&q.name!=='Đồng đội')?q.name:((d&&(d.guestName||d.hostName))||'Đồng đội'));
+  q.charId=s(op.charId,q.charId||'survivor'); q.golemSkin=s(op.golemSkin,q.golemSkin||'default');
+  if(op.lv && typeof op.lv==='object'){ const L={}; let c=0; for(const k in op.lv){ if(c++>40) break; if(/^\w{1,24}$/.test(k)) L[k]=n(op.lv[k],0,0,99); } q.lv=L; }
+  const g=op.golem;
+  q.golem=(g && g.active)?{active:true,x:n(g.x,0,-1e6,1e6),y:n(g.y,0,-1e6,1e6),walk:n(g.walk,0,-1e6,1e6),moving:!!g.moving,face:g.face<0?-1:1,atkFx:n(g.atkFx,0,0,10),rootFx:n(g.rootFx,0,0,10),life:n(g.life,30,0,999),isEvo:!!g.isEvo}:null;
+}
+const CoopNet=(function(){
+  const ICE=[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
+  let pc=null,dc=null,sid=null,ansSid=null,open=false,tries=0,tmr=null,lastRecv=0;
+  const ref=()=>db.collection('rooms').doc(currentRoomId);
+  function reset(){ open=false; clearTimeout(tmr); const a=pc,b=dc; pc=dc=null; try{b&&b.close();}catch(_){} try{a&&a.close();}catch(_){} }
+  function chan(ch){
+    dc=ch;
+    ch.onopen=()=>{ open=true; lastRecv=performance.now(); };
+    ch.onclose=()=>{ open=false; };
+    ch.onmessage=e=>{ try{ const o=JSON.parse(e.data); lastRecv=performance.now(); applyPartnerState(o,'p2p'); }catch(_){} };
+  }
+  function gathered(p){ return new Promise(res=>{ if(p.iceGatheringState==='complete') return res(); const t=setTimeout(res,3000); p.addEventListener('icegatheringstatechange',()=>{ if(p.iceGatheringState==='complete'){ clearTimeout(t); res(); } }); }); }
+  async function hostOffer(){
+    tries++; reset(); const p=pc=new RTCPeerConnection({iceServers:ICE}); const my=sid=String(Date.now());
+    chan(p.createDataChannel('g',{ordered:false,maxRetransmits:0}));
+    try{
+      await p.setLocalDescription(await p.createOffer()); await gathered(p); if(pc!==p) return;
+      await ref().set({rtc:{offer:{sid:my,sdp:p.localDescription.sdp},answer:firebase.firestore.FieldValue.delete()}},{merge:true});
+    }catch(e){ console.warn('rtc offer',e); }
+    tmr=setTimeout(()=>{ if(!open && pc===p) reset(); },9000); // 9s chưa nối được -> thử lại (tối đa 3 lần), không được thì dùng Firestore
+  }
+  async function guestAnswer(o){
+    reset(); const p=pc=new RTCPeerConnection({iceServers:ICE}); sid=o.sid;
+    p.ondatachannel=e=>chan(e.channel);
+    try{
+      await p.setRemoteDescription({type:'offer',sdp:o.sdp});
+      await p.setLocalDescription(await p.createAnswer()); await gathered(p); if(pc!==p) return;
+      await ref().set({rtc:{answer:{sid:o.sid,sdp:p.localDescription.sdp}}},{merge:true});
+    }catch(e){ console.warn('rtc answer',e); }
+  }
+  return {
+    onDoc(d){
+      if(typeof RTCPeerConnection==='undefined' || !currentUser || !currentRoomId || !d.guestUid || d.status==='ended') return;
+      const r=d.rtc||{};
+      if(isRoomHost){
+        if(!pc && tries<3) hostOffer();
+        else if(pc && r.answer && r.answer.sid===sid && ansSid!==sid){ ansSid=sid; pc.setRemoteDescription({type:'answer',sdp:r.answer.sdp}).catch(()=>{}); }
+      }else if(r.offer && r.offer.sid && r.offer.sid!==sid) guestAnswer(r.offer);
+    },
+    ready(){ return !!(open && dc && dc.readyState==='open' && performance.now()-lastRecv<2500); },
+    send(o){ try{ dc.send(JSON.stringify(o)); }catch(_){} },
+    close(){ reset(); sid=null; ansSid=null; tries=0; }
+  };
+})();
 function listenRoom(code){
   if(roomUnsub){ try{ roomUnsub(); }catch(_){} roomUnsub=null; }
   roomUnsub = db.collection('rooms').doc(code).onSnapshot(snap=>{
@@ -3882,43 +3949,14 @@ function listenRoom(code){
     const d = snap.data();
     if(!currentUser) return;
     const _pl = d.players||{};
+    try{ CoopNet.onDoc(d); }catch(_){}
     let otherUid = Object.keys(_pl).find(k=>k!==currentUser.uid) || null;
     if(!otherUid){ const _c = d.hostUid===currentUser.uid ? d.guestUid : d.hostUid; if(_c && _c!==currentUser.uid) otherUid=_c; }
     partnerUid = otherUid || d.guestUid || d.hostUid || partnerUid || null;
     if(partnerUid === currentUser.uid) partnerUid = otherUid || (d.hostUid===currentUser.uid ? d.guestUid : d.hostUid) || null;
     // Cập nhật partner từ data thật (giữ dx/dy để mượt) + luôn cập nhật charId/ngoại hình
     if(otherUid && _pl[otherUid]){
-      const op = _pl[otherUid];
-      const _old = partner;
-      const nx = (typeof op.x==='number') ? op.x : (_old ? _old.x : 0);
-      const ny = (typeof op.y==='number') ? op.y : (_old ? _old.y : 0);
-      // Giữ dx/dy để lerp mượt; chỉ snap nếu lệch quá xa hoặc vừa spawn
-      let keepDx = _old && _old.dx!==undefined ? _old.dx : nx;
-      let keepDy = _old && _old.dy!==undefined ? _old.dy : ny;
-      if(!_old || Math.hypot(nx-keepDx, ny-keepDy)>220){ keepDx=nx; keepDy=ny; }
-      partner = {
-        dx: keepDx,
-        dy: keepDy,
-        vx: (typeof op.vx==='number') ? op.vx : 0,
-        vy: (typeof op.vy==='number') ? op.vy : 0,
-        lastSync: (typeof op.t==='number') ? op.t : Date.now(),
-        lv: (op.lv && typeof op.lv==='object') ? Object.assign({}, op.lv) : (_old && _old.lv ? _old.lv : {}),
-        x: nx, y: ny,
-        hp: (typeof op.hp==='number') ? op.hp : (_old ? _old.hp : 400),
-        maxhp: (typeof op.maxhp==='number') ? op.maxhp : (_old ? _old.maxhp : 400),
-        face: op.face||(_old&&_old.face)||1,
-        alive: op.alive!==false,
-        name: op.name || d.guestName || d.hostName || (_old&&_old.name) || 'Đồng đội',
-        avatar: op.avatar||(_old&&_old.avatar)||'🧑',
-        anim: (typeof op.anim==='number') ? op.anim : (_old ? _old.anim : 0),
-        moving: !!op.moving,
-        charId: op.charId || (_old && _old.charId) || 'survivor',
-        golemSkin: op.golemSkin || (_old && _old.golemSkin) || 'default',
-        golem: op.golem || null,
-        gx: _old && _old.gx!==undefined ? _old.gx : (op.golem && op.golem.x ? op.golem.x : nx-34),
-        gy: _old && _old.gy!==undefined ? _old.gy : (op.golem && op.golem.y ? op.golem.y : ny),
-        _fa: _old && _old._fa, _ft: _old && _old._ft
-      };
+      applyPartnerState(_pl[otherUid],'fs',d);
     } else if(partnerUid && partnerUid !== currentUser.uid){
       const pName = (d.guestUid===partnerUid ? (d.guestName||'Đồng đội') : (d.hostName||'Đồng đội'));
       if(!partner){
@@ -3998,76 +4036,44 @@ function listenRoom(code){
 }
 function syncCoopSelf(force){
   if(!coopActive || !currentRoomId || !currentUser) return;
-  const now = performance.now();
-  // Firestore dùng chung 1 room document cho cả 2 người; giảm tần suất ghi
-  // và chỉ giữ payload mới nhất nếu lần ghi trước chưa xong để tránh backlog sau vài phút.
-  const minInterval = 320;
-  if(!force && now - lastSelfSync < minInterval) return;
-  lastSelfSync = now;
-  // Vận tốc để bên kia nội suy mượt
-  if(typeof syncCoopSelf._lx!=='number'){ syncCoopSelf._lx=P.x; syncCoopSelf._ly=P.y; syncCoopSelf._lt=now; }
-  const dtSec = Math.max(0.016, (now - syncCoopSelf._lt)/1000);
-  let vx = (P.x - syncCoopSelf._lx)/dtSec;
-  let vy = (P.y - syncCoopSelf._ly)/dtSec;
-  // clamp vận tốc ảo
-  const spd = Math.hypot(vx,vy);
-  if(spd>520){ vx*=520/spd; vy*=520/spd; }
-  syncCoopSelf._lx=P.x; syncCoopSelf._ly=P.y; syncCoopSelf._lt=now;
-  const payload = {
+  const S=syncCoopSelf, now=performance.now();
+  // vận tốc đo trên cửa sổ >=80ms để bên kia ngoại suy mượt
+  if(S._rt===undefined || now-S._rt>=80){
+    if(S._rt!==undefined){
+      const ds=(now-S._rt)/1000; let vx=(P.x-S._rx)/ds, vy=(P.y-S._ry)/ds; const sp=Math.hypot(vx,vy);
+      if(sp>520){ vx*=520/sp; vy*=520/sp; }
+      S._vx=vx; S._vy=vy;
+    }
+    S._rt=now; S._rx=P.x; S._ry=P.y;
+  }
+  const mv=!!P.moving, p2p=CoopNet.ready();
+  const build=()=>({
     x: Math.round(P.x*10)/10, y: Math.round(P.y*10)/10,
-    vx: Math.round(vx*10)/10, vy: Math.round(vy*10)/10,
+    vx: Math.round((S._vx||0)*10)/10, vy: Math.round((S._vy||0)*10)/10,
     hp: Math.round(P.hp), maxhp: Math.round(P.maxhp),
-    face: P.face||1, alive: P.hp>0, anim: +(P.anim||0).toFixed(2),
-    moving: !!P.moving, charId: equippedCharacter||'survivor',
+    face: P.face||1, alive: P.hp>0, moving: mv, charId: equippedCharacter||'survivor',
     name: (currentUser.displayName||'P'), shortId: myShortId,
-    lv: Object.assign({}, lv),
-    golemSkin: golemSkin||'default',
-    t: Date.now(),
+    lv: Object.assign({}, lv), golemSkin: golemSkin||'default', t: Date.now(),
     golem: (lv.golem && golemSt && golemSt.active) ? {
-      active: true,
-      x: Math.round(golemSt.x),
-      y: Math.round(golemSt.y),
-      walk: +(golemSt.walk||0).toFixed(2),
-      moving: !!golemSt.moving,
-      face: golemSt.face||1,
-      atkFx: +(golemAttackFx||0).toFixed(2),
-      rootFx: +(golemRootFx||0).toFixed(2),
-      life: Math.round(golemSt.life||30),
-      isEvo: !!(lv.golem>=6)
-    } : { active: false }
-  };
-  // Dotted field paths MUST use update(). Serialize writes: when Firestore is slow,
-  // overwrite the queued state with the newest position instead of building a stale queue.
-  const data = {};
-  data['players.' + currentUser.uid] = payload;
-  const _sendLatest = (writeData) => {
-    if(syncCoopSelf._writeBusy){
-      syncCoopSelf._queuedData = writeData;
-      return;
-    }
-    if(!_sentPlaying){
-      writeData.status = 'playing';
-      writeData.t = Math.floor(T);
-      _sentPlaying = true;
-    }
-    syncCoopSelf._writeBusy = true;
-    db.collection('rooms').doc(currentRoomId).update(writeData)
-      .then(()=>{ _coopErr=''; })
-      .catch(e=>{
-        _coopErr='ghi: '+((e&&e.code)||'lỗi');
-        _sentPlaying=false;
-        console.warn('coop sync update failed', e);
-      })
-      .finally(()=>{
-        syncCoopSelf._writeBusy = false;
-        const queued = syncCoopSelf._queuedData;
-        syncCoopSelf._queuedData = null;
-        if(queued && coopActive && currentRoomId && currentUser){
-          _sendLatest(queued);
-        }
-      });
-  };
-  _sendLatest(data);
+      active:true, x:Math.round(golemSt.x), y:Math.round(golemSt.y), walk:+(golemSt.walk||0).toFixed(2),
+      moving:!!golemSt.moving, face:golemSt.face||1, atkFx:+(golemAttackFx||0).toFixed(2),
+      rootFx:+(golemRootFx||0).toFixed(2), life:Math.round(golemSt.life||30), isEvo:!!(lv.golem>=6)
+    } : { active:false }
+  });
+  // Kênh chính: WebRTC P2P ~20 lần/giây (không tốn quota Firestore, không bị nghẽn 1 document)
+  if(p2p && (force || now-(S._p2p||0)>=50)){ S._p2p=now; CoopNet.send(build()); }
+  // Firestore: heartbeat 4s khi P2P ổn; chưa nối được P2P thì là kênh dự phòng 1 lần/giây
+  // (gửi thêm ngay khi bắt đầu/dừng di chuyển). Không còn gửi dồn liên tục lên cùng 1 document.
+  const moveChanged = (mv!==S._mv) && now-lastSelfSync>400;
+  if(!force && !moveChanged && now-lastSelfSync < (p2p?4000:1000)) return;
+  if(S._busy && now-S._bt<5000) return;
+  lastSelfSync=now; S._mv=mv; S._busy=true; S._bt=now;
+  const data={}; data['players.'+currentUser.uid]=build();
+  if(!_sentPlaying){ data.status='playing'; data.t=Math.floor(T); _sentPlaying=true; }
+  db.collection('rooms').doc(currentRoomId).update(data)
+    .then(()=>{ _coopErr=''; })
+    .catch(e=>{ _coopErr='ghi: '+((e&&e.code)||'lỗi'); _sentPlaying=false; console.warn('coop sync update failed', e); })
+    .finally(()=>{ S._busy=false; });
   updateCoopBadge();
 }
 function updateCoopBadge(){
@@ -4081,7 +4087,7 @@ function updateCoopBadge(){
   el.style.display='block';
   if(_coopErr){ el.textContent='⚠ Co-op lỗi '+_coopErr; el.style.color='#ff8a8a'; }
   else if(!partner){ el.textContent='⏳ Chờ đồng đội...'; el.style.color='#ffd23a'; }
-  else{ el.textContent='👥 '+(partner.name||'Đồng đội')+' ✓'; el.style.color='#86efac'; }
+  else{ el.textContent='👥 '+(partner.name||'Đồng đội')+' ✓'+(CoopNet.ready()?' ⚡P2P':' ☁'); el.style.color='#86efac'; }
 }
 async function reportCoopDeath(){
   if(!coopActive || !currentRoomId || !currentUser || coopEnded) return;
@@ -4312,16 +4318,16 @@ function drawPartnerGolemModel(gx, gy, pSkin, isEvo, walk, moving, face, atkFx, 
 function drawPartner(){
   if(!partner || !partner.alive) return;
   // Làm mượt + dự đoán vận tốc để giảm khựng/delay
-  if(partner.dx===undefined){ partner.dx=partner.x; partner.dy=partner.y; }
-  const age = Math.min(0.25, Math.max(0, (Date.now()-(partner.lastSync||Date.now()))/1000));
-  const predX = partner.x + (partner.vx||0)*age*0.85;
-  const predY = partner.y + (partner.vy||0)*age*0.85;
-  const dist = Math.hypot(predX-partner.dx, predY-partner.dy);
-  // Lerp nhanh hơn khi gần, snap khi xa
-  const _lerp = dist>120 ? 1 : (dist>40 ? 0.55 : 0.38);
-  partner.dx += (predX-partner.dx)*_lerp;
-  partner.dy += (predY-partner.dy)*_lerp;
-  if(dist>200){ partner.dx=predX; partner.dy=predY; }
+  const _n=performance.now();
+  if(partner.rx===undefined){ partner.rx=partner.x; partner.ry=partner.y; partner.rvx=0; partner.rvy=0; partner.rt=_n; }
+  if(partner.dx===undefined){ partner.dx=partner.rx; partner.dy=partner.ry; }
+  let _dt=(_n-(partner._mt||_n))/1000; partner._mt=_n; if(!(_dt>0)||_dt>0.25) _dt=0.016;
+  const _fast=(_n-(partner._p2pAt||-1e9))<1500; // đang nhận P2P ~20Hz hay chỉ có Firestore ~1Hz
+  const _age=Math.min(_fast?0.5:1.8, Math.max(0,(_n-partner.rt)/1000)); // tuổi tính bằng đồng hồ máy mình (không lệch giờ giữa 2 máy)
+  const _tx=partner.rx+partner.rvx*_age, _ty=partner.ry+partner.rvy*_age;
+  if(Math.hypot(_tx-partner.dx,_ty-partner.dy)>350){ partner.dx=_tx; partner.dy=_ty; }
+  else{ const _k=1-Math.exp(-_dt/(_fast?0.07:0.22)); partner.dx+=(_tx-partner.dx)*_k; partner.dy+=(_ty-partner.dy)*_k; }
+  partner.x=partner.dx; partner.y=partner.dy;
   const px=partner.dx, py=partner.dy;
   partner.anim=(partner.anim||0)+((partner.moving?12:3)/60);
   try{ drawPartnerSkills(px,py); }catch(e){ console.warn('partner skills', e); }
