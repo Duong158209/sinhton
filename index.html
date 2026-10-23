@@ -652,6 +652,7 @@ auth.onAuthStateChanged(async (user) => {
   currentUser = user;
   try{ restartLeaderboardLive(); }catch(_){}
   if(user){
+    window.isGuestMode = false;
     setAuthVisible(false);
     userBar.style.display = 'none';
     const nm = user.displayName || user.email.split('@')[0];
@@ -1378,18 +1379,47 @@ const lobbyPanelData={
 };
 function openLobbyPanel(title,html){$('lobbyPanelTitle').textContent=title;$('lobbyPanelBody').innerHTML=html;$('lobbyPanel').style.display='block';$('lobbyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});}
 $('profileOpen').addEventListener('click',()=>{
- const name=(currentUser&&(currentUser.displayName||(currentUser.email||'').split('@')[0]))||$('lobbyName').textContent||'Người chơi';
+ let user = null;
+ try{ user = (typeof auth!=='undefined' && auth.currentUser) ? auth.currentUser : currentUser; }catch(_){ user = currentUser; }
+ if(user) currentUser = user;
+
+ const loggedIn = !!(user && user.uid);
+ const email = (user && user.email) ? String(user.email) : '';
+ const name = loggedIn
+   ? (user.displayName || (email?email.split('@')[0]:'') || 'Người chơi')
+   : 'Khách (chưa đăng nhập)';
  const avatars=['🧑','👨','👩','🧔','👧','👦','🥷','🧙','🦸','🐱','🐼','🐸','🦊','🐺','🤖'];
  const avPreview = isPhotoAvatar(accountAvatar)
    ? '<img src="'+accountAvatar+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #ffc04a;display:block;margin:0 auto">'
    : '<div style="font-size:48px">'+(accountAvatar||'🧑')+'</div>';
- const uid = (currentUser&&currentUser.uid)||'Khách';
+
+ let shortIdShow = (typeof myShortId==='string' && myShortId) ? myShortId : (localStorage.getItem('myShortId')||'');
+ if(loggedIn && !shortIdShow){ try{ ensureShortId(); shortIdShow = myShortId||''; }catch(_){} }
+ const uidShow = loggedIn ? user.uid : '';
+
+ const statusLine = loggedIn
+   ? '<div style="text-align:center;color:#86efac;font-size:12px;font-weight:800;margin:4px 0 8px">✓ Đã đăng nhập'+(email?(' · '+escapeHtml(email)):'')+'</div>'
+   : '<div style="text-align:center;color:#fbbf24;font-size:12px;font-weight:800;margin:4px 0 8px">⚠ Đang chơi khách — chưa đăng nhập<br><span style="font-weight:600;color:#9eacc9">Tiến độ online / mời bạn sẽ không lưu</span></div>';
+
+ const idBlock = loggedIn
+   ? ('<p style="margin:12px 0 5px;color:#9eacc9;font-size:12px">ID BẠN BÈ (6 ký tự) — đưa cho người khác để kết bạn</p>'
+      + '<div class="account-id" id="accountIdValue" style="font-size:22px;font-weight:900;color:#ffd23a;letter-spacing:2px">'+(shortIdShow||'------')+'</div>'
+      + '<button type="button" id="copyAccountId" class="lobby-close" style="margin-top:8px">Sao chép ID bạn bè</button>'
+      + '<p style="margin:14px 0 5px;color:#9eacc9;font-size:11px">UID hệ thống (nội bộ)</p>'
+      + '<div class="account-id" id="accountUidValue" style="font-size:11px;word-break:break-all;opacity:.75">'+escapeHtml(uidShow)+'</div>')
+   : ('<p style="margin:12px 0 5px;color:#9eacc9;font-size:12px">ID TÀI KHOẢN</p>'
+      + '<div class="account-id" id="accountIdValue">Chưa đăng nhập</div>'
+      + '<p style="margin:8px 0 0;color:#fbbf24;font-size:12px;line-height:1.4">Bấm nút bên dưới để đăng nhập. Sau đó ID 6 ký tự sẽ hiện ở đây.</p>');
+
+ const bottomBtn = loggedIn
+   ? '<button type="button" class="account-logout" id="accountLogout">ĐĂNG XUẤT</button>'
+   : '<button type="button" class="account-logout" id="accountLoginBtn" style="background:linear-gradient(#22c55e,#16a34a)">ĐĂNG NHẬP / ĐĂNG KÝ</button>';
+
  const html =
    '<div style="text-align:center" id="accountAvatarPreview">'+avPreview+'</div>'
    + '<h3 style="margin:8px 0;text-align:center">'+escapeHtml(name)+'</h3>'
-   + '<p style="margin:12px 0 5px;color:#9eacc9;font-size:12px">ID TÀI KHOẢN</p>'
-   + '<div class="account-id" id="accountIdValue">'+uid+'</div>'
-   + '<button type="button" id="copyAccountId" class="lobby-close" style="margin-top:8px">Sao chép ID</button>'
+   + statusLine
+   + idBlock
    + '<p style="margin:16px 0 5px;color:#9eacc9;font-size:12px">ẢNH CỦA BẠN</p>'
    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
    + '<label style="flex:1;min-width:120px;background:linear-gradient(#3b82f6,#2563eb);color:#fff;font-weight:900;font-size:13px;padding:11px 12px;border-radius:10px;text-align:center;cursor:pointer">'
@@ -1400,14 +1430,13 @@ $('profileOpen').addEventListener('click',()=>{
    + '<p style="margin:8px 0 5px;color:#9eacc9;font-size:12px">HOẶC CHỌN EMOJI</p>'
    + '<div class="avatar-choices">'+avatars.map(a=>'<button type="button" class="avatar-choice '+(!isPhotoAvatar(accountAvatar)&&a===accountAvatar?'selected':'')+'" data-avatar="'+a+'">'+a+'</button>').join('')+'</div>'
    + '<div id="avatarSaveMsg" style="font-size:12px;color:#b8c7df;min-height:18px;margin-top:6px"></div>'
-   + '<button type="button" class="account-logout" id="accountLogout">ĐĂNG XUẤT</button>';
+   + bottomBtn;
  openLobbyPanel('Tài khoản',html);
 
  async function saveAvatarToCloud(av){
    if(!currentUser) return;
-   try{
-     await db.collection('users').doc(currentUser.uid).set({avatar:av},{merge:true});
-   }catch(e){ throw e; }
+   try{ await db.collection('users').doc(currentUser.uid).set({avatar:av},{merge:true}); }
+   catch(e){ throw e; }
  }
  function updatePreview(av){
    const box=$('accountAvatarPreview');
@@ -1419,22 +1448,25 @@ $('profileOpen').addEventListener('click',()=>{
    }
  }
 
- $('copyAccountId').onclick=()=>{
-   const val=uid;
-   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(val).then(()=>{$('copyAccountId').textContent='Đã sao chép ✓'}).catch(()=>prompt('Sao chép ID tài khoản:',val));
-   else prompt('Sao chép ID tài khoản:',val);
- };
+ const copyBtn=$('copyAccountId');
+ if(copyBtn){
+   copyBtn.onclick=()=>{
+     const val=shortIdShow||uidShow||'';
+     if(!val){ alert('Chưa có ID'); return; }
+     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(val).then(()=>{copyBtn.textContent='Đã sao chép ✓'}).catch(()=>prompt('Sao chép ID:',val));
+     else prompt('Sao chép ID:',val);
+   };
+ }
 
  document.querySelectorAll('[data-avatar]').forEach(b=>b.onclick=async()=>{
    accountAvatar=b.dataset.avatar;
    refreshLobbyProfile();
    updatePreview(accountAvatar);
    document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x===b));
+   if(!currentUser){ $('avatarSaveMsg').textContent='Cần đăng nhập để lưu avatar.'; return; }
    $('avatarSaveMsg').textContent='Đang lưu avatar…';
-   try{
-     await saveAvatarToCloud(accountAvatar);
-     $('avatarSaveMsg').textContent='Đã lưu avatar ✓';
-   }catch(e){ $('avatarSaveMsg').textContent='Đã lưu máy; cloud lỗi — kiểm tra mạng.'; }
+   try{ await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã lưu avatar ✓'; }
+   catch(e){ $('avatarSaveMsg').textContent='Đã lưu máy; cloud lỗi.'; }
  });
 
  const fileInput=$('avatarFileInput');
@@ -1449,32 +1481,11 @@ $('profileOpen').addEventListener('click',()=>{
        refreshLobbyProfile();
        updatePreview(accountAvatar);
        document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.remove('selected'));
+       if(!currentUser){ $('avatarSaveMsg').textContent='Ảnh đã đặt trên máy. Đăng nhập để đồng bộ.'; fileInput.value=''; return; }
        $('avatarSaveMsg').textContent='Đang lưu ảnh…';
-       try{
-         await saveAvatarToCloud(accountAvatar);
-         $('avatarSaveMsg').textContent='Đã đặt ảnh đại diện ✓';
-       }catch(e){
-         $('avatarSaveMsg').textContent='Ảnh đã lưu trên máy; đồng bộ cloud thất bại (ảnh có thể quá lớn).';
-       }
-       // hiện lại nút xóa
-       if(!$('avatarRemovePhoto')){
-         const lab=fileInput.closest('label');
-         if(lab&&lab.parentElement){
-           const btn=document.createElement('button');
-           btn.type='button'; btn.id='avatarRemovePhoto'; btn.className='lobby-close';
-           btn.style.background='#c43d49'; btn.textContent='Xóa ảnh';
-           lab.parentElement.appendChild(btn);
-           btn.onclick=async()=>{
-             accountAvatar='🧑'; refreshLobbyProfile(); updatePreview(accountAvatar);
-             document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x.dataset.avatar==='🧑'));
-             try{ await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã xóa ảnh, về emoji mặc định'; }catch(_){}
-             btn.remove();
-           };
-         }
-       }
-     }catch(err){
-       $('avatarSaveMsg').textContent=err.message||'Không tải được ảnh';
-     }
+       try{ await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã đặt ảnh đại diện ✓'; }
+       catch(e){ $('avatarSaveMsg').textContent='Ảnh lưu máy; cloud lỗi.'; }
+     }catch(err){ $('avatarSaveMsg').textContent=err.message||'Không tải được ảnh'; }
      fileInput.value='';
    };
  }
@@ -1484,12 +1495,21 @@ $('profileOpen').addEventListener('click',()=>{
    rm.onclick=async()=>{
      accountAvatar='🧑'; refreshLobbyProfile(); updatePreview(accountAvatar);
      document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('selected',x.dataset.avatar==='🧑'));
-     try{ await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã xóa ảnh'; }catch(_){}
+     try{ if(currentUser) await saveAvatarToCloud(accountAvatar); $('avatarSaveMsg').textContent='Đã xóa ảnh'; }catch(_){}
      rm.remove();
    };
  }
 
- $('accountLogout').onclick=()=>{ window.isGuestMode=false; auth.signOut(); };
+ const logoutBtn=$('accountLogout');
+ if(logoutBtn){ logoutBtn.onclick=()=>{ window.isGuestMode=false; auth.signOut(); }; }
+ const loginBtn=$('accountLoginBtn');
+ if(loginBtn){
+   loginBtn.onclick=()=>{
+     window.isGuestMode=false;
+     try{ $('lobbyPanel').style.display='none'; }catch(_){}
+     setAuthVisible(true);
+   };
+ }
 });
 // old lobby binding removed - handled by new nav logic
 $('lobbyPanelClose').onclick=()=>$('lobbyPanel').style.display='none';
@@ -3689,86 +3709,161 @@ function listenTeamInvites(){
 async function inviteFriendToTeam(friend){
   const statusEl = document.getElementById('roomStatus');
   const playersEl = document.getElementById('roomPlayersList');
-  if(!currentUser){ alert('Chưa đăng nhập!'); return; }
-  if(!friend?.uid){ if(statusEl) statusEl.textContent='Bạn này chưa có UID (chưa từng đăng nhập). Hãy bảo họ nhập ID 6 ký tự của bạn để kết bạn trước.'; return; }
-  // Hiện phản hồi ngay khi bấm, không đợi Firestore hoàn tất.
-  if(statusEl) statusEl.textContent='⏳ Đang tạo phòng và gửi lời mời tới '+(friend.name||friend.shortId||'bạn bè')+'...';
-  if(playersEl) playersEl.innerHTML='<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng)<br><span style="color:#ffd166">⏳ Đang gửi lời mời...</span></div>';
-  try{
-    // Mutual-invite lookup is optional. If this read fails or the client is offline,
-    // do not block normal room creation and sending the invitation.
-    let pendingFromFriend = null;
-    try {
-      const allInv = await db.collection('users').doc(currentUser.uid).collection('teamInvites').get();
-      pendingFromFriend = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-teamInviteCreatedMillis(x.createdAt)<900000).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt))[0] || null;
-    } catch(lookupErr) {
-      console.warn('Mutual invite lookup failed; continue normal invite flow', lookupErr);
-      if(statusEl) statusEl.textContent='⏳ Đang kiểm tra lời mời cũ thất bại; tiếp tục tạo phòng...';
-    }
-    if(pendingFromFriend){
-      const st=document.getElementById('roomStatus'); if(st) st.textContent='🔄 Bạn và '+(friend.name||'bạn')+' cùng mời nhau! Tự động vào phòng của bạn ấy...';
-      const ref=db.collection('rooms').doc(pendingFromFriend.roomId);
-      const snap=await ref.get();
-      if(snap.exists && snap.data().status!=='ended'){
-        await db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(pendingFromFriend.id).set({status:'accepted'},{merge:true});
-        // Không ghi đè cả map players — chỉ set guest + entry của mình bằng dotted path
-        await ref.update({
-          guestUid:currentUser.uid,guestShortId:myShortId,guestName:currentUser.displayName||'Guest',
-          status:'playing',startedAt:Date.now(),
-          ['players.'+currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Guest',x:40,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}
-        });
-        try{ await db.collection('users').doc(pendingFromFriend.fromUid).collection('teamInviteResponses').doc(pendingFromFriend.id).set({status:'accepted',toName:currentUser.displayName||'Đối phương',roomId:pendingFromFriend.roomId,updatedAt:Date.now()},{merge:true}); }catch(_){}
-        currentRoomId=pendingFromFriend.roomId; isRoomHost=false; partnerUid=pendingFromFriend.fromUid; coopEnded=false; coopActive=true;
-        listenRoom(pendingFromFriend.roomId); startGame();
-        return;
-      }
-    }
-    const code=genShortId(); currentRoomId=code; _createdCode=code; isRoomHost=true; partnerUid=null; partner=null; coopEnded=false;
-    if(statusEl) statusEl.textContent='⏳ Đang tạo phòng '+code+'...';
-    await db.collection('rooms').doc(code).set({
-      code,hostUid:currentUser.uid,hostShortId:myShortId,hostName:currentUser.displayName||'Người chơi',
-      guestUid:null,status:'waiting',mode:'coop',createdAt:Date.now(),
-      players:{[currentUser.uid]:{shortId:myShortId,name:currentUser.displayName||'Người chơi',x:0,y:0,hp:400,maxhp:400,alive:true,face:1,charId:typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',moving:false,t:Date.now()}}
+  const setUI = (status, playersHtml)=>{
+    if(statusEl) statusEl.textContent = status;
+    if(playersEl && playersHtml!==undefined) playersEl.innerHTML = playersHtml;
+  };
+  const hostCard = (line2)=>'<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng)<br><span style="color:#ffd166">'+line2+'</span></div>';
+  const errCard = (msg)=>'<div style="color:#ff8a8a;font-size:12px;white-space:pre-wrap">'+String(msg).replace(/</g,'&lt;')+'</div>';
+  const withTimeout = (promise, ms, label)=>{
+    let timer;
+    const t = new Promise((_,rej)=>{
+      timer = setTimeout(()=>rej(new Error('Timeout '+ms+'ms khi '+label+'. Kiểm tra mạng / Firestore Rules.')), ms);
     });
-    const invitePayload = {
-      roomId:code,fromUid:currentUser.uid,fromName:currentUser.displayName||'Người chơi',
-      fromShortId:myShortId,status:'pending',createdAt:Date.now(),updatedAt:Date.now()
-    };
-    // Ghi lời mời + retry 1 lần nếu fail (mạng chậm hay Rules)
-    if(statusEl) statusEl.textContent='⏳ Đã tạo phòng '+code+'; đang ghi lời mời vào hộp thư của '+(friend.name||friend.shortId)+'...';
+    return Promise.race([promise, t]).finally(()=>{ try{clearTimeout(timer);}catch(_){} });
+  };
+
+  // Ưu tiên auth.currentUser (tránh stale)
+  let user = null;
+  try{ user = (typeof auth!=='undefined' && auth.currentUser) ? auth.currentUser : currentUser; }catch(_){ user = currentUser; }
+  if(user) currentUser = user;
+  if(!currentUser || !currentUser.uid){
+    const msg = 'Chưa đăng nhập! Vào Tài khoản → Đăng nhập rồi mới mời được.';
+    setUI(msg, errCard(msg));
+    alert(msg);
+    return;
+  }
+  if(typeof db==='undefined' || !db){
+    setUI('❌ Firestore chưa sẵn sàng. Reload trang.', errCard('db undefined'));
+    alert('Firestore chưa sẵn sàng');
+    return;
+  }
+
+  let targetUid = friend && friend.uid ? String(friend.uid) : '';
+  let targetName = (friend && (friend.name||friend.shortId)) || 'bạn bè';
+  if(!targetUid && friend && friend.shortId){
+    setUI('⏳ Đang tra UID của '+friend.shortId+'...', hostCard('Tra ID...'));
     try{
-      await db.collection('users').doc(friend.uid).collection('teamInvites').doc(code).set(invitePayload);
+      const snap = await withTimeout(db.collection('playerIds').doc(String(friend.shortId).toUpperCase()).get(), 8000, 'tra playerIds');
+      if(snap.exists && snap.data().uid){
+        targetUid = snap.data().uid;
+        friend.uid = targetUid;
+        try{
+          const i = friendsList.findIndex(f=>f.shortId===friend.shortId);
+          if(i>=0){ friendsList[i].uid = targetUid; saveFriendsLocal(); }
+        }catch(_){}
+      }
+    }catch(e){ console.warn('resolve uid', e); }
+  }
+  if(!targetUid){
+    const msg = 'Bạn này chưa có UID. Xóa bạn → bảo họ mở game 1 lần → kết bạn lại bằng ID 6 ký tự.';
+    setUI(msg, errCard(msg));
+    alert(msg);
+    return;
+  }
+
+  setUI('⏳ [1/3] Tạo phòng Co-op...', hostCard('Đang tạo phòng...'));
+  try{
+    ensureShortId();
+    const code = genShortId();
+    currentRoomId = code;
+    _createdCode = code;
+    isRoomHost = true;
+    partnerUid = null;
+    partner = null;
+    coopEnded = false;
+
+    setUI('⏳ [1/3] Đang tạo phòng '+code+'...', hostCard('Tạo phòng '+code+'...'));
+    await withTimeout(db.collection('rooms').doc(code).set({
+      code,
+      hostUid: currentUser.uid,
+      hostShortId: myShortId,
+      hostName: currentUser.displayName||'Người chơi',
+      guestUid: null,
+      status: 'waiting',
+      mode: 'coop',
+      createdAt: Date.now(),
+      players: {
+        [currentUser.uid]: {
+          shortId: myShortId,
+          name: currentUser.displayName||'Người chơi',
+          x:0,y:0,hp:400,maxhp:400,alive:true,face:1,
+          charId: typeof equippedCharacter!=='undefined'?equippedCharacter:'survivor',
+          moving:false,t:Date.now()
+        }
+      }
+    }), 12000, 'tạo phòng rooms/'+code);
+
+    const invitePayload = {
+      roomId: code,
+      fromUid: currentUser.uid,
+      fromName: currentUser.displayName||'Người chơi',
+      fromShortId: myShortId,
+      status: 'pending',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    setUI('⏳ [2/3] Đã có phòng '+code+'. Ghi lời mời tới '+targetName+'...', hostCard('Gửi lời mời...'));
+    try{
+      await withTimeout(
+        db.collection('users').doc(targetUid).collection('teamInvites').doc(code).set(invitePayload),
+        12000,
+        'ghi teamInvites của đối phương'
+      );
     }catch(e1){
-      console.warn('invite write retry', e1);
-      await new Promise(r=>setTimeout(r,400));
-      await db.collection('users').doc(friend.uid).collection('teamInvites').doc(code).set(invitePayload);
+      console.warn('invite write first try', e1);
+      setUI('⏳ [2/3] Lỗi lần 1 ('+(e1.code||e1.message)+'), thử lại...', hostCard('Thử lại...'));
+      await new Promise(r=>setTimeout(r,500));
+      await withTimeout(
+        db.collection('users').doc(targetUid).collection('teamInvites').doc(code).set(invitePayload),
+        12000,
+        'ghi teamInvites (retry)'
+      );
     }
-    // Mirror trên chính mình để debug / host biết đã gửi
-    try{ await db.collection('users').doc(currentUser.uid).collection('teamInviteOutbox').doc(code).set({...invitePayload,toUid:friend.uid,toName:friend.name||''}); }catch(_){}
-    const st=document.getElementById('roomStatus'); if(st) st.textContent='📤 Đã gửi lời mời tới '+(friend.name||friend.shortId)+' — đang chờ họ Đồng ý...\nPhòng: '+code+' (1/2 người)';
-    const plList=document.getElementById('roomPlayersList'); if(plList) plList.innerHTML='<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng) ✅<br><span style="color:#ff8a8a">⏳ Đang chờ '+(friend.name||'bạn')+' bấm Đồng ý...</span></div>';
+
+    try{
+      await withTimeout(
+        db.collection('users').doc(currentUser.uid).collection('teamInviteOutbox').doc(code).set({...invitePayload,toUid:targetUid,toName:targetName}),
+        6000,
+        'outbox'
+      );
+    }catch(_){}
+
+    setUI(
+      '📤 Đã gửi lời mời tới '+targetName+' — đang chờ họ Đồng ý...\nPhòng: '+code+' (1/2 người)\nMã phòng cũng có thể gửi tay nếu họ không thấy lời mời.',
+      '<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng) ✅<br><span style="color:#ff8a8a">⏳ Đang chờ '+targetName+' bấm Đồng ý...</span><br><span style="color:#9eacc9">Mã phòng: <b style="color:#ffd23a">'+code+'</b></span></div>'
+    );
+
     listenRoom(code);
     if(teamResponseUnsub){try{teamResponseUnsub()}catch(_){} teamResponseUnsub=null;}
-    teamResponseUnsub=db.collection('users').doc(currentUser.uid).collection('teamInviteResponses').doc(code).onSnapshot(rs=>{
-      if(!rs.exists) return; const rd=rs.data();
+    teamResponseUnsub = db.collection('users').doc(currentUser.uid).collection('teamInviteResponses').doc(code).onSnapshot(rs=>{
+      if(!rs.exists) return;
+      const rd = rs.data()||{};
       if(rd.status==='declined'){
-        if(st) st.textContent='❌ '+(rd.toName||friend.name||'Đối phương')+' đã từ chối. Mời người khác nhé.';
-        if(plList) plList.innerHTML='<div style="color:#ff8a8a;font-size:12px">❌ Bị từ chối — mời lại bạn khác!</div>';
+        setUI('❌ '+(rd.toName||targetName)+' đã từ chối. Mời người khác nhé.', errCard('❌ Bị từ chối'));
       } else if(rd.status==='accepted'){
-        if(st) st.textContent='✅ '+(friend.name||'Bạn bè')+' đã đồng ý — đủ 2 người! Bấm BẮT ĐẦU để chiến!';
+        setUI('✅ '+targetName+' đã đồng ý — đủ 2 người! Bấm BẮT ĐẦU!', hostCard('✅ Đã đủ 2/2'));
         try{ if(typeof sfx==='function') sfx('frenzy'); }catch(_){}
       }
-    });
+    }, err=>console.warn('teamInviteResponses', err));
   }catch(e){
-    const st=document.getElementById('roomStatus');
-    const msg='Không gửi được lời mời ('+(e.code||'lỗi')+'): '+(e.message||String(e));
-    if(st) st.textContent=msg;
-    const pl=document.getElementById('roomPlayersList');
-    if(pl) pl.innerHTML='<div style="color:#ff8a8a;font-size:12px">'+msg.replace(/</g,'&lt;')+'</div>';
-    console.warn('inviteFriendToTeam failed',e);
-    try{ if(typeof showToast==='function') showToast(msg); }catch(_){}
+    console.warn('inviteFriendToTeam failed', e);
+    const code = (e && e.code) || '';
+    const msg = 'Không gửi được lời mời'+(code?(' ['+code+']'):'')+': '+(e && e.message ? e.message : String(e));
+    let hint = '';
+    if(code==='permission-denied' || /permission|Missing or insufficient/i.test(msg)){
+      hint = '\n\n→ Firestore Rules đang CHẶN. Firebase Console → Firestore → Rules → Publish rules đã gửi trước đó.';
+    } else if(/Timeout/i.test(msg)){
+      hint = '\n\n→ Mạng chậm hoặc Firebase không phản hồi. Thử Wi‑Fi khác / tắt VPN / reload.';
+    } else if(code==='unavailable' || code==='unauthenticated'){
+      hint = '\n\n→ Mất kết nối hoặc hết phiên. Reload và đăng nhập lại.';
+    }
+    setUI(msg+hint, errCard(msg));
+    try{ alert(msg+hint); }catch(_){}
   }
 }
+
 function saveFriendsLocal(){
   try{ localStorage.setItem('friendsList', JSON.stringify(friendsList.slice(0,30))); }catch(_){}
 }
