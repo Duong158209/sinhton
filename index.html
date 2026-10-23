@@ -2681,9 +2681,9 @@ function update(dt){
   fireWeapons(dt);
   const isCoopBossWave = (typeof coopActive!=='undefined' && coopActive);
   // Co-op: 4 boss mỗi đợt; đợt đầu ở 1:00, các đợt tiếp theo cách nhau đúng 60 giây. Solo giữ lịch cũ.
-  const coopBossDue = coopBossWaveIndex===0 ? 60 : bossT;
+  const coopBossDue = coopBossWaveIndex===0 ? 90 : bossT;
   if(T >= (isCoopBossWave ? coopBossDue : bossT)){
-    if(isCoopBossWave){ coopBossWaveIndex++; bossT=T+60; }
+    if(isCoopBossWave){ coopBossWaveIndex++; bossT=T+90; }
     else { bossT=bossT+Math.max(35,70-T/20); }
     const bossN = isCoopBossWave ? 4 : 1;
     for(let bi=0;bi<bossN;bi++) spawnEnemy('b');
@@ -3137,7 +3137,7 @@ function update(dt){
         if(od>0&&od<mn){vx+=ox/od*30;vy+=oy/od*30;}
       }
     }
-    if(e.t==='b'){bossAI(e,dt);if(e.cw>0){vx=0;vy=0;}else if(e.dash>0){vx=e.dx*430;vy=e.dy*430;}}
+    if(e.t==='b'){if(!e._sharedBossReplica) bossAI(e,dt);if(e._sharedBossReplica||e.cw>0){vx=0;vy=0;}else if(e.dash>0){vx=e.dx*430;vy=e.dy*430;}}
     e.x+=vx*dt;e.y+=vy*dt;
     e.flash=Math.max(0,e.flash-dt);
     if(d<e.r+4){
@@ -4196,7 +4196,7 @@ function applyCoopBossSnapshot(roomData){
           _sharedBossReplica:true, bossChestMade:false};
         enemies.push(e);
       }else{
-        e.x=b.x; e.y=b.y; e.hp=b.hp; e.max=b.max; e.bt=b.bt||e.bt; e.r=b.r||e.r; e.s=b.s||e.s;
+        e.x=b.x; e.y=b.y; e.hp=b.hp; e.max=b.max; e.bt=b.bt||e.bt; e.r=b.r||e.r; e.s=b.s||e.s; e._sharedBossReplica=true;
         e.dmg=b.dmg||e.dmg; e.dead=!!b.dead; e.hasArmor=!!b.hasArmor; e.armor=b.armor||0;
         e.immuneActive=!!b.immuneActive; e.immuneT=b.immuneT||0; e._sharedBossReplica=true;
       }
