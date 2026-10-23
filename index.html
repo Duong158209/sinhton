@@ -3646,9 +3646,14 @@ function listenTeamInvites(){
     if(!wrap) return;
     const all = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>{
       const age = Date.now() - teamInviteCreatedMillis(x.createdAt);
-      if(age>300000 && x.status==='pending'){ try{ db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(x.id).set({status:'expired'},{merge:true}); }catch(_){} return false; }
-      // Cho phép lệch giờ thiết bị tối đa 2 phút.
-      return x.status==='pending' && age>-120000 && age<300000;
+      // Đồng hồ thiết bị có thể lệch và iOS có thể ngủ tab nền; không tự ẩn lời mời chỉ sau 5 phút.
+      // Chỉ dọn lời mời pending quá 15 phút, chấp nhận lệch giờ thiết bị tới 24 giờ.
+      if(age>900000 && x.status==='pending'){
+        db.collection('users').doc(currentUser.uid).collection('teamInvites').doc(x.id)
+          .set({status:'expired',expiredAt:Date.now()},{merge:true}).catch(()=>{});
+        return false;
+      }
+      return x.status==='pending' && age>-86400000 && age<900000;
     }).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt));
     const doc = all[0];
     if(!doc){ wrap.style.display='none'; activeTeamInvite=null; return; }
@@ -3667,8 +3672,16 @@ function listenTeamInvites(){
   };
   // Lấy ngay 1 lần (không chờ snapshot) để lời mời hiện nhanh
   const invCol = db.collection('users').doc(currentUser.uid).collection('teamInvites');
-  invCol.get().then(applyTeamInvites).catch(()=>{});
-  teamInviteUnsub=invCol.onSnapshot(applyTeamInvites,e=>console.warn('team invite listener',e));
+  invCol.get().then(applyTeamInvites).catch(e=>console.warn('initial team invite read failed',e));
+  teamInviteUnsub=invCol.onSnapshot(applyTeamInvites,e=>{
+    console.warn('team invite listener',e);
+    const wrap=document.getElementById('incomingTeamInvite');
+    if(wrap && e && (e.code==='permission-denied'||e.code==='unauthenticated')){
+      const txt=document.getElementById('incomingTeamInviteText');
+      if(txt) txt.textContent='Không đọc được lời mời Co-op ('+e.code+'). Kiểm tra Firestore Rules và đăng nhập.';
+      wrap.style.display='block';
+    }
+  });
   // onSnapshot delivers realtime updates; avoid repeated polling reads that can
   // race with the listener and make invite UI flicker or consume extra quota.
   if(window._teamInvitePoll){ try{clearInterval(window._teamInvitePoll);}catch(_){} window._teamInvitePoll=null; }
@@ -3900,7 +3913,7 @@ function applyPartnerState(op,src,d){
 }
 const CoopNet=(function(){
   const ICE=[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
-  let pc=null,dc=null,sid=null,ansSid=null,open=false,tries=0,tmr=null,lastRecv=0;
+  let pc=null,dc=null,sid=null,ansSid=null,open=false,tries=0,tmr=null,lastRecv=0,lastAttempt=0;
   const ref=()=>db.collection('rooms').doc(currentRoomId);
   function reset(){ open=false; clearTimeout(tmr); const a=pc,b=dc; pc=dc=null; try{b&&b.close();}catch(_){} try{a&&a.close();}catch(_){} }
   function chan(ch){
@@ -3933,9 +3946,16 @@ const CoopNet=(function(){
       if(typeof RTCPeerConnection==='undefined' || !currentUser || !currentRoomId || !d.guestUid || d.status==='ended') return;
       const r=d.rtc||{};
       if(isRoomHost){
-        if(!pc && tries<3) hostOffer();
-        else if(pc && r.answer && r.answer.sid===sid && ansSid!==sid){ ansSid=sid; pc.setRemoteDescription({type:'answer',sdp:r.answer.sdp}).catch(()=>{}); }
-      }else if(r.offer && r.offer.sid && r.offer.sid!==sid) guestAnswer(r.offer);
+        // Không dừng thử kết nối vĩnh viễn sau 3 lần; mạng di động/NAT có thể đổi giữa trận.
+        if(!pc && performance.now()-lastAttempt>10000){
+          lastAttempt=performance.now();
+          hostOffer();
+        }else if(pc && r.answer && r.answer.sid===sid && ansSid!==sid){
+          ansSid=sid; pc.setRemoteDescription({type:'answer',sdp:r.answer.sdp}).catch(()=>{});
+        }
+      }else if(r.offer && r.offer.sid && r.offer.sid!==sid){
+        lastAttempt=performance.now(); guestAnswer(r.offer);
+      }
     },
     ready(){ return !!(open && dc && dc.readyState==='open' && performance.now()-lastRecv<2500); },
     send(o){ try{ dc.send(JSON.stringify(o)); }catch(_){} },
