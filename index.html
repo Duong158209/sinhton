@@ -1386,6 +1386,8 @@ try{ friendsList = JSON.parse(localStorage.getItem('friendsList')||'[]'); }catch
 let currentRoomId = null;
 let roomUnsub = null;
 let isRoomHost = false;
+// Đồng bộ boss/rương co-op: chủ phòng giữ trạng thái chuẩn, cả hai người cùng gây sát thương.
+let _coopBossSyncAt=0, _coopBossDamageQueue={}, _coopBossDamageApplied={}, _coopBossChestBusy={};
 let partner = null; // {x,y,hp,maxhp,face,alive,name,avatar,anim,moving,charId}
 let partnerUid = null;
 let lastPartnerSync = 0;
@@ -1772,6 +1774,7 @@ function spawnEnemy(forceType,px,py){
   if(enemies.length>=maxEnemies()&&forceType!=='b')return;
   const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;
   let type=forceType||'n';
+  if(type==='b' && typeof coopActive!=='undefined' && coopActive && !isRoomHost) return null;
   if(!forceType){
     const roll=Math.random();
     if(T>25&&roll>.8)type='r';
@@ -1839,10 +1842,12 @@ function spawnEnemy(forceType,px,py){
     e.dmg=(e.dmg||10)*1.05;
     if(e.t==='b') e.dmg*=0.90; // Co-op: giảm 10% dame boss
   }
+  if(e.t==='b') e.hp*=1.05; // Tăng nhẹ thêm 5% máu boss theo yêu cầu
   e.max=e.hp;
   if(e.t==='b' && !e.hasArmor && Math.random()<0.5){ e.hasArmor=true; e.hasImmuneSkill=true; e.armor=e.max*0.25; e.immuneT=0; e.immuneCd=8+Math.random()*6; e.immuneActive=false; }
   if(px!==undefined){e.x=px;e.y=py;}
   if(type==='b'){sfx('boss_spawn');e.s1=4;e.s2=8;e.s3=6;e.s4=9;e.cw=0;e.dash=0;e.dx=0;e.dy=0;
+    if(!e.id) e.id='boss_'+Date.now()+'_'+Math.floor(Math.random()*999999);
     if(e.bt==='tanker'){
       e.id = 'boss_'+Date.now()+'_'+Math.floor(Math.random()*9999);
       e.summonCd=5 - Math.min(2.5, T/240); // về sau triệu hồi nhanh hơn
@@ -2016,6 +2021,9 @@ function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
   else if(Math.random()<.02){dmg*=2;crit=true;}
   if(ps.ls)P.hp=Math.min(P.maxhp,P.hp+Math.min(dmg,Math.max(e.hp,0))*LS[ps.ls]);
   e.hp-=dmg;e.flash=.1;
+  if(e.t==='b' && typeof coopActive!=='undefined' && coopActive && !isRoomHost && e.id && currentUser){
+    _coopBossDamageQueue[e.id]=(_coopBossDamageQueue[e.id]||0)+Math.max(0,dmg);
+  }
   const d=Math.hypot(kx,ky)||1;const kb=e.t==='b'?.06:1;e.kx+=kx/d*90*kb;e.ky+=ky/d*90*kb;
   pushText({x:e.x+rnd(-6,6),y:e.y-14,v:Math.round(dmg),t:.6,c:crit});
   for(let i=0;i<2;i++)fx.push({x:e.x,y:e.y,vx:rnd(-60,60),vy:rnd(-60,60),t:.25,c:'#9fe04a',r:2});
@@ -2048,7 +2056,7 @@ function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
     if(e.t==='b'){
       sfx('boss_death');
       for(let i=0;i<18;i++)coinsArr.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),m:false});
-      chests.push({x:e.x,y:e.y,m:false,t:0});
+      chests.push({x:e.x,y:e.y,m:false,t:0,id:e.id||('chest_'+Date.now()),bossId:e.id||''});
       pushText({x:e.x,y:e.y-40,v:'RƯƠNG BOSS!',t:2,c:true,big:true});
       shake=12;
       fx.push({x:e.x,y:e.y,ring:80,t:.6,T:.6,c:'#ffd700'});
@@ -2551,7 +2559,7 @@ function updateProjs(dt){
             gems.push({x:e.x,y:e.y,v:(e.t==='b'?50:e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
             if(e.t==='b'){
               for(let i=0;i<18;i++)coinsArr.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),m:false});
-              chests.push({x:e.x,y:e.y,m:false,t:0});
+              chests.push({x:e.x,y:e.y,m:false,t:0,id:e.id||('chest_'+Date.now()),bossId:e.id||''});
               pushText({x:e.x,y:e.y-40,v:'BOSS BỊ TƯỚC ĐOẠT!',t:2,c:true,big:true});
               shake=14;
               fx.push({x:e.x,y:e.y,ring:90,t:.7,T:.7,c:'#000'});
@@ -2584,6 +2592,7 @@ function updateProjs(dt){
 }
 function update(dt){
   T+=dt;
+  try{ syncCoopBossState(); }catch(_){}
   // Safety net: co-op mà chưa có partner thì tạo + force sync
   if(typeof coopActive!=='undefined' && coopActive && !partner){
     partner = {
@@ -3254,12 +3263,33 @@ function update(dt){
     if(ch.m){ const s=200+ (ch.t=(ch.t||0)+dt)*400; ch.x+=(P.x-ch.x)/d*s*dt; ch.y+=(P.y-ch.y)/d*s*dt; }
     if(d<18){
       ch.dead=true;
-      const heal = P.maxhp*0.75;
-      P.hp=Math.min(P.maxhp, P.hp+heal);
-      pushText({x:P.x,y:P.y-30,v:'+75% HP & 2 thẻ!',t:1.5,heal:true,big:true});
-      fx.push({x:P.x,y:P.y,ring:60,t:.6,T:.6,c:'#ffd700'});
-      pendingSkillPicks+=2;
-      openLevelUp();
+      const awardChest=async()=>{
+        // Mỗi rương co-op chỉ được một người nhận; transaction quyết định ai nhặt trước.
+        if(typeof coopActive!=='undefined' && coopActive && currentRoomId && currentUser && ch.bossId){
+          const claimKey=String(ch.bossId).replace(/[^A-Za-z0-9_-]/g,'_');
+          if(_coopBossChestBusy[claimKey]) return;
+          _coopBossChestBusy[claimKey]=true;
+          try{
+            const ref=db.collection('rooms').doc(currentRoomId);
+            const won=await db.runTransaction(async tx=>{
+              const snap=await tx.get(ref); if(!snap.exists) return false;
+              const data=snap.data()||{}, claims=data.bossChestClaims||{};
+              if(claims[claimKey]) return false;
+              tx.update(ref,{['bossChestClaims.'+claimKey]:{uid:currentUser.uid,name:currentUser.displayName||'Người chơi',at:Date.now()}});
+              return true;
+            });
+            if(!won){pushText({x:P.x,y:P.y-25,v:'Đồng đội đã nhặt rương!',t:1.1,c:true});return;}
+          }catch(err){ console.warn('boss chest claim failed',err); pushText({x:P.x,y:P.y-25,v:'Lỗi nhận rương — thử lại sau',t:1.2,c:true}); return; }
+          finally{delete _coopBossChestBusy[claimKey];}
+        }
+        const heal=P.maxhp*0.75;
+        P.hp=Math.min(P.maxhp,P.hp+heal);
+        pushText({x:P.x,y:P.y-30,v:'+75% HP & 2 thẻ!',t:1.5,heal:true,big:true});
+        fx.push({x:P.x,y:P.y,ring:60,t:.6,T:.6,c:'#ffd700'});
+        pendingSkillPicks+=2;
+        openLevelUp();
+      };
+      awardChest();
     }
   }
   chests=chests.filter(ch=>!ch.dead);
@@ -4141,12 +4171,82 @@ const CoopNet=(function(){
     close(){ reset(); sid=null; ansSid=null; tries=0; }
   };
 })();
+function applyCoopBossSnapshot(roomData){
+  if(!coopActive || !roomData) return;
+  // Khách nhận boss do chủ phòng tạo; không tạo boss độc lập ở máy khách.
+  if(!isRoomHost && Array.isArray(roomData.bossState)){
+    const incoming=roomData.bossState, ids=new Set(incoming.map(b=>b.id));
+    enemies=enemies.filter(e=>e.t!=='b' || ids.has(e.id));
+    for(const b of incoming){
+      let e=enemies.find(x=>x.t==='b'&&x.id===b.id);
+      if(!e){
+        e={t:'b',id:b.id,x:b.x,y:b.y,hp:b.hp,max:b.max,bt:b.bt||'m',r:b.r||26,s:b.s||2.5,sp:b.sp||60,dmg:b.dmg||100,
+          dead:!!b.dead,flash:0,kx:0,ky:0,ph:0,cw:0,dash:0,dx:0,dy:0,s1:3,s2:6,s3:8,s4:10,
+          hasArmor:!!b.hasArmor,armor:b.armor||0,immuneActive:!!b.immuneActive,immuneT:b.immuneT||0,immuneCd:b.immuneCd||10,
+          _sharedBossReplica:true, bossChestMade:false};
+        enemies.push(e);
+      }else{
+        e.x=b.x; e.y=b.y; e.hp=b.hp; e.max=b.max; e.bt=b.bt||e.bt; e.r=b.r||e.r; e.s=b.s||e.s;
+        e.dmg=b.dmg||e.dmg; e.dead=!!b.dead; e.hasArmor=!!b.hasArmor; e.armor=b.armor||0;
+        e.immuneActive=!!b.immuneActive; e.immuneT=b.immuneT||0; e._sharedBossReplica=true;
+      }
+      if(b.dead && !e.bossChestMade){
+        e.bossChestMade=true;
+        if(!chests.some(c=>c.bossId===b.id)) chests.push({x:b.x,y:b.y,m:false,t:0,id:'chest_'+b.id,bossId:b.id});
+      }
+    }
+  }
+  // Chủ phòng nhận tổng sát thương tích lũy từ khách và áp dụng đúng một lần.
+  if(isRoomHost && roomData.bossDamage && typeof roomData.bossDamage==='object'){
+    for(const [bossId,byUid] of Object.entries(roomData.bossDamage)){
+      if(!byUid || typeof byUid!=='object') continue;
+      const e=enemies.find(x=>x.t==='b'&&x.id===bossId&&!x.dead);
+      for(const [uid,totalRaw] of Object.entries(byUid)){
+        const total=Number(totalRaw)||0, key=bossId+'|'+uid, prev=_coopBossDamageApplied[key]||0;
+        const delta=Math.max(0,total-prev); _coopBossDamageApplied[key]=Math.max(prev,total);
+        if(delta>0 && e){
+          e.hp-=delta; e.flash=.12;
+          if(e.hp<=0 && !e.dead){
+            e.hp=0; e.dead=true; kills++;
+            gems.push({x:e.x,y:e.y,v:50*(T<90?3:T<300?1.5:1),m:false});
+            for(let i=0;i<18;i++) coinsArr.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),m:false});
+            if(!chests.some(c=>c.bossId===bossId)) chests.push({x:e.x,y:e.y,m:false,t:0,id:'chest_'+bossId,bossId});
+            pushText({x:e.x,y:e.y-40,v:'RƯƠNG BOSS!',t:2,c:true,big:true});
+            try{sfx('boss_death')}catch(_){}
+          }
+        }
+      }
+    }
+  }
+}
+function syncCoopBossState(){
+  if(!coopActive || !currentRoomId || !currentUser || !db) return;
+  const now=Date.now();
+  if(isRoomHost && now-_coopBossSyncAt>=300){
+    _coopBossSyncAt=now;
+    const bossState=enemies.filter(e=>e.t==='b'&&e.id).map(e=>({id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.max(0,e.hp),max:e.max||e.hp,bt:e.bt||'m',r:e.r||26,s:e.s||2.5,sp:e.sp||60,dmg:e.dmg||100,dead:!!e.dead,hasArmor:!!e.hasArmor,armor:e.armor||0,immuneActive:!!e.immuneActive,immuneT:e.immuneT||0,immuneCd:e.immuneCd||10}));
+    db.collection('rooms').doc(currentRoomId).update({bossState}).catch(e=>console.warn('boss state sync',e));
+  }
+  if(!isRoomHost && Object.keys(_coopBossDamageQueue).length && now-(_coopBossSyncAt||0)>=250){
+    _coopBossSyncAt=now;
+    const batch=_coopBossDamageQueue; _coopBossDamageQueue={}; const update={};
+    for(const [bossId,amount] of Object.entries(batch)){
+      if(!amount||!Number.isFinite(amount)) continue;
+      update['bossDamage.'+bossId+'.'+currentUser.uid]=firebase.firestore.FieldValue.increment(amount);
+    }
+    if(Object.keys(update).length) db.collection('rooms').doc(currentRoomId).update(update).catch(e=>{
+      for(const [bossId,amount] of Object.entries(batch)) _coopBossDamageQueue[bossId]=(_coopBossDamageQueue[bossId]||0)+amount;
+      console.warn('boss damage sync',e);
+    });
+  }
+}
 function listenRoom(code){
   if(roomUnsub){ try{ roomUnsub(); }catch(_){} roomUnsub=null; }
   roomUnsub = db.collection('rooms').doc(code).onSnapshot(snap=>{
     if(!snap.exists) return;
     const d = snap.data();
     if(!currentUser) return;
+    try{ applyCoopBossSnapshot(d); }catch(err){ console.warn('apply coop boss state',err); }
     const _pl = d.players||{};
     try{ CoopNet.onDoc(d); }catch(_){}
     let otherUid = Object.keys(_pl).find(k=>k!==currentUser.uid) || null;
