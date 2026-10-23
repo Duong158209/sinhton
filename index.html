@@ -3695,8 +3695,16 @@ async function inviteFriendToTeam(friend){
   if(statusEl) statusEl.textContent='⏳ Đang tạo phòng và gửi lời mời tới '+(friend.name||friend.shortId||'bạn bè')+'...';
   if(playersEl) playersEl.innerHTML='<div style="background:#1f3a2a;border:1px solid #22c55e;border-radius:8px;padding:6px 8px;color:#fff;font-size:12px">👑 Bạn (chủ phòng)<br><span style="color:#ffd166">⏳ Đang gửi lời mời...</span></div>';
   try{
-    const allInv = await db.collection('users').doc(currentUser.uid).collection('teamInvites').get();
-    const pendingFromFriend = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-teamInviteCreatedMillis(x.createdAt)<300000).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt))[0];
+    // Mutual-invite lookup is optional. If this read fails or the client is offline,
+    // do not block normal room creation and sending the invitation.
+    let pendingFromFriend = null;
+    try {
+      const allInv = await db.collection('users').doc(currentUser.uid).collection('teamInvites').get();
+      pendingFromFriend = allInv.docs.map(d=>({id:d.id, ...d.data()})).filter(x=>x.fromUid===friend.uid && x.status==='pending' && Date.now()-teamInviteCreatedMillis(x.createdAt)<900000).sort((a,b)=>teamInviteCreatedMillis(b.createdAt)-teamInviteCreatedMillis(a.createdAt))[0] || null;
+    } catch(lookupErr) {
+      console.warn('Mutual invite lookup failed; continue normal invite flow', lookupErr);
+      if(statusEl) statusEl.textContent='⏳ Đang kiểm tra lời mời cũ thất bại; tiếp tục tạo phòng...';
+    }
     if(pendingFromFriend){
       const st=document.getElementById('roomStatus'); if(st) st.textContent='🔄 Bạn và '+(friend.name||'bạn')+' cùng mời nhau! Tự động vào phòng của bạn ấy...';
       const ref=db.collection('rooms').doc(pendingFromFriend.roomId);
@@ -3716,6 +3724,7 @@ async function inviteFriendToTeam(friend){
       }
     }
     const code=genShortId(); currentRoomId=code; _createdCode=code; isRoomHost=true; partnerUid=null; partner=null; coopEnded=false;
+    if(statusEl) statusEl.textContent='⏳ Đang tạo phòng '+code+'...';
     await db.collection('rooms').doc(code).set({
       code,hostUid:currentUser.uid,hostShortId:myShortId,hostName:currentUser.displayName||'Người chơi',
       guestUid:null,status:'waiting',mode:'coop',createdAt:Date.now(),
@@ -3726,6 +3735,7 @@ async function inviteFriendToTeam(friend){
       fromShortId:myShortId,status:'pending',createdAt:Date.now(),updatedAt:Date.now()
     };
     // Ghi lời mời + retry 1 lần nếu fail (mạng chậm hay Rules)
+    if(statusEl) statusEl.textContent='⏳ Đã tạo phòng '+code+'; đang ghi lời mời vào hộp thư của '+(friend.name||friend.shortId)+'...';
     try{
       await db.collection('users').doc(friend.uid).collection('teamInvites').doc(code).set(invitePayload);
     }catch(e1){
