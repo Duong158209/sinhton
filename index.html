@@ -1004,7 +1004,7 @@ const SK={
   gojoLimitless:{n:'Vô Hạ Hạn · Limitless',ic:'🔵',type:'w',d:'Tạo vùng không gian xanh quanh Gojo trong 3–7 giây, chặn toàn bộ đạn quái và boss. Hồi chiêu Lv1–5: 7/6/5/4/3 giây.'},
   gojoBlue:{n:'Thuận Chuyển: Thanh · Blue',ic:'🌀',type:'w',d:'Bắn cầu trọng lực xanh bay về phía trước, hút quái dọc đường rồi nổ ở cuối. Lv4–5 có thể hút boss. Hồi chiêu Lv1–5: 8/6.5/5.5/4/3 giây.'},
   gojoRed:{n:'Nghịch Chuyển: Xích · Red',ic:'🔴',type:'w',d:'Bắn quả cầu đỏ về phía trước, gây sát thương và đẩy lùi cả quái lẫn boss; kích thước và sát thương tăng theo cấp. Hồi chiêu Lv1–5: 7/6/5/4/3 giây.'},
-  gojoPurple:{n:'ULTIMATE · Hư Thức: Tử',ic:'🟣',type:'w',d:'ULTIMATE chỉ có 1 cấp. Mở khóa khi Thanh và Xích đều Lv5. Hai cầu hợp nhất thành cầu tím khổng lồ, ưu tiên boss, gây thêm 5% máu tối đa; nổ cuối gây 1.000–1.500 sát thương và đẩy lùi diện rộng. Hồi chiêu 10 giây.'},
+  gojoPurple:{n:'ULTIMATE · Hư Thức: Tử',ic:'🟣',type:'w',d:'ULTIMATE chỉ có 1 cấp. Mở khóa khi Thanh và Xích đều Lv5. Hai cầu hợp nhất thành cầu tím khổng lồ, quay ~2 giây và nở rộng dần ra (tới ~400), hút quái/boss dính vào rồi bắn thẳng, ưu tiên boss, gây thêm 5% máu tối đa; nổ cuối gây 1.000–1.500 sát thương và đẩy lùi diện rộng. Hồi chiêu 7,5 giây.'},
   gojoDomain:{n:'Lãnh Địa: Vô Lượng Không Xứ',ic:'🌌',type:'w',d:'Mở không gian vũ trụ, khống chế toàn bộ quái trong 8 giây và gây sát thương theo % máu tối đa. Hồi chiêu 20 giây.'},
   taNhan:{n:'Tà Nhãn Khống Hồn',ic:'<img src="data:image/jpeg;base64,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" style="width:52px;height:52px;object-fit:contain;border-radius:12px;background:#160d2b;border:2px solid #b45cff;box-shadow:0 0 12px #a855f766">',type:'w',d:'Phóng ma lực vào mục tiêu gần nhất, gây sát thương và thôi miên. Lv6: quái 12 giây, boss 5 giây; hết hiệu lực giảm 50% sát thương và 70% tốc chạy trong 5 giây. Sát thương giảm 30%. Ultimate phóng xung kích tím bán kính 800, hồi chiêu 10 giây.'},
   hp:{n:'Trái tim',ic:'❤️',type:'p',d:'Tăng 20% máu tối đa và hồi một ít máu.'},
@@ -1065,7 +1065,7 @@ function setGolemSkin(id){
   applyGolemSkin();
 }
 applyGolemSkin();
-const wmax=k=>{ if(k==='ls') return 3; if(k==='slotplus') return 4; if(['gojoLimitless','gojoBlue','gojoRed','gojoPurple','gojoDomain'].includes(k)) return 5; return EVO[k]?6:MAXLV; };
+const wmax=k=>{ if(k==='gojoPurple') return 1; if(k==='ls') return 3; if(k==='slotplus') return 4; if(['gojoLimitless','gojoBlue','gojoRed','gojoPurple','gojoDomain'].includes(k)) return 5; return EVO[k]?6:MAXLV; };
 const icon=k=>(lv[k]>=6&&EVO[k])?EVO[k].ic:SK[k].ic;
 let state='lobby';
 const AURA_R=150;
@@ -1727,7 +1727,7 @@ function openLevelUp(isReroll){
     const nxt=isEvo?6:(s.type==='w'?(lv[k]||0)+1:ps[k]+1);
     const el=document.createElement('div');
     el.className='card'+(isEvo?' evo':'')+(k==='slotplus'?' slot-card':'')+(['golem','firestorm','crit','armor'].includes(k)?' icon-keep':'');
-    el.innerHTML=`<div class="hd">${cur.n}</div><div class="ic">${cur.ic}</div><div class="ds">${cur.d}</div><div class="st">${s.type==='h'?'':stars(Math.min(nxt,5),nxt,isEvo)}</div>${lv[k]?`<div class="new">Lv.${lv[k]}</div>`:isEvo?`<div class="new u">TIẾN HÓA</div>`:`<div class="new">MỚI</div>`}`;
+    el.innerHTML=`<div class="hd">${cur.n}</div><div class="ic">${cur.ic}</div><div class="ds">${cur.d}</div><div class="st">${(s.type==='h'||k==='gojoPurple')?'':stars(Math.min(nxt,5),nxt,isEvo)}</div>${lv[k]?`<div class="new">Lv.${lv[k]}</div>`:isEvo?`<div class="new u">TIẾN HÓA</div>`:`<div class="new">MỚI</div>`}`;
     el.onclick=()=>{
       sfx('levelup');
       if(s.type==='w'){lv[k]=(lv[k]||0)+1;if(lv[k]===6&&EVO[k])ultFlash(k);}
@@ -2721,6 +2721,11 @@ function updateProjs(dt){
 // ===== GOJO EXCLUSIVE SKILL CARDS =====
 // Kỹ năng tự kích hoạt theo hồi chiêu sau khi người chơi chọn thẻ.
 const gojoTech={timers:{},fx:[],shots:[],shieldT:0,domainLife:0,domainT:0};
+function purpleStick(q,e,d,base,dt){
+  // Quái/boss chạm cầu tím sẽ bị dính và bị hút đi theo cầu đến lúc nổ.
+  if(!q.stuck.has(e)&&d<q.r+e.r){const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,base*50+maxhp*.05,Math.cos(q.a),Math.sin(q.a),true);q.stuck.add(e);}
+  if(q.stuck.has(e)){e.x+=q.mx||0;e.y+=q.my||0;const k=Math.min(1,10*dt);e.x+=(q.x-e.x)*k;e.y+=(q.y-e.y)*k;e.kx=0;e.ky=0;}
+}
 const GOJO_KEYS=['gojoLimitless','gojoBlue','gojoRed','gojoPurple','gojoDomain'];
 function gojoTechniqueUpdate(dt){
   if(equippedCharacter!=='gojo'){gojoTech.fx.length=0;gojoTech.shots.length=0;gojoTech.shieldT=0;gojoTech.domainLife=0;return;}
@@ -2761,27 +2766,42 @@ function gojoTechniqueUpdate(dt){
   // Hư Thức: Tử chỉ xuất hiện trong pool khi Thanh và Xích đều Lv5.
   const pu=lvl('gojoPurple');
   if(pu>0&&bl>=5&&rd>=5&&gojoTech.timers.gojoPurple<=0){
-    gojoTech.timers.gojoPurple=10;
+    gojoTech.timers.gojoPurple=7.5;
     const bosses=enemies.filter(e=>!e.dead&&e.t==='b');
     const target=(bosses.sort((a,b)=>Math.hypot(a.x-P.x,a.y-P.y)-Math.hypot(b.x-P.x,b.y-P.y))[0])||nearest(1,900)[0];
     const a=target?Math.atan2(target.y-P.y,target.x-P.x):(P.face<0?Math.PI:0);
-    gojoTech.shots.push({type:'purpleShot',x:P.x+Math.cos(a)*28,y:P.y+Math.sin(a)*28,ox:P.x,oy:P.y,a,speed:510,dist:0,maxDist:800,r:51,life:2.3,lv:1,phase:0,hit:new Set()});
-    gojoTech.fx.push({type:'purpleMerge',x:P.x,y:P.y,life:.75,T:.75,r:48,a});
+    gojoTech.shots.push({type:'purpleShot',x:P.x+Math.cos(a)*70,y:P.y+Math.sin(a)*70,ox:P.x,oy:P.y,cx:P.x,cy:P.y,a,speed:510,dist:0,maxDist:800,r:77,life:99,lv:1,phase:0,orbA0:a,orbT:0,mx:0,my:0,stuck:new Set(),hit:new Set()});
+    gojoTech.fx.push({type:'purpleMerge',x:P.x,y:P.y,life:.75,T:.75,r:72,a});
     if(typeof sfx==='function')sfx('gojo_purple');shake=Math.max(shake,7);
   }
   // Di chuyển quả cầu, hút quái trên đường và nổ cuối quỹ đạo.
   for(const q of gojoTech.shots){
     if(q.dead)continue;
-    if(q.type==='purpleShot'&&q.phase===0){q.phase=1;}
-    const step=q.speed*dt;q.x+=Math.cos(q.a)*step;q.y+=Math.sin(q.a)*step;q.dist+=step;q.life-=dt;
+    if(q.type==='purpleShot'&&q.phase===0){
+      // Pha 0: quay ~2s quanh điểm tung skill (cố định, không theo người chơi), bán kính nở dần tới 400, rồi bắn thẳng.
+      const DUR=2.0,TOTAL=Math.PI*3,R0=70,R1=400;
+      q.orbT+=dt;const k=Math.min(1,q.orbT/DUR);
+      const ang=q.orbA0+TOTAL*k,R=R0+(R1-R0)*k,px=q.x,py=q.y;
+      q.x=q.cx+Math.cos(ang)*R;q.y=q.cy+Math.sin(ang)*R;q.a=ang+Math.PI/2;q.mx=q.x-px;q.my=q.y-py;
+      for(const e of enemies){if(e.dead)continue;purpleStick(q,e,Math.hypot(e.x-q.x,e.y-q.y),base,dt);}
+      if(k>=1){
+        const bs=enemies.filter(e=>!e.dead&&e.t==='b'&&!q.stuck.has(e));
+        const tg=(bs.sort((u,v)=>Math.hypot(u.x-q.x,u.y-q.y)-Math.hypot(v.x-q.x,v.y-q.y))[0])||nearest(1,900)[0];
+        q.a=tg?Math.atan2(tg.y-q.y,tg.x-q.x):Math.atan2(P.y-q.y,P.x-q.x);
+        q.phase=1;q.life=2.3;q.dist=0;
+        if(typeof sfx==='function')sfx('gojo_purple');
+      }
+      continue;
+    }
+    const step=q.speed*dt;q.mx=Math.cos(q.a)*step;q.my=Math.sin(q.a)*step;q.x+=q.mx;q.y+=q.my;q.dist+=step;q.life-=dt;
     for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-q.x,e.y-q.y);const boss=e.t==='b';
       if(q.type==='blueShot'){
         if(boss&&q.lv<4)continue;
         if(d<q.r+e.r){const dx=q.x-e.x,dy=q.y-e.y,dd=Math.hypot(dx,dy)||1;const pull=Math.min(240,100+q.lv*30)*dt;e.x+=dx/dd*pull;e.y+=dy/dd*pull;hitEnemy(e,base*(1.4+(q.lv-1)*.6)*dt,dx,dy,false);}
       }else if(q.type==='redShot'){
         if(!q.hit.has(e)&&d<q.r+e.r){const dx=Math.cos(q.a),dy=Math.sin(q.a);hitEnemy(e,base*(2.8+(q.lv-1)*1.175),dx,dy,true);e.kx=(e.kx||0)+dx*(230+q.lv*55);e.ky=(e.ky||0)+dy*(230+q.lv*55);fx.push({x:e.x,y:e.y,ring:25+q.lv*8,t:.25,T:.25,c:'#ff244f'});q.hit.add(e);}
-      }else if(q.type==='purpleShot'&&!q.hit.has(e)&&d<q.r+e.r){
-        const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,base*50+maxhp*.05,Math.cos(q.a),Math.sin(q.a),true);q.hit.add(e);
+      }else if(q.type==='purpleShot'){
+        purpleStick(q,e,d,base,dt);
       }
     }
     if(q.type==='blueShot'&&(q.dist>=q.maxDist||q.life<=0)){
@@ -2791,7 +2811,7 @@ function gojoTechniqueUpdate(dt){
     }
     if(q.type==='redShot'&&(q.dist>=q.maxDist||q.life<=0)){gojoTech.fx.push({type:'redBlast',x:q.x,y:q.y,life:.6,T:.6,r:65+q.lv*20});for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-q.x,e.y-q.y);if(d<75+q.lv*22+e.r){hitEnemy(e,base*(2.8+(q.lv-1)*1.175),Math.cos(q.a),Math.sin(q.a),true);e.kx=(e.kx||0)+Math.cos(q.a)*(280+q.lv*55);e.ky=(e.ky||0)+Math.sin(q.a)*(280+q.lv*55);}}q.dead=true;shake=Math.max(shake,4+q.lv);}
     if(q.type==='purpleShot'&&(q.dist>=q.maxDist||q.life<=0)){
-      const radius=220;gojoTech.fx.push({type:'purpleBlast',x:q.x,y:q.y,life:.9,T:.9,r:radius});
+      const radius=330;gojoTech.fx.push({type:'purpleBlast',x:q.x,y:q.y,life:.9,T:.9,r:radius});
       for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-q.x,e.y-q.y);if(d<radius+e.r){const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,1000+q.lv*100+maxhp*.05,Math.cos(q.a),Math.sin(q.a),true);const dx=e.x-q.x,dy=e.y-q.y,dd=Math.hypot(dx,dy)||1;e.kx=(e.kx||0)+dx/dd*650;e.ky=(e.ky||0)+dy/dd*650;}}
       fx.push({x:q.x,y:q.y,ring:radius,t:.9,T:.9,c:'#b35cff'});q.dead=true;shake=Math.max(shake,15);if(typeof sfx==='function')sfx('gojo_purple');
     }
