@@ -2624,8 +2624,7 @@ function updateProjs(dt){
       continue;
     }
     if(p.life<=0){if(p.k==='rocket')explode(p);p.dead=true;continue;}
-    if(p.mindBolt){e.mindControlT=e.t==='b'?Math.min(1.5, e.t==='b'?1.5:3):3;e.mindControlOwner='player';e.mindControlWeakenT=0;fx.push({x:e.x,y:e.y,ring:30,t:.35,T:.35,c:'#c084fc'});}
-          if(p.acid){
+    if(p.acid){
       for(const e of enemies){
         if(e.dead||p.hit.has(e))continue;
         if(Math.hypot(e.x-p.x,e.y-p.y)<e.r+p.r+(p.fog?12:8)){
@@ -2703,6 +2702,7 @@ function updateProjs(dt){
         if(p.k==='rocket'){explode(p);p.dead=true;break;}
         p.hit.add(e);
         hitEnemy(e,p.dmg,p.vx,p.vy);
+        if(p.mindBolt){e.mindControlT=e.t==='b'?1.5:3;e.mindControlOwner='player';e.mindControlWeakenT=0;e.mindControlWeakened=false;fx.push({x:e.x,y:e.y,ring:30,t:.35,T:.35,c:'#c084fc'});}
         if(p.pierce!==undefined){p.pierce--;if(p.pierce<=0){p.dead=true;break;}}
       }
     }
