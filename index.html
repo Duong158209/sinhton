@@ -347,8 +347,46 @@ const firebaseConfig = {
   measurementId: "G-R5Z1K3636E"
 };
 if(typeof firebase==='undefined'){
-  console.warn('Firebase SDK không tải được');
-  window.firebase={initializeApp(){},auth:()=>({}),firestore:()=>({})};
+  console.warn('Firebase SDK không tải được - chạy chế độ offline');
+  const _noop=()=>{};
+  const _unsub=()=>_noop;
+  const _docStub=()=>{
+    const d={
+      set:()=>Promise.resolve(), update:()=>Promise.resolve(), delete:()=>Promise.resolve(),
+      get:()=>Promise.resolve({exists:false,data:()=>undefined,docs:[],forEach:_noop,empty:true}),
+      onSnapshot:_unsub,
+      collection:()=>_colStub()
+    };
+    return d;
+  };
+  const _colStub=()=>{
+    const c={
+      doc:()=>_docStub(),
+      add:()=>Promise.resolve(_docStub()),
+      get:()=>Promise.resolve({docs:[],forEach:_noop,empty:true,size:0}),
+      onSnapshot:_unsub
+    };
+    c.orderBy=c.where=c.limit=c.startAfter=()=>c;
+    return c;
+  };
+  const _authObj={
+    currentUser:null,
+    onAuthStateChanged:(cb)=>{ setTimeout(()=>{ try{cb(null);}catch(e){console.error(e);} },0); return _noop; },
+    setPersistence:()=>Promise.resolve(),
+    signOut:()=>{ setTimeout(()=>location.reload(),0); return Promise.resolve(); },
+    signInWithEmailAndPassword:()=>Promise.reject({code:'auth/network-request-failed',message:'Offline'}),
+    createUserWithEmailAndPassword:()=>Promise.reject({code:'auth/network-request-failed',message:'Offline'})
+  };
+  const _fsObj={
+    collection:()=>_colStub(),
+    runTransaction:()=>Promise.resolve(),
+    batch:()=>({set:_noop,update:_noop,delete:_noop,commit:()=>Promise.resolve()})
+  };
+  const _authFn=()=>_authObj;
+  _authFn.Auth={Persistence:{LOCAL:'local',SESSION:'session',NONE:'none'}};
+  const _fsFn=()=>_fsObj;
+  _fsFn.FieldValue={serverTimestamp:()=>Date.now(),increment:(n)=>n,arrayUnion:(...a)=>a,arrayRemove:(...a)=>a,delete:_noop};
+  window.firebase={initializeApp:_noop,auth:_authFn,firestore:_fsFn};
 }
 firebase.initializeApp(firebaseConfig);
 
@@ -519,7 +557,7 @@ function showAuthError(msg){
 }
 
 // Đảm bảo lưu đăng nhập
-firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e=>console.log('setPersistence err', e));
+try{ firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e=>console.log('setPersistence err', e)); }catch(e){ console.log('setPersistence skip', e); }
 
 let isRegisterMode = false;
 if(tabLogin && tabReg){
@@ -937,7 +975,7 @@ function applyGolemSkinToSkillDefs(){
       ic:'<img src="'+MAHORAGA_SPRITE_URI+'" style="width:48px;height:48px;object-fit:contain;border-radius:8px;background:radial-gradient(circle,#4a154b,#12091c);border:2px solid #c58bff;box-shadow:0 0 10px #ffd43b">',
       d:'TIẾN HÓA: Mahoraga bất diệt, dame +80%, xoay Pháp Luân rút 3% máu tối đa và phóng 3 Trảm Kích khổng lồ.'
     };
-    if(typeof PICON!=='undefined') PICON.golem = '☸️';
+    try{ PICON.golem = '☸️'; }catch(_){}
   }else{
     SK.golem = {
       n:'Golem Cây',
@@ -950,7 +988,7 @@ function applyGolemSkinToSkillDefs(){
       ic:'🌲',
       d:'TIẾN HÓA: Golem to hơn, dame +80%, ném 3 đá khổng lồ, phạm vi to hơn.'
     };
-    if(typeof PICON!=='undefined') PICON.golem = '🌳';
+    try{ PICON.golem = '🌳'; }catch(_){}
   }
 }
 applyGolemSkinToSkillDefs();
