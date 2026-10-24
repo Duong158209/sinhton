@@ -1151,6 +1151,10 @@ function sfx(name){
     case 'arrow_hit': tone(240,'triangle',.09,.1,75); noise(.05,.05,1300); break;
     case 'archer_summon': tone(175,'sawtooth',.3,.13,450); tone(360,'sine',.25,.09,720); noise(.12,.05,900); break;
     case 'player_hurt': tone(170,'sawtooth',.14,.11,65); noise(.08,.06,700); break;
+    case 'gojo_blue': tone(180,'sine',.35,.16,720); tone(520,'triangle',.28,.09,1200); noise(.12,.045,1800,'highpass'); break;
+    case 'gojo_red': tone(140,'sawtooth',.22,.18,55); noise(.2,.14,1200,'highpass'); tone(740,'sine',.12,.08,220); break;
+    case 'gojo_purple': tone(880,'sine',.22,.13,120); tone(440,'triangle',.38,.12,70); noise(.32,.16,2200,'highpass'); tone(55,'sine',.5,.2,24); break;
+    case 'gojo_domain': tone(110,'sine',.65,.16,220); tone(660,'triangle',.4,.1,990); noise(.25,.08,1400,'bandpass'); break;
     case 'levelup': tone(400,'sine',.12,.12,640); tone(640,'sine',.16,.11,960); tone(960,'triangle',.22,.09,1280); noise(.08,.04,2000,'highpass'); break;
     case 'frenzy': tone(100,'sawtooth',.45,.14,420); tone(200,'triangle',.38,.11,840); tone(50,'sine',.3,.07,30); break;
     default: tone(400,'sine',.08,.08,520);
@@ -2598,6 +2602,83 @@ function updateProjs(dt){
   projs=projs.filter(p=>!p.dead);
   if(projs.length>140) projs.splice(0,projs.length-140);
 }
+// ===== GOJO EXCLUSIVE TECHNIQUES =====
+// Chỉ hoạt động khi Gojo được trang bị; không thay đổi sprite/ngoại hình nhân vật.
+const gojoTech={blue:3.2,red:6.5,purple:0,domain:0,domainTick:0,fx:[],domainLife:0,domainT:0};
+function gojoTechniqueUpdate(dt){
+  if(equippedCharacter!=='gojo'){
+    gojoTech.fx.length=0; gojoTech.domainLife=0;
+    gojoTech.blue=3.2;gojoTech.red=6.5;gojoTech.purple=0;gojoTech.domain=0;gojoTech.domainTick=0;
+    return;
+  }
+  const lvl=Math.max(1,P.lvl||1), scale=1+Math.max(0,lvl-1)*0.18;
+  gojoTech.blue-=dt; gojoTech.red-=dt;
+  if(lvl>=6) gojoTech.purple-=dt;
+  if(lvl>=10) gojoTech.domain-=dt;
+  for(const f of gojoTech.fx) f.life-=dt;
+  gojoTech.fx=gojoTech.fx.filter(f=>f.life>0);
+  // Hư thức: Tử — hút quái vào tâm, sau đó bùng nổ xanh tím.
+  if(gojoTech.blue<=0){
+    gojoTech.blue= Math.max(2.5,7.5-(lvl-1)*0.12);
+    const radius=190+Math.min(70,lvl*3), dmg=(16+lvl*5)*scale;
+    gojoTech.fx.push({type:'blue',x:P.x,y:P.y,life:0.9,T:0.9,r:radius});
+    for(const e of enemies){if(e.dead)continue;const dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy)||1;if(d<radius+e.r){e.x+=dx/d*Math.min(55,d*.25);e.y+=dy/d*Math.min(55,d*.25);hitEnemy(e,dmg,dx,dy,false);}}
+    if(typeof sfx==='function')sfx('gojo_blue');pushText({x:P.x,y:P.y-54,v:'蒼 • HƯ THỨC: TỬ',t:1.1,c:true,big:true});
+  }
+  // Hư thức: Xích — xung kích đỏ diện rộng.
+  if(gojoTech.red<=0){
+    gojoTech.red=Math.max(4.2,12-(lvl-1)*0.18);
+    const radius=145+Math.min(85,lvl*4), dmg=(34+lvl*10)*scale;
+    gojoTech.fx.push({type:'red',x:P.x,y:P.y,life:0.62,T:0.62,r:radius});
+    for(const e of enemies){if(e.dead)continue;const dx=e.x-P.x,dy=e.y-P.y;if(Math.hypot(dx,dy)<radius+e.r)hitEnemy(e,dmg,dx,dy,true);}
+    if(typeof sfx==='function')sfx('gojo_red');pushText({x:P.x,y:P.y-66,v:'赫 • HƯ THỨC: XÍCH',t:1.1,c:true,big:true});shake=Math.max(shake,3);
+  }
+  // Hư thức: Tử + Xích = Tử — đòn xuyên thấu mạnh, mở khóa từ cấp 6.
+  if(lvl>=6&&gojoTech.purple<=0){
+    gojoTech.purple=Math.max(10,24-(lvl-6)*0.45);
+    const target=nearest(1,620)[0], a=target?Math.atan2(target.y-P.y,target.x-P.x):(P.face<0?Math.PI:0);
+    const len=640, half=34, dmg=(95+lvl*24)*scale;
+    gojoTech.fx.push({type:'purple',x:P.x,y:P.y,a,life:0.8,T:0.8,len,half});
+    for(const e of enemies){if(e.dead)continue;const dx=e.x-P.x,dy=e.y-P.y,along=dx*Math.cos(a)+dy*Math.sin(a),side=Math.abs(-dx*Math.sin(a)+dy*Math.cos(a));if(along>0&&along<len&&side<half+e.r)hitEnemy(e,dmg,Math.cos(a),Math.sin(a),true);}
+    if(typeof sfx==='function')sfx('gojo_purple');pushText({x:P.x,y:P.y-78,v:'茈 • HƯ THỨC: TỬ',t:1.5,c:true,big:true});shake=Math.max(shake,8);
+  }
+  // Lãnh địa triển khai từ cấp 10: khống chế và gây sát thương theo nhịp trong 3 giây.
+  if(lvl>=10&&gojoTech.domain<=0&&gojoTech.domainLife<=0){
+    gojoTech.domain=Math.max(24,48-(lvl-10)*1.1);gojoTech.domainLife=3.2;gojoTech.domainT=0;
+    gojoTech.fx.push({type:'domain',x:P.x,y:P.y,life:3.2,T:3.2,r:310});
+    if(typeof sfx==='function')sfx('gojo_domain');pushText({x:P.x,y:P.y-90,v:'領域展開 • VÔ LƯỢNG KHÔNG XỨ',t:2,c:true,big:true});shake=Math.max(shake,5);
+  }
+  if(gojoTech.domainLife>0){
+    gojoTech.domainLife-=dt;gojoTech.domainT-=dt;
+    if(gojoTech.domainT<=0){gojoTech.domainT=.4;const radius=310,dmg=(14+lvl*4)*scale;for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-P.x,e.y-P.y);if(d<radius+e.r){hitEnemy(e,dmg, e.x-P.x,e.y-P.y,false);if(e.t!=='b'){e.kx*=.15;e.ky*=.15;}}}}
+  }
+}
+function drawGojoTechniques(){
+  if(equippedCharacter!=='gojo')return;
+  const now=performance.now()/1000;
+  for(const f of gojoTech.fx){
+    const p=1-f.life/f.T, fade=Math.max(0,Math.min(1,f.life/(f.T*.28)));
+    ctx.save();ctx.globalAlpha=fade;ctx.translate(f.x,f.y);
+    if(f.type==='blue'){
+      const r=f.r*(.25+p*.85);ctx.shadowColor='#35baff';ctx.shadowBlur=28;
+      const g=ctx.createRadialGradient(0,0,2,0,0,r);g.addColorStop(0,'rgba(255,255,255,.85)');g.addColorStop(.18,'rgba(65,190,255,.55)');g.addColorStop(1,'rgba(50,80,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+      for(let i=0;i<3;i++){ctx.strokeStyle=i%2?'#9ceaff':'#397bff';ctx.lineWidth=3-i*.5;ctx.beginPath();ctx.arc(0,0,r*(.4+i*.22),now*(i%2?1:-1)+i,now*(i%2?1:-1)+i+Math.PI*1.5);ctx.stroke();}
+    }else if(f.type==='red'){
+      const r=f.r*(.2+p*1.05);ctx.shadowColor='#ff264d';ctx.shadowBlur=32;ctx.strokeStyle='#ff284f';ctx.lineWidth=12*(1-p)+2;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();ctx.fillStyle='rgba(255,30,70,.16)';ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+      for(let i=0;i<12;i++){const a=i*Math.PI/6+now*2;ctx.strokeStyle=i%2?'#ffb1c3':'#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(Math.cos(a)*r*.65,Math.sin(a)*r*.65);ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.stroke();}
+    }else if(f.type==='purple'){
+      ctx.rotate(f.a);const L=f.len*(.3+p*.9),h=f.half*(.4+Math.sin(p*Math.PI)*.8);ctx.shadowColor='#c084fc';ctx.shadowBlur=34;
+      const g=ctx.createLinearGradient(0,0,L,0);g.addColorStop(0,'rgba(100,70,255,0)');g.addColorStop(.2,'#7447ff');g.addColorStop(.65,'#f1caff');g.addColorStop(1,'rgba(140,70,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(0,-h*.45);ctx.lineTo(L,-h*.18);ctx.lineTo(L,h*.18);ctx.lineTo(0,h*.45);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(L,0);ctx.stroke();
+      for(let i=0;i<9;i++){const x=L*(i/9);ctx.fillStyle=i%2?'#9d6bff':'#fff';ctx.beginPath();ctx.arc(x,Math.sin(now*15+i)*h*.25,3+Math.random()*2,0,Math.PI*2);ctx.fill();}
+    }else if(f.type==='domain'){
+      const r=f.r*(.9+.035*Math.sin(now*5));ctx.shadowColor='#b8d9ff';ctx.shadowBlur=25;ctx.strokeStyle='#e5f4ff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#9c7bff';ctx.lineWidth=2;ctx.setLineDash([12,8]);ctx.beginPath();ctx.arc(0,0,r*.88,-now,Math.PI*2-now);ctx.stroke();ctx.setLineDash([]);
+      for(let i=0;i<24;i++){const a=i*Math.PI/12+now*.35,rr=r*(.55+.25*Math.sin(now*2+i));ctx.fillStyle=i%2?'#b7d8ff':'#fff';ctx.globalAlpha=fade*(.25+.5*Math.abs(Math.sin(now*4+i)));ctx.beginPath();ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr,2.5,0,Math.PI*2);ctx.fill();}
+    }
+    ctx.restore();
+  }
+}
+
 function update(dt){
   T+=dt;
   try{ syncCoopBossState(); }catch(_){}
@@ -2679,6 +2760,7 @@ function update(dt){
     for(let i=0;i<burstNow;i++) spawnEnemy();
   }
   fireWeapons(dt);
+  gojoTechniqueUpdate(dt);
   const isCoopBossWave = (typeof coopActive!=='undefined' && coopActive);
   // Co-op: 4 boss mỗi đợt; đợt đầu ở 1:00, các đợt tiếp theo cách nhau đúng 60 giây. Solo giữ lịch cũ.
   const coopBossDue = coopBossWaveIndex===0 ? 90 : bossT;
@@ -5718,6 +5800,7 @@ function render(){
     ctx.fillStyle='#fff9';ctx.beginPath();ctx.arc(b.x-b.r*.25,b.y-b.r*.25,b.r*.35,0,7);ctx.fill();ctx.restore();
   }
   drawPlayer();
+  drawGojoTechniques();
   if(typeof drawPartner==='function') drawPartner();
   if(typeof syncCoopSelf==='function'&&coopActive) syncCoopSelf();
   if(lv.drone){
