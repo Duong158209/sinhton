@@ -973,7 +973,7 @@ const GOLEM_TXT={
 };
 const gtxt=k=>(GOLEM_TXT[golemSkin]||GOLEM_TXT.default)[k];
 let golemAttackFx=0, golemRootFx=0;
-function golemExtraDmg(e){ return (lv.golem>=6 ? e.max*0.015 : 0); } // Lv6: sát thương theo % máu tối đa giảm từ 3% xuống 1.5% (áp dụng mọi skin)
+function golemExtraDmg(e){ return (lv.golem>=6 ? e.max*0.01 : 0); } // Lv6: sát thương theo % máu tối đa là 1% (áp dụng mọi skin)
 let W=0,H=0,dpr=1,zoom=1;
 function resize(){
   dpr=Math.min(window.devicePixelRatio||1,2);
@@ -2306,10 +2306,10 @@ function fireWeapons(dt){
       const isUlt=l>=6;
       if(isUlt){
         if(taNhanUltCd>0){cd[k]=Math.min(.25,taNhanUltCd);continue;}
-        sfx('ta_nhan_ult');fx.push({x:P.x,y:P.y,ring:460,t:.75,T:.75,c:'#d946ef'});for(let q=0;q<18;q++){const aa=q*Math.PI/9;fx.push({x:P.x+Math.cos(aa)*rnd(30,160),y:P.y+Math.sin(aa)*rnd(30,160),t:.65,T:.65,c:'#a855f7',r:5});}
+        sfx('ta_nhan_ult');fx.push({x:P.x,y:P.y,ring:920,t:.75,T:.75,c:'#d946ef'});for(let q=0;q<18;q++){const aa=q*Math.PI/9;fx.push({x:P.x+Math.cos(aa)*rnd(30,160),y:P.y+Math.sin(aa)*rnd(30,160),t:.65,T:.65,c:'#a855f7',r:5});}
         const boss=enemies.find(e=>!e.dead&&e.t==='b');
         const targets=enemies.filter(e=>!e.dead).sort((a,b)=>((b.t==='b')?1:0)-((a.t==='b')?1:0));
-        const radius=420;
+        const radius=840;
         let affected=0;
         for(const e of targets){
           if(Math.hypot(e.x-P.x,e.y-P.y)>radius+e.r)continue;
@@ -2320,7 +2320,7 @@ function fireWeapons(dt){
         }
         pushText({x:P.x,y:P.y-56,v:'CHÚA TỂ VẠN HỒN!',t:1.5,c:true,big:true});
         if(affected){shake=Math.max(shake,4);}
-        taNhanUltCd=15;cd[k]=15*getCdrMul();
+        taNhanUltCd=10;cd[k]=10*getCdrMul();
       }else{
         const target=nearest(1,440)[0];
         if(!target){cd[k]=.2;continue;}
@@ -5481,6 +5481,29 @@ function drawBg(cx,cy,vw,vh){
 function drawZombie(e){
   const s=e.s,b=Math.sin(T*8+e.ph)*1.2;
   ctx.save();ctx.translate(e.x,e.y+b);ctx.scale(s,s);
+  // Khói tím xoáy quanh quái/boss đang bị Tà Nhãn điều khiển
+  if((e.mindControlT||0)>0){
+    const pulse=0.82+Math.sin(T*7+(e.ph||0))*0.12;
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    for(let j=0;j<3;j++){
+      const a=T*2.4+j*Math.PI*2/3+(e.ph||0);
+      const rx=(e.r+7+j*3)*pulse, ry=(e.r*.42+4+j*1.5)*pulse;
+      ctx.save();ctx.rotate(a);
+      ctx.strokeStyle=j===1?'rgba(216,120,255,.82)':'rgba(151,54,230,.68)';
+      ctx.lineWidth=2.2-j*.35;ctx.shadowColor='#b026ff';ctx.shadowBlur=12;
+      ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,Math.PI*1.65);ctx.stroke();
+      ctx.restore();
+    }
+    for(let j=0;j<6;j++){
+      const a=T*2.8+j*Math.PI/3+(e.ph||0), rr=e.r+8+Math.sin(T*5+j)*3;
+      const sx=Math.cos(a)*rr, sy=Math.sin(a)*rr*.58-3+Math.sin(T*4+j)*3;
+      ctx.fillStyle=`rgba(202,112,255,${.45+.3*Math.sin(T*6+j)})`;
+      ctx.shadowColor='#bd48ff';ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(sx,sy,2.2+Math.sin(T*8+j)*.7,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  }
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(0,9,8,3,0,0,7);ctx.fill();
   if(e.slowT>0){
     ctx.save();
