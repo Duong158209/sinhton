@@ -995,7 +995,7 @@ const SK={
   gojoLimitless:{n:'Vô Hạ Hạn · Limitless',ic:'🔵',type:'w',d:'Tạo vùng không gian xanh quanh Gojo trong 3–7 giây, chặn toàn bộ đạn quái và boss. Hồi chiêu Lv1–5: 7/6/5/4/3 giây.'},
   gojoBlue:{n:'Thuận Chuyển: Thanh · Blue',ic:'🌀',type:'w',d:'Bắn cầu trọng lực xanh bay về phía trước, hút quái dọc đường rồi nổ ở cuối. Lv4–5 có thể hút boss. Hồi chiêu Lv1–5: 8/6.5/5.5/4/3 giây.'},
   gojoRed:{n:'Nghịch Chuyển: Xích · Red',ic:'🔴',type:'w',d:'Bắn quả cầu đỏ về phía trước, gây sát thương và đẩy lùi cả quái lẫn boss; kích thước và sát thương tăng theo cấp. Hồi chiêu Lv1–5: 7/6/5/4/3 giây.'},
-  gojoPurple:{n:'Hư Thức: Tử · Hollow Purple',ic:'🟣',type:'w',d:'Chỉ mở khóa khi Thanh và Xích đều Lv5. Hai cầu Thanh/Xích hợp thành cầu tím bay tới boss ưu tiên, gây sát thương lớn + 5% máu tối đa; vụ nổ cuối gây 1.000–1.500 sát thương và đẩy lùi diện rộng. Hồi chiêu 12 giây.'},
+  gojoPurple:{n:'ULTIMATE · Hư Thức: Tử',ic:'🟣',type:'w',d:'ULTIMATE chỉ có 1 cấp. Mở khóa khi Thanh và Xích đều Lv5. Hai cầu hợp nhất thành cầu tím khổng lồ, ưu tiên boss, gây thêm 5% máu tối đa; nổ cuối gây 1.000–1.500 sát thương và đẩy lùi diện rộng. Hồi chiêu 10 giây.'},
   gojoDomain:{n:'Lãnh Địa: Vô Lượng Không Xứ',ic:'🌌',type:'w',d:'Mở không gian vũ trụ, khống chế toàn bộ quái trong 8 giây và gây sát thương theo % máu tối đa. Hồi chiêu 20 giây.'},
   hp:{n:'Trái tim',ic:'❤️',type:'p',d:'Tăng 20% máu tối đa và hồi một ít máu.'},
   spd:{n:'Giày chạy',ic:'👟',type:'p',d:'Tăng 8% tốc độ di chuyển.'},
@@ -1657,11 +1657,11 @@ function openLevelUp(isReroll){
   const gojoSkills=['gojoLimitless','gojoBlue','gojoRed','gojoPurple','gojoDomain'];
   for(const k in SK){
     if(gojoSkills.includes(k) && equippedCharacter!=='gojo') continue;
-    if(k==='gojoPurple' && ((lv.gojoBlue||0)<5 || (lv.gojoRed||0)<5)) continue;
+    if(k==='gojoPurple' && (((lv.gojoBlue||0)<5 || (lv.gojoRed||0)<5) || (lv.gojoPurple||0)>=1)) continue;
     if(bannedWeapon && k===bannedWeapon) continue; // không cho skill của vũ khí không trang bị hiện trong ván
     if(SK[k].type==='h'){pool.push(k);continue;}
     const cur=SK[k].type==='w'?(lv[k]||0):ps[k];
-    if(cur>=wmax(k)) continue;
+    if(cur>=(k==='gojoPurple'?1:wmax(k))) continue;
     if(k==='slotplus' && maxWeaponSlots>=10) continue;
     pool.push(k);
   }
@@ -2653,11 +2653,11 @@ function gojoTechniqueUpdate(dt){
   // Hư Thức: Tử chỉ xuất hiện trong pool khi Thanh và Xích đều Lv5.
   const pu=lvl('gojoPurple');
   if(pu>0&&bl>=5&&rd>=5&&gojoTech.timers.gojoPurple<=0){
-    gojoTech.timers.gojoPurple=12;
+    gojoTech.timers.gojoPurple=10;
     const bosses=enemies.filter(e=>!e.dead&&e.t==='b');
     const target=(bosses.sort((a,b)=>Math.hypot(a.x-P.x,a.y-P.y)-Math.hypot(b.x-P.x,b.y-P.y))[0])||nearest(1,900)[0];
     const a=target?Math.atan2(target.y-P.y,target.x-P.x):(P.face<0?Math.PI:0);
-    gojoTech.shots.push({type:'purpleShot',x:P.x+Math.cos(a)*28,y:P.y+Math.sin(a)*28,ox:P.x,oy:P.y,a,speed:510,dist:0,maxDist:800,r:34,life:2.3,lv:pu,phase:0,hit:new Set()});
+    gojoTech.shots.push({type:'purpleShot',x:P.x+Math.cos(a)*28,y:P.y+Math.sin(a)*28,ox:P.x,oy:P.y,a,speed:510,dist:0,maxDist:800,r:51,life:2.3,lv:1,phase:0,hit:new Set()});
     gojoTech.fx.push({type:'purpleMerge',x:P.x,y:P.y,life:.75,T:.75,r:48,a});
     if(typeof sfx==='function')sfx('gojo_purple');shake=Math.max(shake,7);
   }
@@ -2683,7 +2683,7 @@ function gojoTechniqueUpdate(dt){
     }
     if(q.type==='redShot'&&(q.dist>=q.maxDist||q.life<=0)){gojoTech.fx.push({type:'redBlast',x:q.x,y:q.y,life:.6,T:.6,r:65+q.lv*20});for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-q.x,e.y-q.y);if(d<75+q.lv*22+e.r){hitEnemy(e,base*(2.8+(q.lv-1)*1.175),Math.cos(q.a),Math.sin(q.a),true);e.kx=(e.kx||0)+Math.cos(q.a)*(280+q.lv*55);e.ky=(e.ky||0)+Math.sin(q.a)*(280+q.lv*55);}}q.dead=true;shake=Math.max(shake,4+q.lv);}
     if(q.type==='purpleShot'&&(q.dist>=q.maxDist||q.life<=0)){
-      const radius=175;gojoTech.fx.push({type:'purpleBlast',x:q.x,y:q.y,life:.9,T:.9,r:radius});
+      const radius=220;gojoTech.fx.push({type:'purpleBlast',x:q.x,y:q.y,life:.9,T:.9,r:radius});
       for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-q.x,e.y-q.y);if(d<radius+e.r){const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,1000+q.lv*100+maxhp*.05,Math.cos(q.a),Math.sin(q.a),true);const dx=e.x-q.x,dy=e.y-q.y,dd=Math.hypot(dx,dy)||1;e.kx=(e.kx||0)+dx/dd*650;e.ky=(e.ky||0)+dy/dd*650;}}
       fx.push({x:q.x,y:q.y,ring:radius,t:.9,T:.9,c:'#b35cff'});q.dead=true;shake=Math.max(shake,15);if(typeof sfx==='function')sfx('gojo_purple');
     }
@@ -2691,8 +2691,8 @@ function gojoTechniqueUpdate(dt){
   gojoTech.shots=gojoTech.shots.filter(q=>!q.dead&&q.life>0);
   // Vô Lượng Không Xứ: hiệu quả 8 giây, hồi 20 giây.
   const dm=lvl('gojoDomain');
-  if(dm>0&&gojoTech.timers.gojoDomain<=0&&gojoTech.domainLife<=0){gojoTech.timers.gojoDomain=20;gojoTech.domainLife=8;gojoTech.domainT=0;gojoTech.fx.push({type:'domain',x:P.x,y:P.y,life:8,T:8,r:Math.max(innerWidth,innerHeight)*.8});if(typeof sfx==='function')sfx('gojo_domain');shake=Math.max(shake,7);}
-  if(gojoTech.domainLife>0){gojoTech.domainLife=Math.max(0,gojoTech.domainLife-dt);gojoTech.domainT-=dt;if(gojoTech.domainT<=0){gojoTech.domainT=.25;for(const e of enemies){if(e.dead)continue;e.stunT=Math.max(e.stunT||0,.32);e.freeze=true;e.slowT=Math.max(e.slowT||0,.32);const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,Math.max(base*.35,maxhp*.022),0,0,false);}}}
+  if(dm>0&&gojoTech.timers.gojoDomain<=0&&gojoTech.domainLife<=0){gojoTech.timers.gojoDomain=20;gojoTech.domainLife=8;gojoTech.domainT=0;gojoTech.fx.push({type:'domain',x:P.x,y:P.y,life:8,T:8,lv:dm,r:Math.max(innerWidth,innerHeight)*(.84+dm*.035)});if(typeof sfx==='function')sfx('gojo_domain');shake=Math.max(shake,7);}
+  if(gojoTech.domainLife>0){gojoTech.domainLife=Math.max(0,gojoTech.domainLife-dt);gojoTech.domainT-=dt;if(gojoTech.domainT<=0){gojoTech.domainT=.1;const radius=Math.max(innerWidth,innerHeight)*(.84+dm*.035);for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-P.x,e.y-P.y);if(d>radius+e.r)continue;e.stunT=Math.max(e.stunT||0,.22);e.freeze=true;e.slowT=Math.max(e.slowT||0,.25);const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,Math.max(base*.35,maxhp*.022),0,0,false);}}}
 }
 function drawGojoTechniques(){
   if(equippedCharacter!=='gojo')return;const now=performance.now()/1000;
@@ -3206,6 +3206,13 @@ function update(dt){
   }
   for(const e of enemies){
     if(e.dead)continue;
+    // Vô Lượng Không Xứ: choáng cứng, bỏ qua toàn bộ AI (di chuyển/tấn công/kỹ năng).
+    if((e.stunT||0)>0){
+      e.stunT=Math.max(0,e.stunT-dt);
+      e.freeze=true; e.slowT=Math.max(e.slowT||0,e.stunT+.03);
+      if(e.stunT<=0){e.freeze=false;e.slowT=0;e.slowFactor=0;}
+      continue;
+    }
     if(e.rooted>0){ e.rooted-=dt; continue; }
     // Co-op: nhắm người chơi gần nhất (không gây dame lẫn nhau)
     let _tx=P.x,_ty=P.y;
