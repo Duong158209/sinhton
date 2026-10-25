@@ -1076,7 +1076,7 @@ function reset(){
   const _cb = (typeof getCharBonus==='function') ? getCharBonus() : {hpMul:1};
   const baseHp = Math.round(400 * (_cb.hpMul||1));
   P={x:0,y:0,hp:baseHp,maxhp:baseHp,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
-  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];coopBossWaveIndex=0; _coopBossDamageQueue={}; _coopBossDamageApplied={}; _coopBossChestBusy={};
+  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;try{_enReset();}catch(_){}lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];coopBossWaveIndex=0; _coopBossDamageQueue={}; _coopBossDamageApplied={}; _coopBossChestBusy={};
   try{localStorage.removeItem('lastRunCoins');}catch(_){}
   coopOutcome='';
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;pendingSkillPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=120;frenzyActive=false;frenzyT=0;frenzyDuration=20;frenzyCount=0;tuocdoatProcT=5;
@@ -1817,6 +1817,7 @@ const maxEnemies=()=>{
   return frenzyActive ? Math.min(572, Math.floor(baseCap*2.2)) : baseCap;
 };
 function spawnEnemy(forceType,px,py){
+  if(typeof coopActive!=='undefined'&&coopActive&&!isRoomHost&&_sharedEn&&forceType!=='b')return;
   if(enemies.length>=maxEnemies()&&forceType!=='b')return;
   const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;
   let type=forceType||'n';
@@ -1835,7 +1836,8 @@ function spawnEnemy(forceType,px,py){
   // Tăng 30% máu mặc định 0-90s đầu, sau 90s về như cũ
   const earlyHpBonus = T<=90 ? 1.3 : 1.0;
   
-  let e={x:P.x+Math.cos(a)*r,y:P.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
+  const _an=(typeof coopActive!=='undefined'&&coopActive&&isRoomHost&&partner&&partner.alive&&Math.random()<.5)?partner:P;
+  let e={x:_an.x+Math.cos(a)*r,y:_an.y+Math.sin(a)*r,t:type,ph:Math.random()*6,kx:0,ky:0,flash:0};
   if(type==='n'){const fH=1, fD=frenzyActive?1.2:1; e.hp=16*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(38,50);e.r=9;e.dmg=10*mmDmg*fD;e.s=1;}
   if(type==='f'){const fH=1, fD=frenzyActive?1.2:1; e.hp=10*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=rnd(72,86);e.r=8;e.dmg=8*mmDmg*fD;e.s=.9;}
   if(type==='r'){const fH=1, fD=frenzyActive?1.2:1; e.hp=12*scaleBase*mmBase*monsterHpScale*fH*earlyHpBonus;e.sp=44;e.r=8;e.dmg=4.5*mmDmg*fD;e.s=.95;e.sh=rnd(1,4);}
@@ -1912,6 +1914,7 @@ function spawnEnemy(forceType,px,py){
     if(e.bt==='r'){e.s1=1.5;e.s2=4;e.s3=8;e.s4=6;e.s5=9;}
     if(e.bt==='a'){e.s1=0.9;e.s2=5;e.s3=9;e.s4=14;e.s5=0;e.archerSummoned=0;}}
 
+  if(type!=='b'&&typeof coopActive!=='undefined'&&coopActive&&isRoomHost&&e.id===undefined) e.id=++_enSeq;
   enemies.push(e);
 }
 function bossAI(e,dt){
@@ -2063,9 +2066,16 @@ function tuocKill(e){
   for(let i=0;i<5;i++) fx.push({x:e.x,y:e.y,vx:rnd(-120,120),vy:rnd(-120,120),t:.45,c:'#111',r:rnd(2,4)});
   if(Math.random()<.075)coinsArr.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),m:false});
 }
-function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
+function lightHit(e,dmg,kx,ky){
+  // Bản nhẹ của hitEnemy cho hiệu ứng đánh hàng loạt (Tà Nhãn): không âm thanh/chữ/hạt, chỉ gọi hitEnemy đầy đủ khi sắp chết hoặc là boss.
+  if(e.t==='b'||e.immuneActive||e.hp<=dmg*1.8) return hitEnemy(e,dmg,kx,ky);
+  dmg*=(1+.15*ps.dmg)*(typeof getCharDmgMul==='function'?getCharDmgMul():1);
+  e.hp-=dmg;e.flash=.1;const d=Math.hypot(kx,ky)||1;e.kx+=kx/d*90;e.ky+=ky/d*90;
+}
+function hitEnemy(e,dmg,kx,ky,crit,fromTuoc,rem){
   if(e.t==='b' && e.immuneActive){ pushText({x:e.x+rnd(-6,6),y:e.y-18,v:'MIỄN NHIỄM!',t:.5,c:true}); fx.push({x:e.x,y:e.y,ring:30,t:.25,T:.25,c:'#00ffff'}); return; }
   if(typeof sfx==='function'){ if(crit) sfx('crit'); else sfx(e.t==='b'?'boss_hit':'hit'); }
+  if(!rem){
   dmg*=1+.15*ps.dmg;
   if(typeof getCharDmgMul==='function') dmg*=getCharDmgMul(); // Gojo +5% dame mọi vũ khí
   if(e.t==='b' && lv.tuocdoat>=6 && e.hp<e.max*0.5) dmg*=1.2; // Tước Đoạt max: boss dưới 50% máu nhận +20% sát thương
@@ -2073,6 +2083,7 @@ function hitEnemy(e,dmg,kx,ky,crit,fromTuoc){
   if(Math.random()<critChance){dmg*= (typeof getCritMul==='function'?getCritMul():2); crit=true;}
   else if(Math.random()<.02){dmg*=2;crit=true;}
   if(ps.ls)P.hp=Math.min(P.maxhp,P.hp+Math.min(dmg,Math.max(e.hp,0))*LS[ps.ls]);
+  }
   e.hp-=dmg;e.flash=.1;
   if(e.t==='b' && typeof coopActive!=='undefined' && coopActive && !isRoomHost && e.id && currentUser){
     _coopBossDamageQueue[e.id]=(_coopBossDamageQueue[e.id]||0)+Math.max(0,dmg);
@@ -2315,8 +2326,8 @@ function fireWeapons(dt){
           if(Math.hypot(e.x-P.x,e.y-P.y)>radius+e.r)continue;
           const dur=e.t==='b'?5:12;
           e.mindControlT=dur;e.mindControlOwner='player';e.mindControlWeakenT=0;e.mindControlWeakened=false;
-          hitEnemy(e, (24+10*5)*2*0.7, P.x-e.x, P.y-e.y);
-          fx.push({x:e.x,y:e.y,ring:52,t:.6,T:.6,c:'#d946ef'});affected++;
+          lightHit(e, (24+10*5)*2*0.7, P.x-e.x, P.y-e.y);
+          if(affected<14) fx.push({x:e.x,y:e.y,ring:52,t:.6,T:.6,c:'#d946ef'});affected++;
         }
         pushText({x:P.x,y:P.y-56,v:'CHÚA TỂ VẠN HỒN!',t:1.5,c:true,big:true});
         if(affected){shake=Math.max(shake,4);}
@@ -2726,6 +2737,87 @@ function purpleStick(q,e,d,base,dt){
   if(!q.stuck.has(e)&&d<q.r+e.r){const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,base*50+maxhp*.05,Math.cos(q.a),Math.sin(q.a),true);q.stuck.add(e);}
   if(q.stuck.has(e)){e.x+=q.mx||0;e.y+=q.my||0;const k=Math.min(1,10*dt);e.x+=(q.x-e.x)*k;e.y+=(q.y-e.y)*k;e.kx=0;e.ky=0;}
 }
+
+// ===== Co-op: quái thường dùng chung (chủ phòng quyết định, khách nhận bản sao qua P2P) =====
+let _enSeq=0,_enSnapSeq=0,_enKilledQ=[],_enSendAt=0,_sharedEn=false,_enAdopted=false,_enLastRecv=0,_enLastQ=0;
+let _enGone={},_enDmgTot={},_enDmgAt={},_enDmgApplied={},_enDmgSendAt=0;
+function _enReset(){ _enSeq=0;_enSnapSeq=0;_enKilledQ=[];_enSendAt=0;_sharedEn=false;_enAdopted=false;_enLastRecv=0;_enLastQ=0;_enGone={};_enDmgTot={};_enDmgAt={};_enDmgApplied={};_enDmgSendAt=0;window._chestGot={}; }
+const EN_DEF={n:{r:9,s:1,sp:44},f:{r:8,s:.9,sp:79},r:{r:8,s:.95,sp:44,sh:3},t:{r:14,s:1.5,sp:31},sk:{r:10,s:1.2,sp:36,isSkel:true,revived:false},bom:{r:11,s:1.15,sp:65,isBomber:true,bombT:2.5,bombTick:0,exploded:false},arc:{r:9,s:1,sp:34,isArcher:true,shootCd:1.5,keepDist:160}};
+function coopEnemyTick(){
+  if(typeof coopActive==='undefined'||!coopActive||!currentRoomId||!partner) return;
+  const now=performance.now();
+  if(isRoomHost){
+    if(now-_enSendAt<100||!CoopNet.ready()) return; _enSendAt=now;
+    const refs=[P]; if(partner.alive) refs.push(partner);
+    const cand=[];
+    for(const e of enemies){
+      if(e.dead||e.t==='b'||e.id===undefined) continue;
+      let d=1e12; for(const r of refs){ const dx=e.x-r.x,dy=e.y-r.y,dd=dx*dx+dy*dy; if(dd<d) d=dd; }
+      cand.push([d,e]);
+    }
+    cand.sort((a,b)=>a[0]-b[0]);
+    const arr=[]; for(let i=0;i<cand.length&&i<150;i++){ const e=cand[i][1]; arr.push([e.id,e.t,Math.round(e.x),Math.round(e.y),Math.round(e.hp),Math.round(e.max||e.hp),Math.round(e.dmg||0)]); }
+    while(_enKilledQ.length&&now-_enKilledQ[0][4]>1600) _enKilledQ.shift();
+    CoopNet.send({_en:1,q:++_enSnapSeq,a:arr,k:_enKilledQ.slice(-80).map(k=>[k[0],k[1],k[2],k[3]])});
+    return;
+  }
+  // ----- khách -----
+  if(_sharedEn&&now-_enLastRecv>2500){ _sharedEn=false;_enAdopted=false; for(const e of enemies) if(e._rep) e._rep=false; }
+  if(!_sharedEn) return;
+  for(const e of enemies){
+    if(!e._rep) continue;
+    if(e.hp<e._hpb-0.01){ _enDmgTot[e.id]=(_enDmgTot[e.id]||0)+(e._hpb-e.hp); _enDmgAt[e.id]=now; e._hpb=e.hp; }
+    if(e.dead&&!e._rpt){ e._rpt=1; _enGone[e.id]=now; _enDmgTot[e.id]=(_enDmgTot[e.id]||0)+Math.max(e._hpb,0)+1e4; _enDmgAt[e.id]=now; }
+  }
+  if(now-_enDmgSendAt>=100&&CoopNet.ready()){
+    _enDmgSendAt=now; const d=[];
+    for(const id in _enDmgAt){ if(now-_enDmgAt[id]>3500){ delete _enDmgAt[id]; delete _enDmgTot[id]; continue; } d.push([+id,Math.round(_enDmgTot[id]*10)/10]); }
+    if(d.length) CoopNet.send({_ed:1,d});
+    for(const id in _enGone){ if(now-_enGone[id]>6000) delete _enGone[id]; }
+  }
+}
+function applyEnemySnapshot(o){
+  if(typeof coopActive==='undefined'||!coopActive||isRoomHost||!Array.isArray(o.a)) return;
+  if(!(o.q>_enLastQ||_enLastQ-o.q>200)) return; _enLastQ=o.q;
+  const now=performance.now(); _enLastRecv=now; _sharedEn=true;
+  if(!_enAdopted){ _enAdopted=true; enemies=enemies.filter(e=>e.t==='b'); } // bỏ quái tự sinh, chuyển sang quái của chủ phòng
+  const idx=new Map(); for(const e of enemies) if(e._rep&&!e.dead) idx.set(e.id,e);
+  const seen=new Set();
+  for(const r of o.a){
+    const id=r[0]; seen.add(id); if(_enGone[id]) continue;
+    let e=idx.get(id), hh=+r[4]||0;
+    if(!e){
+      const df=EN_DEF[r[1]]||EN_DEF.n;
+      e=Object.assign({x:+r[2],y:+r[3],t:r[1],ph:Math.random()*6,kx:0,ky:0,flash:0,hp:hh,max:+r[5]||hh,dmg:+r[6]||10,id,_rep:true,_tx:+r[2],_ty:+r[3],_hpb:hh},df);
+      enemies.push(e); idx.set(id,e);
+    }else{
+      e._tx=+r[2]; e._ty=+r[3]; e.dmg=+r[6]||e.dmg; e.max=+r[5]||e.max;
+      if(hh<e.hp){ e.hp=hh; e._hpb=hh; } // máu giảm do chủ phòng/đồng đội -> không báo ngược lại
+    }
+  }
+  for(const e of idx.values()){ if(!seen.has(e.id)){ e.dead=true; e._rpt=1; } } // ra khỏi vùng đồng bộ
+  if(Array.isArray(o.k)) for(const k of o.k){
+    const id=k[0]; if(_enGone[id]) continue; _enGone[id]=now;
+    const e=idx.get(id);
+    if(e&&!e.dead){ // chủ phòng đã hạ quái này: khách vẫn nhận kinh nghiệm
+      e.dead=true; e._rpt=1; kills++;
+      gems.push({x:e.x,y:e.y,v:(e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
+      if(fx.length<70) fx.push({x:e.x,y:e.y,vx:0,vy:0,t:.25,c:'#9fe04a',r:2});
+    }
+  }
+}
+function applyEnemyDamage(o){
+  if(typeof coopActive==='undefined'||!coopActive||!isRoomHost||!Array.isArray(o.d)) return;
+  let idx=null;
+  for(const r of o.d){
+    const id=r[0], tot=+r[1]; const prev=_enDmgApplied[id]||0;
+    if(!(tot>prev+0.01)) continue; _enDmgApplied[id]=tot;
+    if(!idx){ idx=new Map(); for(const e of enemies) if(!e.dead&&e.t!=='b'&&e.id!==undefined) idx.set(e.id,e); }
+    const e=idx.get(id); if(e) hitEnemy(e,tot-prev,0,0,false,true,true);
+  }
+  const ks=Object.keys(_enDmgApplied); if(ks.length>4000) _enDmgApplied={};
+}
+
 const GOJO_KEYS=['gojoLimitless','gojoBlue','gojoRed','gojoPurple','gojoDomain'];
 function gojoTechniqueUpdate(dt){
   if(equippedCharacter!=='gojo'){gojoTech.fx.length=0;gojoTech.shots.length=0;gojoTech.shieldT=0;gojoTech.domainLife=0;return;}
@@ -2822,9 +2914,62 @@ function gojoTechniqueUpdate(dt){
   if(dm>0&&gojoTech.timers.gojoDomain<=0&&gojoTech.domainLife<=0){gojoTech.timers.gojoDomain=20;gojoTech.domainLife=8;gojoTech.domainT=0;gojoTech.fx.push({type:'domain',x:P.x,y:P.y,life:8,T:8,lv:dm,r:Math.max(innerWidth,innerHeight)*(.84+dm*.035)});if(typeof sfx==='function')sfx('gojo_domain');shake=Math.max(shake,7);}
   if(gojoTech.domainLife>0){gojoTech.domainLife=Math.max(0,gojoTech.domainLife-dt);gojoTech.domainT-=dt;if(gojoTech.domainT<=0){gojoTech.domainT=.1;const radius=Math.max(innerWidth,innerHeight)*(.84+dm*.035);for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-P.x,e.y-P.y);if(d>radius+e.r)continue;e.stunT=Math.max(e.stunT||0,.22);e.freeze=true;e.slowT=Math.max(e.slowT||0,.25);const maxhp=e.max||e.maxHp||e.hp||1;hitEnemy(e,Math.max(base*.35,maxhp*.022),0,0,false);}}}
 }
-function drawGojoTechniques(){
-  if(equippedCharacter!=='gojo')return;const now=performance.now()/1000;
-  for(const f of gojoTech.fx){const p=1-f.life/f.T,fade=Math.max(0,Math.min(1,f.life/(f.T*.25)));ctx.save();ctx.globalAlpha=fade;ctx.translate(f.x,f.y);
+
+// Hiển thị chiêu Gojo của đồng đội (chỉ hiệu ứng; sát thương do máy của người đó tính)
+const partnerGojo={timers:{},fx:[],shots:[],shieldT:0,domainLife:0};
+function partnerGojoUpdate(dt,px,py){
+  const g=partnerGojo, L=(partner&&partner.lv)||{};
+  if(!partner||partner.charId!=='gojo'){ g.fx.length=0; g.shots.length=0; g.shieldT=0; g.domainLife=0; return; }
+  const lvl=k=>Math.max(0,Math.min(5,L[k]||0));
+  for(const f of g.fx) f.life-=dt; g.fx=g.fx.filter(f=>f.life>0);
+  for(const k of GOJO_KEYS) g.timers[k]=Math.max(0,(g.timers[k]||0)-dt);
+  const aimTo=(rng,pref)=>{ let t=null; if(pref){ t=enemies.find(e=>!e.dead&&e.t==='b'); } return t||_pNear(px,py,rng); };
+  const ll=lvl('gojoLimitless');
+  if(ll>0){
+    if(g.timers.gojoLimitless<=0){ g.timers.gojoLimitless=[0,7,6,5,4,3][ll]; g.shieldT=ll+2; g.fx.push({type:'shieldStart',x:px,y:py,life:.65,T:.65,r:115+ll*18}); }
+    g.shieldT=Math.max(0,g.shieldT-dt);
+    if(g.shieldT>0) g.fx.push({type:'limitless',x:px,y:py,life:.08,T:.08,r:115+ll*18});
+  }
+  const bl=lvl('gojoBlue');
+  if(bl>0&&g.timers.gojoBlue<=0){
+    g.timers.gojoBlue=[0,8,6.5,5.5,4,3][bl]; const t=aimTo(650),a=t?Math.atan2(t.y-py,t.x-px):(partner.face<0?Math.PI:0);
+    g.shots.push({type:'blueShot',x:px+Math.cos(a)*24,y:py+Math.sin(a)*24,a,speed:360,dist:0,maxDist:600,r:36+bl*9,life:2.2,lv:bl});
+  }
+  const rd=lvl('gojoRed');
+  if(rd>0&&g.timers.gojoRed<=0){
+    g.timers.gojoRed=[0,7,6,5,4,3][rd]; const t=aimTo(650),a=t?Math.atan2(t.y-py,t.x-px):(partner.face<0?Math.PI:0);
+    g.shots.push({type:'redShot',x:px+Math.cos(a)*25,y:py+Math.sin(a)*25,a,speed:440,dist:0,maxDist:720,r:18+rd*8,life:2,lv:rd});
+  }
+  const pu=lvl('gojoPurple');
+  if(pu>0&&bl>=5&&rd>=5&&g.timers.gojoPurple<=0){
+    g.timers.gojoPurple=7.5; const t=aimTo(900,true),a=t?Math.atan2(t.y-py,t.x-px):(partner.face<0?Math.PI:0);
+    g.shots.push({type:'purpleShot',x:px+Math.cos(a)*70,y:py+Math.sin(a)*70,cx:px,cy:py,a,speed:510,dist:0,maxDist:800,r:77,life:99,lv:1,phase:0,orbA0:a,orbT:0});
+    g.fx.push({type:'purpleMerge',x:px,y:py,life:.75,T:.75,r:72,a});
+  }
+  const dm=lvl('gojoDomain');
+  if(dm>0&&g.timers.gojoDomain<=0&&g.domainLife<=0){ g.timers.gojoDomain=20; g.domainLife=8; g.fx.push({type:'domain',x:px,y:py,life:8,T:8,lv:dm,r:Math.max(innerWidth,innerHeight)*(.84+dm*.035)}); }
+  g.domainLife=Math.max(0,g.domainLife-dt);
+  for(const q of g.shots){
+    if(q.dead) continue;
+    if(q.type==='purpleShot'&&q.phase===0){
+      q.orbT+=dt; const k=Math.min(1,q.orbT/2.0), ang=q.orbA0+Math.PI*3*k, R=70+330*k;
+      q.x=q.cx+Math.cos(ang)*R; q.y=q.cy+Math.sin(ang)*R; q.a=ang+Math.PI/2;
+      if(k>=1){ const t=enemies.find(e=>!e.dead&&e.t==='b')||_pNear(q.x,q.y,900); q.a=t?Math.atan2(t.y-q.y,t.x-q.x):Math.atan2(py-q.y,px-q.x); q.phase=1; q.life=2.3; q.dist=0; }
+      continue;
+    }
+    const step=q.speed*dt; q.x+=Math.cos(q.a)*step; q.y+=Math.sin(q.a)*step; q.dist+=step; q.life-=dt;
+    if(q.dist>=q.maxDist||q.life<=0){
+      if(q.type==='blueShot') g.fx.push({type:'blueBlast',x:q.x,y:q.y,life:.65,T:.65,r:100+q.lv*28});
+      else if(q.type==='redShot') g.fx.push({type:'redBlast',x:q.x,y:q.y,life:.6,T:.6,r:65+q.lv*20});
+      else g.fx.push({type:'purpleBlast',x:q.x,y:q.y,life:.9,T:.9,r:330});
+      q.dead=true;
+    }
+  }
+  g.shots=g.shots.filter(q=>!q.dead&&q.life>0);
+}
+function drawGojoTechniques(tech,force){
+  tech=tech||gojoTech; if(!force&&equippedCharacter!=='gojo')return;const now=performance.now()/1000;
+  for(const f of tech.fx){const p=1-f.life/f.T,fade=Math.max(0,Math.min(1,f.life/(f.T*.25)));ctx.save();ctx.globalAlpha=fade;ctx.translate(f.x,f.y);
     if(f.type==='limitless'||f.type==='shieldStart'){const r=f.r*(f.type==='shieldStart'?.65+p*.8:1);ctx.shadowColor='#32c9ff';ctx.shadowBlur=38;for(let i=0;i<6;i++){ctx.strokeStyle=['#a8f3ff','#46baff','#547cff','#e4ffff'][i%4];ctx.lineWidth=i===0?3:1.4;ctx.beginPath();ctx.ellipse(0,0,r*(.75+.08*Math.sin(now*3+i)),r*(.65+.06*Math.cos(now*2+i)),now*.25+i,0,Math.PI*2);ctx.stroke();}for(let i=0;i<16;i++){const a=now*1.8+i*Math.PI/8;ctx.fillStyle=i%2?'#fff':'#4de4ff';ctx.beginPath();ctx.arc(Math.cos(a)*r*.9,Math.sin(a)*r*.7,2.2,0,Math.PI*2);ctx.fill();}}
     else if(f.type==='blueBlast'){const r=f.r*(.2+p);ctx.shadowColor='#35baff';ctx.shadowBlur=45;const g=ctx.createRadialGradient(0,0,1,0,0,r);g.addColorStop(0,'#050512');g.addColorStop(.22,'#32aaff');g.addColorStop(.6,'rgba(35,100,255,.5)');g.addColorStop(1,'rgba(30,100,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();}
     else if(f.type==='redBlast'){const r=f.r*(.15+p);ctx.shadowColor='#ff163f';ctx.shadowBlur=45;const g=ctx.createRadialGradient(0,0,1,0,0,r);g.addColorStop(0,'#fff');g.addColorStop(.25,'#ff244c');g.addColorStop(.65,'rgba(180,0,35,.75)');g.addColorStop(1,'rgba(255,0,40,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();}
@@ -2833,7 +2978,7 @@ function drawGojoTechniques(){
     else if(f.type==='domain'){const r=f.r*(.25+p*.85);ctx.fillStyle='rgba(0,0,12,.34)';ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.shadowColor='#b6d8ff';ctx.shadowBlur=30;for(let i=0;i<85;i++){const a=i*2.399+now*.12,rr=r*(.15+((i*37)%100)/120);ctx.fillStyle=i%3?'#8eaaff':'#fff';ctx.globalAlpha=fade*(.2+.8*Math.abs(Math.sin(now*2+i)));ctx.beginPath();ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr,1.2+(i%3),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=fade;ctx.strokeStyle='#eaf7ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();}
     ctx.restore();
   }
-  for(const q of gojoTech.shots){ctx.save();ctx.translate(q.x,q.y);ctx.rotate(q.a);const now2=performance.now()/1000;
+  for(const q of tech.shots){ctx.save();ctx.translate(q.x,q.y);ctx.rotate(q.a);const now2=performance.now()/1000;
     if(q.type==='blueShot'){ctx.shadowColor='#39bfff';ctx.shadowBlur=36;const g=ctx.createRadialGradient(0,0,1,0,0,q.r);g.addColorStop(0,'#02030a');g.addColorStop(.2,'#071c5a');g.addColorStop(.55,'#37bfff');g.addColorStop(.8,'rgba(30,90,255,.65)');g.addColorStop(1,'rgba(30,90,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,q.r,0,Math.PI*2);ctx.fill();for(let i=0;i<3;i++){ctx.strokeStyle=i%2?'#d7fbff':'#4c9dff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,q.r*(.65+i*.12),q.r*(.35+i*.12),now2*(i%2?3:-3),0,Math.PI*2);ctx.stroke();}}
     else if(q.type==='redShot'){ctx.shadowColor='#ff174a';ctx.shadowBlur=35;const g=ctx.createRadialGradient(0,0,1,0,0,q.r);g.addColorStop(0,'#fff');g.addColorStop(.25,'#ffb0c0');g.addColorStop(.55,'#ff123f');g.addColorStop(1,'rgba(255,0,45,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,q.r,0,Math.PI*2);ctx.fill();}
     else {ctx.shadowColor='#b56aff';ctx.shadowBlur=50;ctx.fillStyle='#b34dff';ctx.beginPath();ctx.arc(0,0,q.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#10051f';ctx.beginPath();ctx.arc(0,0,q.r*.55,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f7eaff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,q.r*.72,now2*3,now2*3+Math.PI*1.5);ctx.stroke();}
@@ -2843,6 +2988,7 @@ function drawGojoTechniques(){
 function update(dt){
   T+=dt;
   try{ syncCoopBossState(); }catch(_){}
+  try{ coopEnemyTick(); }catch(_){}
   // Safety net: co-op mà chưa có partner thì tạo + force sync
   if(typeof coopActive!=='undefined' && coopActive && !partner){
     partner = {
@@ -3336,7 +3482,7 @@ function update(dt){
     if(e.dead)continue;
     if((e.mindControlT||0)>0){
       e.mindControlT=Math.max(0,e.mindControlT-dt);
-      if(e.mindControlT<=0){e.mindControlWeakenT=5;e.mindControlWeakened=true;pushText({x:e.x,y:e.y-22,v:'TÀN HỒN',t:.8,c:true});}
+      if(e.mindControlT<=0){e.mindControlWeakenT=5;e.mindControlWeakened=true;if(e.t==='b'||Math.random()<.1)pushText({x:e.x,y:e.y-22,v:'TÀN HỒN',t:.8,c:true});}
     }else if((e.mindControlWeakenT||0)>0){e.mindControlWeakenT=Math.max(0,e.mindControlWeakenT-dt);}
     // Vô Lượng Không Xứ: choáng cứng, bỏ qua toàn bộ AI (di chuyển/tấn công/kỹ năng).
     if((e.stunT||0)>0){
@@ -3349,10 +3495,16 @@ function update(dt){
     // Khi bị thôi miên, quái/boss đổi phe và nhắm mục tiêu địch gần nhất.
     let _tx=P.x,_ty=P.y,_mindTarget=null;
     if((e.mindControlT||0)>0){
-      let bd=Infinity;
-      for(const q of enemies){if(q===e||q.dead||(q.mindControlT||0)>0)continue;const qd=Math.hypot(q.x-e.x,q.y-e.y);if(qd<bd){bd=qd;_mindTarget=q;}}
+      // Chỉ tìm lại mục tiêu mỗi ~0.4s (trước đây quét toàn bộ quái mỗi khung hình cho từng quái bị điều khiển -> rất lag).
+      e._mcRe=(e._mcRe||0)-dt;
+      if(e._mcRe<=0||!e._mcTgt||e._mcTgt.dead||(e._mcTgt.mindControlT||0)>0){
+        e._mcRe=.35+Math.random()*.2;let bd=Infinity,bt=null;
+        for(const q of enemies){if(q===e||q.dead||(q.mindControlT||0)>0)continue;const dx=q.x-e.x,dy=q.y-e.y,qd=dx*dx+dy*dy;if(qd<bd){bd=qd;bt=q;}}
+        e._mcTgt=bt;
+      }
+      _mindTarget=e._mcTgt||null;
       if(_mindTarget){_tx=_mindTarget.x;_ty=_mindTarget.y;}else{_tx=P.x;_ty=P.y;}
-    }else if(typeof coopActive!=='undefined'&&coopActive&&partner&&partner.alive&&typeof nearestPlayerPos==='function'){
+    }else if(typeof coopActive!=='undefined'&&coopActive&&partner&&partner.alive&&!e._rep&&typeof nearestPlayerPos==='function'){
       const np=nearestPlayerPos(e.x,e.y); _tx=np.x; _ty=np.y;
     }
     const d=Math.hypot(_tx-e.x,_ty-e.y)||1;
@@ -3397,14 +3549,15 @@ function update(dt){
       }
     }
     if(e.t==='b'&&(e.mindControlT||0)<=0){if(!e._sharedBossReplica) bossAI(e,dt);if(e._sharedBossReplica||e.cw>0){vx=0;vy=0;}else if(e.dash>0){vx=e.dx*430;vy=e.dy*430;}}
+    if(e._rep){ vx=0;vy=0;const _k=Math.min(1,14*dt);e.x+=(e._tx-e.x)*_k;e.y+=(e._ty-e.y)*_k; }
     e.x+=vx*dt;e.y+=vy*dt;
     e.flash=Math.max(0,e.flash-dt);
     if((e.mindControlT||0)>0 && _mindTarget && !_mindTarget.dead && d<e.r+_mindTarget.r+5){
       e.mindAttackCd=(e.mindAttackCd||0)-dt;
-      if(e.mindAttackCd<=0){e.mindAttackCd=e.t==='b'?0.65:0.8;hitEnemy(_mindTarget,Math.max(8,e.dmg*(e.t==='b'?1.4:1.1)),_mindTarget.x-e.x,_mindTarget.y-e.y);fx.push({x:_mindTarget.x,y:_mindTarget.y,ring:20,t:.22,T:.22,c:'#d946ef'});}
+      if(e.mindAttackCd<=0){e.mindAttackCd=e.t==='b'?0.65:0.8;lightHit(_mindTarget,Math.max(8,e.dmg*(e.t==='b'?1.4:1.1)),_mindTarget.x-e.x,_mindTarget.y-e.y);if(fx.length<60)fx.push({x:_mindTarget.x,y:_mindTarget.y,ring:20,t:.22,T:.22,c:'#d946ef'});}
     }
     if((e.mindControlT||0)>0){continue;}
-    if(d<e.r+4){
+    if(Math.hypot(P.x-e.x,P.y-e.y)<e.r+4){
       if(e.t==='b'){sfx('boss_hit');
         P.hp-=applyArmor(Math.min(e.dmg*((e.mindControlWeakenT||0)>0?.5:1)*1.6, P.maxhp*0.85)*dt*3.2); P.hurt=.30;
       }else if(e.isBomber){
@@ -3431,7 +3584,7 @@ function update(dt){
       }
     }
     const _dMe=Math.hypot(P.x-e.x,P.y-e.y), _dPt=(typeof coopActive!=='undefined'&&coopActive&&partner&&partner.alive)?Math.hypot(partner.x-e.x,partner.y-e.y):999999;
-    if(e.t!=='b' && !frenzyActive && Math.min(_dMe,_dPt)>Math.max(W,H)/zoom*1.45){const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;e.x=P.x+Math.cos(a)*r;e.y=P.y+Math.sin(a)*r;}
+    if(e.t!=='b' && !e._rep && !frenzyActive && Math.min(_dMe,_dPt)>Math.max(W,H)/zoom*1.45){const a=rnd(0,Math.PI*2),r=Math.max(W,H)/zoom/2*1.05+30;e.x=P.x+Math.cos(a)*r;e.y=P.y+Math.sin(a)*r;}
   }
   for(const b of eprojs){
     if(b.fromSky){ b.y+=b.vy*dt; b.life-=dt; if(b.y>=P.y-10){ if(Math.hypot(P.x-b.x,P.y-b.y)<42+18){ P.hp-=applyArmor(b.dmg*(b.sm||1)); P.hurt=0.3; if(typeof sfx==='function') sfx('arrow_hit'); } b.dead=true; continue; } }
@@ -3453,6 +3606,7 @@ function update(dt){
   }
   eprojs=eprojs.filter(b=>!b.dead);
   if(eprojs.length>120) eprojs.splice(0,eprojs.length-120);
+  if(typeof coopActive!=='undefined'&&coopActive&&isRoomHost){ const _kn=performance.now(); for(const e of enemies){ if(e.dead&&e.t!=='b'&&e.id!==undefined) _enKilledQ.push([e.id,Math.round(e.x),Math.round(e.y),e.t,_kn]); } }
   enemies=enemies.filter(e=>!e.dead);
   // Dọn quái thường ở xa khi máy yếu, luôn giữ boss.
   if(enemies.length>240){
@@ -3532,30 +3686,14 @@ function update(dt){
 
 
   for(const ch of chests){
-    const d=Math.hypot(P.x-ch.x,P.y-ch.y);
+    const d=Math.hypot(P.x-ch.x,P.y-ch.y)||1;
     if(d<60+40*ps.mag) ch.m=true;
     if(ch.m){ const s=200+ (ch.t=(ch.t||0)+dt)*400; ch.x+=(P.x-ch.x)/d*s*dt; ch.y+=(P.y-ch.y)/d*s*dt; }
     if(d<18){
       ch.dead=true;
-      const awardChest=async()=>{
-        // Mỗi rương co-op chỉ được một người nhận; transaction quyết định ai nhặt trước.
-        if(typeof coopActive!=='undefined' && coopActive && currentRoomId && currentUser && ch.bossId){
-          const claimKey=String(ch.bossId).replace(/[^A-Za-z0-9_-]/g,'_');
-          if(_coopBossChestBusy[claimKey]) return;
-          _coopBossChestBusy[claimKey]=true;
-          try{
-            const ref=db.collection('rooms').doc(currentRoomId);
-            const won=await db.runTransaction(async tx=>{
-              const snap=await tx.get(ref); if(!snap.exists) return false;
-              const data=snap.data()||{}, claims=data.bossChestClaims||{};
-              if(claims[claimKey]) return false;
-              tx.update(ref,{['bossChestClaims.'+claimKey]:{uid:currentUser.uid,name:currentUser.displayName||'Người chơi',at:Date.now()}});
-              return true;
-            });
-            if(!won){pushText({x:P.x,y:P.y-25,v:'Đồng đội đã nhặt rương!',t:1.1,c:true});return;}
-          }catch(err){ console.warn('boss chest claim failed',err); pushText({x:P.x,y:P.y-25,v:'Lỗi nhận rương — thử lại sau',t:1.2,c:true}); return; }
-          finally{delete _coopBossChestBusy[claimKey];}
-        }
+      const awardChest=()=>{
+        // Co-op: mỗi người tự nhặt và nhận đủ phần thưởng của rương (không còn phụ thuộc Firestore nên không bị mất thưởng).
+        if(ch.bossId){ window._chestGot=window._chestGot||{}; if(window._chestGot[ch.bossId]) return; window._chestGot[ch.bossId]=1; }
         const heal=P.maxhp*0.75;
         P.hp=Math.min(P.maxhp,P.hp+heal);
         pushText({x:P.x,y:P.y-30,v:'+75% HP & 2 thẻ!',t:1.5,heal:true,big:true});
@@ -4403,7 +4541,7 @@ const CoopNet=(function(){
     dc=ch;
     ch.onopen=()=>{ open=true; lastRecv=performance.now(); };
     ch.onclose=()=>{ open=false; };
-    ch.onmessage=e=>{ try{ const o=JSON.parse(e.data); lastRecv=performance.now(); applyPartnerState(o,'p2p'); }catch(_){} };
+    ch.onmessage=e=>{ try{ const o=JSON.parse(e.data); lastRecv=performance.now(); if(o&&o._en){ applyEnemySnapshot(o); } else if(o&&o._ed){ applyEnemyDamage(o); } else applyPartnerState(o,'p2p'); }catch(_){} };
   }
   function gathered(p){ return new Promise(res=>{ if(p.iceGatheringState==='complete') return res(); const t=setTimeout(res,3000); p.addEventListener('icegatheringstatechange',()=>{ if(p.iceGatheringState==='complete'){ clearTimeout(t); res(); } }); }); }
   async function hostOffer(){
@@ -4689,6 +4827,7 @@ function drawPartnerSkills(px,py){
   const now=performance.now(); let dt=(now-_pLast)/1000; _pLast=now; if(!(dt>0)||dt>0.1) dt=0.016;
   const t=now/1000;
   if(partner._ft>0) partner._ft-=dt;
+  try{ partnerGojoUpdate(dt,px,py); drawGojoTechniques(partnerGojo,true); }catch(_){}
   const every=(k,sec,fn)=>{ if(!L[k]) return; if(_pcd[k]===undefined) _pcd[k]=0; _pcd[k]-=dt; if(_pcd[k]<=0){ _pcd[k]=sec; fn(L[k], L[k]>=6?1.6:1); } };
   const AT=(arr,l)=>arr[Math.min(l,arr.length)-1];
   const aim=(e)=>Math.atan2(e.y-py,e.x-px);
@@ -5501,28 +5640,16 @@ function drawBg(cx,cy,vw,vh){
 function drawZombie(e){
   const s=e.s,b=Math.sin(T*8+e.ph)*1.2;
   ctx.save();ctx.translate(e.x,e.y+b);ctx.scale(s,s);
-  // Khói tím xoáy quanh quái/boss đang bị Tà Nhãn điều khiển
+  // Khói tím quanh quái/boss bị Tà Nhãn điều khiển (bản nhẹ: không shadowBlur/save/restore, chỉ vẽ chi tiết cho ~18 quái mỗi khung)
   if((e.mindControlT||0)>0){
+    if(window._mcT!==T){window._mcT=T;window._mcFull=0;}
     const pulse=0.82+Math.sin(T*7+(e.ph||0))*0.12;
-    ctx.save();
-    ctx.globalCompositeOperation='lighter';
-    for(let j=0;j<3;j++){
-      const a=T*2.4+j*Math.PI*2/3+(e.ph||0);
-      const rx=(e.r+7+j*3)*pulse, ry=(e.r*.42+4+j*1.5)*pulse;
-      ctx.save();ctx.rotate(a);
-      ctx.strokeStyle=j===1?'rgba(216,120,255,.82)':'rgba(151,54,230,.68)';
-      ctx.lineWidth=2.2-j*.35;ctx.shadowColor='#b026ff';ctx.shadowBlur=12;
-      ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,Math.PI*1.65);ctx.stroke();
-      ctx.restore();
+    ctx.strokeStyle='rgba(190,90,255,.75)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.ellipse(0,0,(e.r+8)*pulse,(e.r*.42+4)*pulse,T*2.4+(e.ph||0),0,Math.PI*1.65);ctx.stroke();
+    if(window._mcFull<18){
+      window._mcFull++;ctx.fillStyle='rgba(215,130,255,.65)';
+      for(let j=0;j<3;j++){const a=T*2.8+j*Math.PI*2/3+(e.ph||0),rr=e.r+8;ctx.beginPath();ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr*.58-3,2.4,0,Math.PI*2);ctx.fill();}
     }
-    for(let j=0;j<6;j++){
-      const a=T*2.8+j*Math.PI/3+(e.ph||0), rr=e.r+8+Math.sin(T*5+j)*3;
-      const sx=Math.cos(a)*rr, sy=Math.sin(a)*rr*.58-3+Math.sin(T*4+j)*3;
-      ctx.fillStyle=`rgba(202,112,255,${.45+.3*Math.sin(T*6+j)})`;
-      ctx.shadowColor='#bd48ff';ctx.shadowBlur=10;
-      ctx.beginPath();ctx.arc(sx,sy,2.2+Math.sin(T*8+j)*.7,0,Math.PI*2);ctx.fill();
-    }
-    ctx.restore();
   }
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(0,9,8,3,0,0,7);ctx.fill();
   if(e.slowT>0){
