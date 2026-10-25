@@ -5689,7 +5689,7 @@ function drawZombie(e){
     ctx.restore();
   }
   const fl=e.flash>0;
-  if(e.t==='b' && !window.__boss3DReady){
+  if(e.t==='b'){
     // === BOSS REDESIGN - ĐẸP HƠN (fallback nếu WebGL chưa sẵn sàng) ===
     if(e.bt==='r'){ // BOSS PHÁP SƯ - Evil Wizard
       // áo choàng tím đậm
@@ -7042,7 +7042,7 @@ document.addEventListener('visibilitychange',function(){
 (function(){
   const CDN='https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
   const canvas=document.createElement('canvas'); canvas.id='boss3d-layer';
-  Object.assign(canvas.style,{position:'fixed',left:'0',top:'0',width:'100vw',height:'100vh',pointerEvents:'none',zIndex:'2'});
+  Object.assign(canvas.style,{display:'block',position:'fixed',left:'0',top:'0',width:'100vw',height:'100vh',pointerEvents:'none',zIndex:'4',background:'transparent'});
   document.body.appendChild(canvas);
   let renderer=null,scene=null,camera=null,root=null,lastW=0,lastH=0,ready=false;
   const models=new Map();
@@ -7096,7 +7096,7 @@ document.addEventListener('visibilitychange',function(){
   function init(){
     if(!window.THREE||ready)return;
     try{
-      renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:innerWidth>700,powerPreference:'low-power'});
+      renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:innerWidth>700,powerPreference:'low-power',preserveDrawingBuffer:false});
       renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.setClearColor(0x000000,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
       scene=new THREE.Scene();camera=new THREE.OrthographicCamera(-innerWidth/2,innerWidth/2,innerHeight/2,-innerHeight/2,0.1,1000);camera.position.set(0,0,300);camera.lookAt(0,0,0);root=new THREE.Group();scene.add(root);
       scene.add(new THREE.AmbientLight(0xffffff,2.1));const key=new THREE.DirectionalLight(0xffe5ca,3);key.position.set(-100,-120,180);scene.add(key);const rim=new THREE.PointLight(0x6a7dff,90,600);rim.position.set(innerWidth*.75,innerHeight*.2,80);scene.add(rim);
@@ -7120,8 +7120,8 @@ document.addEventListener('visibilitychange',function(){
       for(const part of (g.userData.parts||[])){if(part!==g&&part.geometry&&part.geometry.type==='TorusGeometry')part.rotation.z+=.009;}
     }
     for(const [key,rec] of models){if(!live.has(key)){root.remove(rec.g);rec.g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}});models.delete(key);}}
-    renderer.render(scene,camera);window.__boss3DLastError=null;
-  }catch(err){window.__boss3DLastError=String(err&&err.stack||err);}}
+    renderer.render(scene,camera);window.__boss3DLastError=null;window.__boss3DRendered=true;
+  }catch(err){window.__boss3DLastError=String(err&&err.stack||err);window.__boss3DRendered=false;window.__boss3DReady=false;}}
   function load(){if(window.THREE){init();frame();return;}const sc=document.createElement('script');sc.src=CDN;sc.onload=()=>{init();frame();};sc.onerror=()=>{window.__boss3DReady=false;canvas.remove();};document.head.appendChild(sc);}
   window.addEventListener('resize',resize,{passive:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
