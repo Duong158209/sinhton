@@ -958,6 +958,7 @@ function pushFx(o){
 // Khai báo global để tránh lỗi strict mode Can't find variable
 let enemies=[], gems=[], coinsArr=[], projs=[], fx=[], texts=[], bolts=[], rings=[], clouds=[], arcs=[], warns=[], eprojs=[], blackholes=[], chests=[], iceRings=[], fireTornados=[], magnets=[], drBs=[], poisonPuddles=[]; window.poisonPuddles=poisonPuddles; window._acidShotCount=0; window._acidUltCd=0;
 let bossIdx=0, lastBossHp=5000, lastBossDmg=250;
+const EARLY_NEW_BOSS_WAVES=3; // số ĐỢT boss đầu tiên chỉ ra Huyết Vương / Long Cốt / Hư Không Chúa Tể (đổi số này nếu muốn nhiều/ít đợt hơn)
 let T=0, kills=0, coins=0, spawnAcc=0, burstT=30, shake=0, bossT=90;
 let P={}; let lv={}, ps={}, cd={};
 let droneSt={}, golemSt={};
@@ -1076,7 +1077,7 @@ function reset(){
   const _cb = (typeof getCharBonus==='function') ? getCharBonus() : {hpMul:1};
   const baseHp = Math.round(400 * (_cb.hpMul||1));
   P={x:0,y:0,hp:baseHp,maxhp:baseHp,lvl:1,xp:0,face:1,hurt:0,anim:0,moving:false};
-  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;try{_enReset();}catch(_){}lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];coopBossWaveIndex=0; _coopBossDamageQueue={}; _coopBossDamageApplied={}; _coopBossChestBusy={};
+  enemies=[];gems=[];coinsArr=[];projs=[];fx=[];texts=[];bolts=[];rings=[];clouds=[];arcs=[];warns=[];eprojs=[];bossIdx=0;window._bossWaveNo=0;window._bossWaveForceNew=false;try{_enReset();}catch(_){}lastBossHp=5000;lastBossDmg=250;blackholes=[];chests=[];iceRings=[];fireTornados=[];coopBossWaveIndex=0; _coopBossDamageQueue={}; _coopBossDamageApplied={}; _coopBossChestBusy={};
   try{localStorage.removeItem('lastRunCoins');}catch(_){}
   coopOutcome='';
   T=0;kills=0;coins=0;spawnAcc=0;burstT=30;shake=0;bossT=90;kr={t:0,rad:24,out:true,off:0};auraT=0;firstPick=true;bonusPicks=0;pendingSkillPicks=0;magnets=[];magnetT=25;monsterScale=1;monsterHpScale=1;monsterDmgScale=1;lastScaleT=120;frenzyNext=120;frenzyActive=false;frenzyT=0;frenzyDuration=20;frenzyCount=0;tuocdoatProcT=5;
@@ -1915,9 +1916,11 @@ function spawnEnemy(forceType,px,py){
     if(e.bt==='a'){e.s1=0.9;e.s2=5;e.s3=9;e.s4=14;e.s5=0;e.archerSummoned=0;}}
 
   if(type!=='b'&&typeof coopActive!=='undefined'&&coopActive&&isRoomHost&&e.id===undefined) e.id=++_enSeq;
+  if(type==='b'){ try{ if(window.upgradeBossIfNeeded) window.upgradeBossIfNeeded(e); }catch(err){ console.warn('upgradeBoss',err); } }
   enemies.push(e);
 }
 function bossAI(e,dt){
+  if(e.bt==='huyet_vuong'||e.bt==='long_cot'||e.bt==='hu_khong'){ try{ window.updateNew3BossAI(e,dt); }catch(err){ console.warn('boss3D AI',err); } return; }
   const sm=bossSkillMul();
   // Phán Quyết: boss đánh dấu vị trí người chơi, nổ gây % MÁU TỐI ĐA (tăng dần theo thời gian)
   e.pctCd=(e.pctCd===undefined?10:e.pctCd)-dt;
@@ -2116,8 +2119,8 @@ function hitEnemy(e,dmg,kx,ky,crit,fromTuoc,rem){
     }
     e.dead=true;kills++;
     if(e.t==='b') sfx('boss_death'); else if(e.isBomber) sfx('bomber_explode'); else sfx('enemy_death');
-    gems.push({x:e.x,y:e.y,v:(e.t==='b'?50:e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
-    if(e.t==='b'){
+    gems.push({x:e.x,y:e.y,v:(e.t==='b'&&!e.isVoidClone?50:e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
+    if(e.t==='b'&&!e.isVoidClone){
       sfx('boss_death');
       for(let i=0;i<18;i++)coinsArr.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),m:false});
       chests.push({x:e.x,y:e.y,m:false,t:0,id:e.id||('chest_'+Date.now()),bossId:e.id||''});
@@ -2694,7 +2697,7 @@ function updateProjs(dt){
           p.hit.add(e);
           if(!e.dead){
             e.hp=0; e.dead=true; kills++;
-            gems.push({x:e.x,y:e.y,v:(e.t==='b'?50:e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
+            gems.push({x:e.x,y:e.y,v:(e.t==='b'&&!e.isVoidClone?50:e.t==='t'?4:1)*(T<90?3:T<300?1.5:1),m:false});
             if(e.t==='b'){
               for(let i=0;i<18;i++)coinsArr.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),m:false});
               chests.push({x:e.x,y:e.y,m:false,t:0,id:e.id||('chest_'+Date.now()),bossId:e.id||''});
@@ -3075,7 +3078,10 @@ function update(dt){
     if(isCoopBossWave){ coopBossWaveIndex++; bossT=T+90; }
     else { bossT=bossT+Math.max(35,70-T/20); }
     const bossN = isCoopBossWave ? 4 : 1;
+    window._bossWaveNo=(window._bossWaveNo||0)+1;
+    window._bossWaveForceNew=(window._bossWaveNo<=EARLY_NEW_BOSS_WAVES); // đợt đầu: Solo 1 con, Co-op 4 con, mỗi con random trong 3 boss mới
     for(let bi=0;bi<bossN;bi++) spawnEnemy('b');
+    window._bossWaveForceNew=false;
     if(!(coopActive) && T>=210 && Math.random()<0.12){
       spawnEnemy('b');
       pushText({x:P.x,y:P.y-50,v:'⚠⚠ DOUBLE BOSS!!',t:2.5,c:true,big:true});
@@ -3465,7 +3471,7 @@ function update(dt){
     w.t-=dt;
     if(w.t<=0){
       w.dead=true;shake=7;
-      if(Math.hypot(P.x-w.x,P.y-w.y)<w.r){P.hp-=applyArmor(Math.min(w.dmg||35,P.maxhp*(w.cap||.65))*(w.sm||1));P.hurt=.35; shake=Math.max(shake,8); if(typeof sfx==='function') sfx('boss_meteor_hit');}
+      if(Math.hypot(P.x-w.x,P.y-w.y)<w.r){P.hp-=applyArmor(Math.min(w.dmg||35,P.maxhp*(w.cap||.65))*(w.sm||1));P.hurt=.35; shake=Math.max(shake,8); if(typeof sfx==='function') sfx('boss_meteor_hit'); if(w.owner&&w.owner.bt==='huyet_vuong'&&typeof triggerHuyetVuongLifesteal==='function') triggerHuyetVuongLifesteal(w.owner);}
       fx.push({x:w.x,y:w.y,ring:w.r,t:.35,T:.35,c:'#ff5040'});
     }
   }
@@ -5666,7 +5672,9 @@ function drawZombie(e){
   const fl=e.flash>0;
   if(e.t==='b'){
     // === BOSS REDESIGN - ĐẸP HƠN ===
-    if(e.bt==='r'){ // BOSS PHÁP SƯ - Evil Wizard
+    if((e.bt==='huyet_vuong'||e.bt==='long_cot'||e.bt==='hu_khong') && window.drawBoss3DModel && window.drawBoss3DModel(ctx,e,fl)){
+      // đã vẽ boss mới
+    }else if(e.bt==='r'){ // BOSS PHÁP SƯ - Evil Wizard
       // áo choàng tím đậm
       ctx.fillStyle=fl?'#fff':'#1a0a3a';
       ctx.beginPath(); ctx.moveTo(-14,14); ctx.lineTo(14,14); ctx.lineTo(10,-8); ctx.lineTo(-10,-8); ctx.closePath(); ctx.fill();
@@ -7075,8 +7083,12 @@ document.addEventListener('visibilitychange',function(){
     const newBosses = ['huyet_vuong', 'long_cot', 'hu_khong'];
     let newBt;
     const roll = Math.random();
+    if (window._bossWaveForceNew) {
+      // Những đợt boss đầu: CHỈ ra 3 boss mới, mỗi con random 1 trong 3 (Solo 1 con / Co-op 4 con)
+      newBt = newBosses[Math.floor(Math.random() * newBosses.length)];
+    } else
     // 85% ra 3 boss mới (chia đều mỗi con ~28.3%), 15% ra boss cũ
-    if (roll < 0.283) {
+ if (roll < 0.283) {
       newBt = 'huyet_vuong';
     } else if (roll < 0.566) {
       newBt = 'long_cot';
