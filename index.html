@@ -7104,11 +7104,11 @@ document.addEventListener('visibilitychange',function(){
     }catch(e){ready=false;window.__boss3DReady=false;}
   }
   function resize(){if(!renderer||!camera)return;const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.left=0;camera.right=w;camera.top=0;camera.bottom=h;camera.updateProjectionMatrix();lastW=w;lastH=h;}
-  function ensure(e){const key=String(e.id||('boss-'+(e.bt||'m')+'-'+models.size));let rec=models.get(key);const type=['r','a','tanker','m','bloodking','boneDragon','voidlord'].includes(e.bt)?e.bt:'m';if(!rec){const g=build(type);root.add(g);rec={g,type,key};models.set(key,rec);}return rec;}
+  function ensure(e){const key=String(e.id||('boss-'+(e.bt||'m')+'-'+models.size));let rec=models.get(key);const type=['r','a','tanker','m','bloodking','boneDragon','voidlord'].includes(e.bt)?e.bt:'m';if(rec&&rec.type!==type){root.remove(rec.g);rec.g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}});models.delete(key);rec=null;}if(!rec){const g=build(type);root.add(g);rec={g,type,key};models.set(key,rec);}return rec;}
   function frame(){requestAnimationFrame(frame);if(!ready||!renderer||!scene)return;try{
     if(innerWidth!==lastW||innerHeight!==lastH)resize();
-    const live=new Set();const list=(data.enemies||[]);const now=performance.now()*.001;
     const data=window.__boss3DData;if(!data||!data.player)return;
+    const live=new Set();const list=data.enemies||[];const now=performance.now()*.001;
     const player=data.player;const z=data.zoom||1;const w=innerWidth,h=innerHeight;
     for(const e of list){if(!e||e.dead||e.t!=='b')continue;const rec=ensure(e);live.add(rec.key);const g=rec.g;
       g.position.set(w/2+(e.x-player.x)*z+(data.shakeX||0)*z,h/2+(e.y-player.y)*z+(data.shakeY||0)*z,Math.max(-30,Math.min(30,(e.y-player.y)*.015)));
