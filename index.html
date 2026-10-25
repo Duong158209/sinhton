@@ -7070,19 +7070,20 @@ document.addEventListener('visibilitychange',function(){
     e._upgraded3D = true;
     if (e.isVoidClone) return;
 
-    // Tỉ lệ xuất hiện 3 boss mới cao hơn boss cũ 25%
-    // Tổng tỉ lệ: 3 boss mới (mỗi con chiếm ~29.17%) + các boss cũ trong game (~12.5%) -> tổng 100%
+    // Ở những lượt boss đầu tiên (hoặc mọi đợt), luôn ra con boss mới (Huyết Vương, Long Cốt, Hư Không)
+    // Tỉ lệ 3 boss mới chiếm đa số tuyệt đối, áp dụng cho cả Solo và Co-op
+    const newBosses = ['huyet_vuong', 'long_cot', 'hu_khong'];
     let newBt;
     const roll = Math.random();
-    if (roll < 0.2917) {
+    // 85% ra 3 boss mới (chia đều mỗi con ~28.3%), 15% ra boss cũ
+    if (roll < 0.283) {
       newBt = 'huyet_vuong';
-    } else if (roll < 0.5834) {
+    } else if (roll < 0.566) {
       newBt = 'long_cot';
-    } else if (roll < 0.875) {
+    } else if (roll < 0.85) {
       newBt = 'hu_khong';
     } else {
-      // Giữ boss cũ sẵn có trong file
-      e._upgraded3D = false; // Bỏ qua nâng cấp 3D, để AI gốc của boss cũ chạy
+      e._upgraded3D = false;
       return;
     }
     e.bt = newBt;
