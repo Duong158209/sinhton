@@ -7070,8 +7070,21 @@ document.addEventListener('visibilitychange',function(){
     e._upgraded3D = true;
     if (e.isVoidClone) return;
 
-    const pickIdx = (typeof bossIdx !== 'undefined' ? Math.max(0, bossIdx - 1) : Math.floor(Math.random() * 3)) % 3;
-    const newBt = NEW_BOSS_TYPES[pickIdx];
+    // Tỉ lệ xuất hiện 3 boss mới cao hơn boss cũ 25%
+    // Tổng tỉ lệ: 3 boss mới (mỗi con chiếm ~29.17%) + các boss cũ trong game (~12.5%) -> tổng 100%
+    let newBt;
+    const roll = Math.random();
+    if (roll < 0.2917) {
+      newBt = 'huyet_vuong';
+    } else if (roll < 0.5834) {
+      newBt = 'long_cot';
+    } else if (roll < 0.875) {
+      newBt = 'hu_khong';
+    } else {
+      // Giữ boss cũ sẵn có trong file
+      e._upgraded3D = false; // Bỏ qua nâng cấp 3D, để AI gốc của boss cũ chạy
+      return;
+    }
     e.bt = newBt;
 
     const late = window.getBossLateResist(e);
